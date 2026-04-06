@@ -61,40 +61,63 @@ HF_TOKEN=hf_xxx make run-reasoning
 | `GPU_LAYERS` | `99` | Layers on GPU (99 = all) |
 | `HF_TOKEN` | — | HuggingFace token for gated models |
 
-## GPU Compatibility
+## Best Config by GPU
 
-All numbers for Qwen3.5-27B Q4_K_M (16.7 GB weights).
+Recommended configurations per VRAM tier, based on measured perplexity
+(see [docs/QUANTIZATION-GUIDE.md](docs/QUANTIZATION-GUIDE.md) for full data).
 
-### Qwen3.5-27B Q4_K_M (16.7 GB) — Max Context by GPU
+### 16 GB (RTX 4060 Ti, RTX 5060, RTX 4080)
 
-| GPU | VRAM | iso4 (default) | iso3 (max compress) |
-|-----|-----:|---------------:|--------------------:|
-| RTX 4060 Ti / 4080 | 16 GB | **OOM** | **OOM** |
-| RTX 3090 / 4090 | 24 GB | **~104K** | **~137K** |
-| RTX 5090 | 32 GB | **~228K** | **~298K** |
-| A100 40GB | 40 GB | **~351K** | **~459K** |
-| A100 / H100 80GB | 80 GB | **~968K** | **~1.2M** |
+Q4_K_M doesn't fit. Use Unsloth imatrix quants:
 
-### 16 GB GPUs — Use Smaller Quantizations
+| Use Case | Quant | Size | PPL | Context (iso4) | Context (iso3) |
+|----------|-------|-----:|----:|---------------:|---------------:|
+| **Best quality** | IQ4_XS | 13.9 GB | 6.29 | ~24K | ~31K |
+| **Recommended** | **UD-Q3_K_XL** | **13.4 GB** | **6.38** | **~32K** | **~42K** |
+| Max context | UD-IQ3_XXS | 10.7 GB | 6.62 | ~74K | ~96K |
 
-Q4_K_M (16.7 GB) doesn't fit on 16 GB cards. Use a smaller weight quantization:
+> UD-Q3_K_XL is the sweet spot — only +0.08 PPL over 4-bit, 33% more context.
 
-| Weight Quant | Weights | iso4 max ctx | iso3 max ctx |
-|-------------|--------:|-------------:|-------------:|
-| **IQ3_XXS** | 11.5 GB | **~61K** | **~80K** |
-| **Q3_K_M** | 13.5 GB | **~30K** | **~40K** |
-| IQ2_M | 10.2 GB | ~81K | ~106K |
+### 24 GB (RTX 3090, RTX 4090)
 
-```bash
-# Example: IQ3_XXS on a 16 GB card with iso3 for max context
-CTX_SIZE=65536 KV_CACHE_TYPE=iso3 make run-qwen
-```
+| Use Case | Quant | Size | PPL | Context (iso4) | Context (iso3) |
+|----------|-------|-----:|----:|---------------:|---------------:|
+| **Recommended** | **Q4_K_M** | **15.6 GB** | **~6.27** | **~131K** | **~171K** |
+| More context | IQ4_XS | 13.9 GB | 6.29 | ~155K | ~203K |
+| Max context | UD-Q3_K_XL | 13.4 GB | 6.38 | ~163K | ~213K |
 
-> **RTX 4090 users**: iso4 fits up to ~104K context. For 128K+, switch to iso3:
-> `KV_CACHE_TYPE=iso3 make run-qwen`
->
-> **16 GB GPU users**: Use a Q3_K_M or IQ3_XXS weight quantization (update the
-> model filename in `docker/entrypoint.sh` or pass `EXTRA_ARGS`).
+> Q4_K_M at iso4 gives full quality with 128K context — the default config.
+> For 128K+ switch to iso3: `KV_CACHE_TYPE=iso3 make run-qwen`
+
+### 32 GB (RTX 5090)
+
+| Use Case | Quant | Size | PPL | Context (iso4) | Context (iso3) |
+|----------|-------|-----:|----:|---------------:|---------------:|
+| **Recommended** | **Q4_K_M** | **15.6 GB** | **~6.27** | **~252K** | **~330K** |
+| Best quality | UD-Q4_K_XL | 16.4 GB | ~6.25 | ~240K | ~314K |
+| Max context | IQ4_XS | 13.9 GB | 6.29 | ~278K | ~364K |
+
+> RTX 5090 has headroom for Q4 quality + 250K context. No compromises needed.
+
+### 40 GB (A100 40GB, A6000)
+
+| Use Case | Quant | Size | PPL | Context (iso4) | Context (iso3) |
+|----------|-------|-----:|----:|---------------:|---------------:|
+| **Recommended** | **Q4_K_M** | **15.6 GB** | **~6.27** | **~375K** | **~491K** |
+| Best quality | Q5_K_M | 18.3 GB | ~6.22 | ~334K | ~437K |
+| Overkill | Q6_K | 20.9 GB | ~6.20 | ~293K | ~384K |
+
+> At 40 GB there's no reason to go below Q4. Use Q5_K_M if you want the
+> absolute best quality; the extra 2.7 GB is negligible.
+
+### Quick Reference
+
+| GPU Tier | Quant | PPL | Max Context (iso4) |
+|----------|-------|----:|-------------------:|
+| **16 GB** | UD-Q3_K_XL | 6.38 | **~32K** |
+| **24 GB** | Q4_K_M | ~6.27 | **~131K** |
+| **32 GB** | Q4_K_M | ~6.27 | **~252K** |
+| **40 GB** | Q4_K_M | ~6.27 | **~375K** |
 
 ## Requirements
 
@@ -102,7 +125,7 @@ CTX_SIZE=65536 KV_CACHE_TYPE=iso3 make run-qwen
 - Docker Compose v2.20+
 - NVIDIA Container Toolkit (`nvidia-ctk`)
 - NVIDIA driver 570+ (CUDA 13.1 support)
-- GPU with 24+ GB VRAM (RTX 4090, RTX 5090, A100, H100)
+- GPU with 16+ GB VRAM (RTX 5060/4060 Ti with Q3 quants, RTX 4090+, A100, H100)
 
 ## Performance
 
