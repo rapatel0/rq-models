@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "turboquant"
+version = "0.1.0"
+description = "TurboQuant KV cache quantization for HuggingFace transformers"
+requires-python = ">=3.11"
+dependencies = [
+    "torch>=2.2.0",
+    "transformers>=4.40.0,<5.0",
+    "scipy>=1.10.0",
+    "numpy>=1.24.0",
+]
+
+[project.optional-dependencies]
+eval = ["datasets>=2.14.0"]
+dev  = ["pytest>=7.0.0", "pytest-cov>=4.0.0"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["turboquant*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"

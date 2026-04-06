@@ -1,0 +1,34 @@
+# Models (downloaded at runtime, not committed)
+models/
+*.gguf
+
+# Build artifacts
+llama-cpp-rq/
+build/
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.venv/
+
+# Precomputed codebooks (regenerated via scripts/generate_codebooks.py)
+codebooks/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Environment secrets
+.env
+*.env
+
+# Papers (reference only, not distributed)
+*.pdf
+
+# RotorQuant upstream clone (reference only)
+rotorquant/

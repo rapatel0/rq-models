@@ -1,0 +1,80 @@
+# RotorQuant LLM Server — Docker Compose with model profiles
+#
+# Usage:
+#   docker compose --profile qwen up          # Qwen3.5-27B (base)
+#   docker compose --profile reasoning up     # Qwen3.5-27B Claude Reasoning Distilled
+#   docker compose --profile gemma up         # Gemma 4 26B MoE
+#
+# Configuration via env vars:
+#   KV_CACHE_TYPE=f16 docker compose --profile qwen up     # disable RotorQuant
+#   CTX_SIZE=32768 docker compose --profile qwen up        # reduce context
+#   PORT=9090 docker compose --profile qwen up -p 9090:9090
+
+x-llm-base: &llm-base
+  image: rotorquant:latest
+  build:
+    context: .
+    dockerfile: docker/Dockerfile
+  volumes:
+    - llm-models:/models
+  ports:
+    - "${PORT:-8080}:${PORT:-8080}"
+  environment:
+    KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso3}
+    CTX_SIZE: ${CTX_SIZE:-131072}
+    PORT: ${PORT:-8080}
+    GPU_LAYERS: ${GPU_LAYERS:-99}
+    HF_TOKEN: ${HF_TOKEN:-}
+    EXTRA_ARGS: ${EXTRA_ARGS:-}
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: 1
+            capabilities: [gpu]
+  restart: unless-stopped
+
+services:
+  qwen:
+    <<: *llm-base
+    profiles: [qwen]
+    container_name: rotorquant-qwen
+    environment:
+      MODEL_NAME: qwen3.5-27b
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso3}
+      CTX_SIZE: ${CTX_SIZE:-131072}
+      PORT: ${PORT:-8080}
+      GPU_LAYERS: ${GPU_LAYERS:-99}
+      HF_TOKEN: ${HF_TOKEN:-}
+      EXTRA_ARGS: ${EXTRA_ARGS:-}
+
+  reasoning:
+    <<: *llm-base
+    profiles: [reasoning]
+    container_name: rotorquant-reasoning
+    environment:
+      MODEL_NAME: qwen3.5-27b-reasoning
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso3}
+      CTX_SIZE: ${CTX_SIZE:-131072}
+      PORT: ${PORT:-8080}
+      GPU_LAYERS: ${GPU_LAYERS:-99}
+      HF_TOKEN: ${HF_TOKEN:-}
+      EXTRA_ARGS: ${EXTRA_ARGS:-}
+
+  gemma:
+    <<: *llm-base
+    profiles: [gemma]
+    container_name: rotorquant-gemma
+    environment:
+      MODEL_NAME: gemma4-26b
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso3}
+      CTX_SIZE: ${CTX_SIZE:-131072}
+      PORT: ${PORT:-8080}
+      GPU_LAYERS: ${GPU_LAYERS:-99}
+      HF_TOKEN: ${HF_TOKEN:-}
+      EXTRA_ARGS: ${EXTRA_ARGS:-}
+
+volumes:
+  llm-models:
+    name: llm-models

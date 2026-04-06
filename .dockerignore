@@ -1,0 +1,39 @@
+# Models (stored on volume, not in build context)
+models/
+*.gguf
+
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.venv/
+
+# Build artifacts (exclude source, keep binaries)
+llama-cpp-rq/src/
+llama-cpp-rq/.git/
+llama-cpp-rq/build/CMakeFiles/
+llama-cpp-rq/build/**/*.o
+llama-cpp-rq/build/**/*.cpp
+rotorquant/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+.dockerignore
+
+# Docs (not needed in image)
+docs/
+*.md
+!scripts/benchmark_rotorquant.py
+
+# Environment
+.env
+*.env
