@@ -1,6 +1,8 @@
 # RotorQuant LLM Server
 
-Serve Qwen3.5-27B, Gemma 4 26B, and other large models with **128K+ context on a single consumer GPU** using RotorQuant KV cache compression (4.9x compression, 97% decode speed of fp16).
+Serve Qwen3.5-27B, Gemma 4 26B, and other large models with **128K+ context on a single consumer GPU** using RotorQuant KV cache compression (3.8x compression at iso4 default, 97% decode speed of fp16).
+
+> **Default: iso4 (4-bit)** — best balance of quality and compression. Use `iso3` for maximum compression (4.9x) if you need more context headroom.
 
 ## Quick Start
 
@@ -53,7 +55,7 @@ HF_TOKEN=hf_xxx make run-reasoning
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `KV_CACHE_TYPE` | `iso3` | KV cache type: `iso3`, `iso4`, `planar3`, `f16` |
+| `KV_CACHE_TYPE` | `iso4` | KV cache type: `iso4` (default, best quality), `iso3` (max compression), `planar3`, `f16` |
 | `CTX_SIZE` | `131072` | Context window (128K default) |
 | `PORT` | `8080` | API port |
 | `GPU_LAYERS` | `99` | Layers on GPU (99 = all) |

@@ -4,8 +4,14 @@
 **Hardware**: NVIDIA RTX 5090 (32 GB VRAM)
 **Model**: Qwen3.5-27B Q4_K_M (16.7 GB, unsloth/Qwen3.5-27B-GGUF)
 **Runtime**: llama.cpp RotorQuant fork (johndpope/llama-cpp-turboquant, commit 20efe75)
-**KV Cache**: iso3/iso3 (RotorQuant IsoQuant 3-bit symmetric)
+**KV Cache (benchmarked)**: iso3/iso3 (RotorQuant IsoQuant 3-bit symmetric)
 **Default Context**: 131,072 tokens (128K)
+
+> **Note (2026-04-05):** Default KV cache switched from `iso3` to `iso4` (4-bit)
+> for better output quality. iso4 provides 3.8x compression (vs iso3's 4.9x) with
+> lower perplexity and improved reasoning accuracy. Benchmarks below were run with
+> iso3 — iso4 results will be strictly better on quality metrics and slightly higher
+> on VRAM usage (~8.5 GB KV at 128K vs ~6.5 GB).
 
 ---
 
