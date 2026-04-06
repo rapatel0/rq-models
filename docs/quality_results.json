@@ -1,0 +1,60 @@
+{
+  "iso3/iso3": {
+    "model": "/home/ravi/repos/turbo/models/Qwen3.5-27B-Q4_K_M.gguf",
+    "timestamp": "2026-04-02_164504",
+    "cache_type_k": "iso3",
+    "cache_type_v": "iso3",
+    "compression_ratio": {
+      "bits_per_elem_k": 0.88,
+      "bits_per_elem_v": 0.88,
+      "avg_bits_per_elem": 0.88,
+      "compression_ratio": 18.29,
+      "bytes_per_token_f16": 262144,
+      "bytes_per_token_actual": 14336.0,
+      "mib_per_1k_tokens_f16": 256.0,
+      "mib_per_1k_tokens_actual": 14.0
+    },
+    "vram": {
+      "skipped": true
+    },
+    "throughput": {
+      "skipped": true
+    },
+    "perplexity": {
+      "error": "parse_failed",
+      "raw_output_tail": "\nggml_cuda_init: found 1 CUDA devices (Total VRAM: 32103 MiB):\n  Device 0: NVIDIA GeForce RTX 5090, compute capability 12.0, VMM: yes, VRAM: 32103 MiB\nerror while handling argument \"--flash-attn\": expected value for argument\n\nusage:\n-fa,   --flash-attn [on|off|auto]       set Flash Attention use ('on', 'off', or 'auto', default: 'auto')\n                                        (env: LLAMA_ARG_FLASH_ATTN)\n\n\nto show complete usage, run with -h\n"
+    },
+    "niah": {
+      "error": "server_start_failed"
+    }
+  },
+  "f16/f16": {
+    "model": "/home/ravi/repos/turbo/models/Qwen3.5-27B-Q4_K_M.gguf",
+    "timestamp": "2026-04-02_164504",
+    "cache_type_k": "f16",
+    "cache_type_v": "f16",
+    "compression_ratio": {
+      "bits_per_elem_k": 16.0,
+      "bits_per_elem_v": 16.0,
+      "avg_bits_per_elem": 16.0,
+      "compression_ratio": 1.0,
+      "bytes_per_token_f16": 262144,
+      "bytes_per_token_actual": 262144.0,
+      "mib_per_1k_tokens_f16": 256.0,
+      "mib_per_1k_tokens_actual": 256.0
+    },
+    "vram": {
+      "skipped": true
+    },
+    "throughput": {
+      "skipped": true
+    },
+    "perplexity": {
+      "error": "parse_failed",
+      "raw_output_tail": "\nggml_cuda_init: found 1 CUDA devices (Total VRAM: 32103 MiB):\n  Device 0: NVIDIA GeForce RTX 5090, compute capability 12.0, VMM: yes, VRAM: 32103 MiB\nerror while handling argument \"--flash-attn\": expected value for argument\n\nusage:\n-fa,   --flash-attn [on|off|auto]       set Flash Attention use ('on', 'off', or 'auto', default: 'auto')\n                                        (env: LLAMA_ARG_FLASH_ATTN)\n\n\nto show complete usage, run with -h\n"
+    },
+    "niah": {
+      "error": "server_start_failed"
+    }
+  }
+}

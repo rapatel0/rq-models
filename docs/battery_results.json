@@ -1,0 +1,147 @@
+{
+  "passed": 27,
+  "failed": 1,
+  "total": 28,
+  "tests": [
+    {
+      "name": "Decode throughput (short prompt)",
+      "passed": true,
+      "detail": "67.5 tok/s, 300 tokens in 4.4s"
+    },
+    {
+      "name": "Prefill handled (2018 tokens)",
+      "passed": true,
+      "detail": "2018 prompt tokens, 4.0s total"
+    },
+    {
+      "name": "Time to first token",
+      "passed": true,
+      "detail": "0.20s"
+    },
+    {
+      "name": "Math: 408",
+      "passed": true,
+      "detail": "got: Thinking Process:\n\n1.  **Analyze the Request:** The user is "
+    },
+    {
+      "name": "Math: 12",
+      "passed": true,
+      "detail": "got: 12"
+    },
+    {
+      "name": "Math: 8",
+      "passed": true,
+      "detail": "got: 8"
+    },
+    {
+      "name": "Math: 30",
+      "passed": true,
+      "detail": "got: 30"
+    },
+    {
+      "name": "Syllogism",
+      "passed": true,
+      "detail": "got: yes"
+    },
+    {
+      "name": "Spatial reasoning",
+      "passed": true,
+      "detail": "got: west"
+    },
+    {
+      "name": "Causal reasoning",
+      "passed": true,
+      "detail": "got: thinking process:\n\n1.  **analyze the request:**\n    *   scen"
+    },
+    {
+      "name": "Counterfactual",
+      "passed": true,
+      "detail": "got: east"
+    },
+    {
+      "name": "Code generation (factorial)",
+      "passed": true,
+      "detail": "contains def: True"
+    },
+    {
+      "name": "Code tracing",
+      "passed": true,
+      "detail": "got: Thinking Process:\n\n1.  **Analyze the Request:**\n    *   Inpu"
+    },
+    {
+      "name": "Knowledge: tokyo",
+      "passed": true,
+      "detail": "got: tokyo"
+    },
+    {
+      "name": "Knowledge: shakespeare",
+      "passed": true,
+      "detail": "got: william shakespeare"
+    },
+    {
+      "name": "Knowledge: h2o",
+      "passed": false,
+      "detail": "got: h\u2082o"
+    },
+    {
+      "name": "Knowledge: 1945",
+      "passed": true,
+      "detail": "got: 1945"
+    },
+    {
+      "name": "Numbered list format",
+      "passed": true,
+      "detail": "got: Thinking Process:\n\n1.  **Analyze the Request:**\n    *   Task: List exactly 3 fru"
+    },
+    {
+      "name": "Constraint (Z country)",
+      "passed": true,
+      "detail": "got: thinking process:\n\n1.  **analyze the request:** the user is "
+    },
+    {
+      "name": "JSON output",
+      "passed": true,
+      "detail": "got: Thinking Process:\n\n1.  **Analyze the Request:**\n    *   Output format: JSON obje"
+    },
+    {
+      "name": "NIAH 4K depth=0.25",
+      "passed": true,
+      "detail": "found in 5.6s"
+    },
+    {
+      "name": "NIAH 4K depth=0.5",
+      "passed": true,
+      "detail": "found in 5.7s"
+    },
+    {
+      "name": "NIAH 4K depth=0.75",
+      "passed": true,
+      "detail": "found in 5.7s"
+    },
+    {
+      "name": "NIAH 8K depth=0.25",
+      "passed": true,
+      "detail": "found in 6.0s"
+    },
+    {
+      "name": "NIAH 8K depth=0.5",
+      "passed": true,
+      "detail": "found in 6.3s"
+    },
+    {
+      "name": "NIAH 8K depth=0.75",
+      "passed": true,
+      "detail": "found in 6.0s"
+    },
+    {
+      "name": "Deterministic output (3 runs)",
+      "passed": true,
+      "detail": "answers: ['100', '100', '100']"
+    },
+    {
+      "name": "VRAM usage",
+      "passed": true,
+      "detail": "22757 MiB / 32607 MiB (70%)"
+    }
+  ]
+}
