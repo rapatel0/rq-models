@@ -65,28 +65,36 @@ HF_TOKEN=hf_xxx make run-reasoning
 
 All numbers for Qwen3.5-27B Q4_K_M (16.7 GB weights).
 
-### iso4 (default — best quality, 3.8x compression)
+### Qwen3.5-27B Q4_K_M (16.7 GB) — Max Context by GPU
 
-| GPU | VRAM | 32K ctx | 64K ctx | 128K ctx | Max ctx |
-|-----|-----:|:-------:|:-------:|:--------:|--------:|
-| RTX 3090 | 24 GB | 18.8 GB | 20.9 GB | OOM | ~112K |
-| RTX 4090 | 24 GB | 18.8 GB | 20.9 GB | OOM | ~112K |
-| RTX 5090 | 32 GB | 18.8 GB | 20.9 GB | 25.2 GB | ~236K |
-| A100 40GB | 40 GB | 18.8 GB | 20.9 GB | 25.2 GB | ~236K |
-| A100 80GB | 80 GB | 18.8 GB | 20.9 GB | 25.2 GB | ~236K+ |
-| H100 | 80 GB | 18.8 GB | 20.9 GB | 25.2 GB | ~236K+ |
+| GPU | VRAM | iso4 (default) | iso3 (max compress) |
+|-----|-----:|---------------:|--------------------:|
+| RTX 4060 Ti / 4080 | 16 GB | **OOM** | **OOM** |
+| RTX 3090 / 4090 | 24 GB | **~104K** | **~137K** |
+| RTX 5090 | 32 GB | **~228K** | **~298K** |
+| A100 40GB | 40 GB | **~351K** | **~459K** |
+| A100 / H100 80GB | 80 GB | **~968K** | **~1.2M** |
 
-### iso3 (max compression, 4.9x)
+### 16 GB GPUs — Use Smaller Quantizations
 
-| GPU | VRAM | 32K ctx | 64K ctx | 128K ctx | Max ctx |
-|-----|-----:|:-------:|:-------:|:--------:|--------:|
-| RTX 3090 | 24 GB | 18.3 GB | 19.9 GB | 23.2 GB | ~147K |
-| RTX 4090 | 24 GB | 18.3 GB | 19.9 GB | 23.2 GB | ~147K |
-| RTX 5090 | 32 GB | 18.3 GB | 19.9 GB | 23.2 GB | ~300K |
-| A100 40GB | 40 GB | 18.3 GB | 19.9 GB | 23.2 GB | ~300K+ |
+Q4_K_M (16.7 GB) doesn't fit on 16 GB cards. Use a smaller weight quantization:
 
-> **RTX 4090 users**: iso4 fits up to ~112K context. For 128K, switch to iso3:
+| Weight Quant | Weights | iso4 max ctx | iso3 max ctx |
+|-------------|--------:|-------------:|-------------:|
+| **IQ3_XXS** | 11.5 GB | **~61K** | **~80K** |
+| **Q3_K_M** | 13.5 GB | **~30K** | **~40K** |
+| IQ2_M | 10.2 GB | ~81K | ~106K |
+
+```bash
+# Example: IQ3_XXS on a 16 GB card with iso3 for max context
+CTX_SIZE=65536 KV_CACHE_TYPE=iso3 make run-qwen
+```
+
+> **RTX 4090 users**: iso4 fits up to ~104K context. For 128K+, switch to iso3:
 > `KV_CACHE_TYPE=iso3 make run-qwen`
+>
+> **16 GB GPU users**: Use a Q3_K_M or IQ3_XXS weight quantization (update the
+> model filename in `docker/entrypoint.sh` or pass `EXTRA_ARGS`).
 
 ## Requirements
 
