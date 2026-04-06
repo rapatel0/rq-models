@@ -17,9 +17,16 @@ set -euo pipefail
 # ── Model Registry ──────────────────────────────────────────────────────────
 # Format: "HF_REPO|FILENAME|DEFAULT_CTX|EXTRA_FLAGS"
 declare -A MODELS=(
+  # 24-32 GB GPUs (Q4 — best quality)
   [qwen3.5-27b]="unsloth/Qwen3.5-27B-GGUF|Qwen3.5-27B-Q4_K_M.gguf|131072|"
   [qwen3.5-27b-reasoning]="mradermacher/Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-i1-GGUF|Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-i1-Q4_K_M.gguf|131072|"
   [gemma4-26b]="unsloth/gemma-4-26B-A4B-it-GGUF|gemma-4-26B-A4B-it-UD-Q4_K_XL.gguf|131072|--samplers top_p,top_k,temperature --temp 1.0 --top-p 0.95 --top-k 64"
+
+  # 16 GB GPUs (imatrix quants — fit with usable context)
+  [qwen3.5-27b-q3]="unsloth/Qwen3.5-27B-GGUF|Qwen3.5-27B-UD-Q3_K_XL.gguf|32768|"
+  [qwen3.5-27b-q3-xxs]="unsloth/Qwen3.5-27B-GGUF|Qwen3.5-27B-UD-IQ3_XXS.gguf|65536|"
+  [qwen3.5-27b-iq4]="unsloth/Qwen3.5-27B-GGUF|Qwen3.5-27B-IQ4_XS.gguf|16384|"
+  [gemma4-26b-q3]="unsloth/gemma-4-26B-A4B-it-GGUF|gemma-4-26B-A4B-it-UD-Q3_K_M.gguf|49152|--samplers top_p,top_k,temperature --temp 1.0 --top-p 0.95 --top-k 64"
 )
 
 # ── Parse env vars ──────────────────────────────────────────────────────────

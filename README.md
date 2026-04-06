@@ -112,12 +112,17 @@ Q4_K_M doesn't fit. Use Unsloth imatrix quants:
 
 ### Quick Reference
 
-| GPU Tier | Quant | PPL | Max Context (iso4) |
-|----------|-------|----:|-------------------:|
-| **16 GB** | UD-Q3_K_XL | 6.38 | **~32K** |
-| **24 GB** | Q4_K_M | ~6.27 | **~131K** |
-| **32 GB** | Q4_K_M | ~6.27 | **~252K** |
-| **40 GB** | Q4_K_M | ~6.27 | **~375K** |
+| GPU | Quant | PPL | Context | Command |
+|-----|-------|----:|--------:|---------|
+| **16 GB** | UD-Q3_K_XL | 6.38 | ~32K | `docker compose --profile qwen-q3 up` |
+| **16 GB** | UD-IQ3_XXS | 6.62 | ~65K | `docker compose --profile qwen-q3-xxs up` |
+| **16 GB** | IQ4_XS | 6.29 | ~16K | `docker compose --profile qwen-iq4 up` |
+| **16 GB** | Gemma4 Q3 | — | ~49K | `docker compose --profile gemma-q3 up` |
+| **24 GB** | Q4_K_M | ~6.27 | ~131K | `docker compose --profile qwen up` |
+| **32 GB** | Q4_K_M | ~6.27 | ~252K | `docker compose --profile qwen up` |
+| **40 GB** | Q4_K_M | ~6.27 | ~375K | `docker compose --profile qwen up` |
+
+All profiles auto-download the correct model on first run.
 
 ## Requirements
 

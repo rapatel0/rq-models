@@ -75,6 +75,59 @@ services:
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 
+  # ── 16 GB GPU profiles (imatrix quants) ──────────────────────────
+  qwen-q3:
+    <<: *llm-base
+    profiles: [qwen-q3]
+    container_name: rotorquant-qwen-q3
+    environment:
+      MODEL_NAME: qwen3.5-27b-q3
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
+      CTX_SIZE: ${CTX_SIZE:-32768}
+      PORT: ${PORT:-8080}
+      GPU_LAYERS: ${GPU_LAYERS:-99}
+      HF_TOKEN: ${HF_TOKEN:-}
+      EXTRA_ARGS: ${EXTRA_ARGS:-}
+
+  qwen-q3-xxs:
+    <<: *llm-base
+    profiles: [qwen-q3-xxs]
+    container_name: rotorquant-qwen-q3-xxs
+    environment:
+      MODEL_NAME: qwen3.5-27b-q3-xxs
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
+      CTX_SIZE: ${CTX_SIZE:-65536}
+      PORT: ${PORT:-8080}
+      GPU_LAYERS: ${GPU_LAYERS:-99}
+      HF_TOKEN: ${HF_TOKEN:-}
+      EXTRA_ARGS: ${EXTRA_ARGS:-}
+
+  qwen-iq4:
+    <<: *llm-base
+    profiles: [qwen-iq4]
+    container_name: rotorquant-qwen-iq4
+    environment:
+      MODEL_NAME: qwen3.5-27b-iq4
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
+      CTX_SIZE: ${CTX_SIZE:-16384}
+      PORT: ${PORT:-8080}
+      GPU_LAYERS: ${GPU_LAYERS:-99}
+      HF_TOKEN: ${HF_TOKEN:-}
+      EXTRA_ARGS: ${EXTRA_ARGS:-}
+
+  gemma-q3:
+    <<: *llm-base
+    profiles: [gemma-q3]
+    container_name: rotorquant-gemma-q3
+    environment:
+      MODEL_NAME: gemma4-26b-q3
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
+      CTX_SIZE: ${CTX_SIZE:-49152}
+      PORT: ${PORT:-8080}
+      GPU_LAYERS: ${GPU_LAYERS:-99}
+      HF_TOKEN: ${HF_TOKEN:-}
+      EXTRA_ARGS: ${EXTRA_ARGS:-}
+
 volumes:
   llm-models:
     name: llm-models
