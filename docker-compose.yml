@@ -20,7 +20,7 @@ x-llm-base: &llm-base
   ports:
     - "${PORT:-8080}:${PORT:-8080}"
   environment:
-    KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso3}
+    KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
     CTX_SIZE: ${CTX_SIZE:-131072}
     PORT: ${PORT:-8080}
     GPU_LAYERS: ${GPU_LAYERS:-99}
@@ -42,7 +42,7 @@ services:
     container_name: rotorquant-qwen
     environment:
       MODEL_NAME: qwen3.5-27b
-      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso3}
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
       CTX_SIZE: ${CTX_SIZE:-131072}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
@@ -55,7 +55,7 @@ services:
     container_name: rotorquant-reasoning
     environment:
       MODEL_NAME: qwen3.5-27b-reasoning
-      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso3}
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
       CTX_SIZE: ${CTX_SIZE:-131072}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
@@ -68,7 +68,7 @@ services:
     container_name: rotorquant-gemma
     environment:
       MODEL_NAME: gemma4-26b
-      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso3}
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
       CTX_SIZE: ${CTX_SIZE:-131072}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}

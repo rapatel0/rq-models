@@ -24,7 +24,7 @@ declare -A MODELS=(
 
 # ── Parse env vars ──────────────────────────────────────────────────────────
 MODEL_NAME="${MODEL_NAME:?ERROR: MODEL_NAME is required. Options: ${!MODELS[*]}}"
-KV_CACHE="${KV_CACHE_TYPE:-iso3}"
+KV_CACHE="${KV_CACHE_TYPE:-iso4}"
 PORT="${PORT:-8080}"
 NGL="${GPU_LAYERS:-99}"
 
