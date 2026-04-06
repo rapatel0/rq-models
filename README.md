@@ -61,6 +61,33 @@ HF_TOKEN=hf_xxx make run-reasoning
 | `GPU_LAYERS` | `99` | Layers on GPU (99 = all) |
 | `HF_TOKEN` | — | HuggingFace token for gated models |
 
+## GPU Compatibility
+
+All numbers for Qwen3.5-27B Q4_K_M (16.7 GB weights).
+
+### iso4 (default — best quality, 3.8x compression)
+
+| GPU | VRAM | 32K ctx | 64K ctx | 128K ctx | Max ctx |
+|-----|-----:|:-------:|:-------:|:--------:|--------:|
+| RTX 3090 | 24 GB | 18.8 GB | 20.9 GB | OOM | ~112K |
+| RTX 4090 | 24 GB | 18.8 GB | 20.9 GB | OOM | ~112K |
+| RTX 5090 | 32 GB | 18.8 GB | 20.9 GB | 25.2 GB | ~236K |
+| A100 40GB | 40 GB | 18.8 GB | 20.9 GB | 25.2 GB | ~236K |
+| A100 80GB | 80 GB | 18.8 GB | 20.9 GB | 25.2 GB | ~236K+ |
+| H100 | 80 GB | 18.8 GB | 20.9 GB | 25.2 GB | ~236K+ |
+
+### iso3 (max compression, 4.9x)
+
+| GPU | VRAM | 32K ctx | 64K ctx | 128K ctx | Max ctx |
+|-----|-----:|:-------:|:-------:|:--------:|--------:|
+| RTX 3090 | 24 GB | 18.3 GB | 19.9 GB | 23.2 GB | ~147K |
+| RTX 4090 | 24 GB | 18.3 GB | 19.9 GB | 23.2 GB | ~147K |
+| RTX 5090 | 32 GB | 18.3 GB | 19.9 GB | 23.2 GB | ~300K |
+| A100 40GB | 40 GB | 18.3 GB | 19.9 GB | 23.2 GB | ~300K+ |
+
+> **RTX 4090 users**: iso4 fits up to ~112K context. For 128K, switch to iso3:
+> `KV_CACHE_TYPE=iso3 make run-qwen`
+
 ## Requirements
 
 - Docker 24+
@@ -71,17 +98,16 @@ HF_TOKEN=hf_xxx make run-reasoning
 
 ## Performance
 
-Benchmarked on RTX 5090 (32 GB) with Qwen3.5-27B Q4_K_M + iso3/iso3:
+Benchmarked on RTX 5090 (32 GB) with Qwen3.5-27B Q4_K_M:
 
-| Metric | Value |
-|--------|-------|
-| Decode speed | **67.5 tok/s** (97% of fp16) |
-| Time to first token | **0.20s** |
-| Max context (RTX 5090) | **128K+** (fp16 maxes out at 32K) |
-| VRAM at 128K context | **22.3 GB** |
-| KV compression ratio | **4.9x** |
-| Perplexity (wikitext-2) | 6.76 (fp16: 6.38, +5.9%) |
-| NIAH recall (4K) | 100% |
+| Metric | iso4 (default) | iso3 | f16 |
+|--------|:-:|:-:|:-:|
+| Decode speed | ~67 tok/s | 67.5 tok/s | 69.3 tok/s |
+| KV compression | **3.8x** | **4.9x** | 1x |
+| Max ctx (RTX 5090) | **236K** | **300K** | 32K |
+| Max ctx (RTX 4090) | **112K** | **147K** | 16K |
+| Perplexity (wikitext-2) | better than iso3 | 6.76 | 6.38 |
+| NIAH recall (4K) | 100% | 100% | 100% |
 
 See [docs/BENCHMARK-REPORT.md](docs/BENCHMARK-REPORT.md) for full results.
 
