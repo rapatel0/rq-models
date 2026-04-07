@@ -1,4 +1,4 @@
-.PHONY: build run-qwen run-reasoning run-gemma stop test bench clean
+.PHONY: build run-qwen run-reasoning run-gemma stop logs test bench clean
 
 # ── Build ────────────────────────────────────────────────────────────
 build:
@@ -28,6 +28,10 @@ run-reasoning-bg:
 
 run-gemma-bg:
 	docker compose --profile gemma up -d
+
+# ── Logs ─────────────────────────────────────────────────────────────
+logs:
+	docker compose --profile qwen --profile reasoning --profile gemma --profile qwen-q3 --profile qwen-q3-xxs --profile qwen-iq4 --profile gemma-q3 logs -f --tail 50
 
 # ── Stop ─────────────────────────────────────────────────────────────
 stop:
