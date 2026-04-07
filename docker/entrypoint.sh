@@ -6,10 +6,12 @@ set -euo pipefail
 #
 # Env vars:
 #   MODEL_NAME     (required)  One of: qwen3.5-27b, qwen3.5-27b-reasoning, gemma4-26b
-#   KV_CACHE_TYPE  (optional)  KV cache quantization type (default: iso3)
-#   CTX_SIZE       (optional)  Context window size (default: per-model, 131072)
+#   KV_CACHE_TYPE  (optional)  KV cache quantization type (default: iso4)
+#   CTX_SIZE       (optional)  Context window size (default: per-model)
 #   PORT           (optional)  Server port (default: 8080)
 #   GPU_LAYERS     (optional)  Layers to offload to GPU (default: 99 = all)
+#   N_PARALLEL     (optional)  Concurrent request slots (default: 2)
+#   CACHE_RAM      (optional)  Prompt cache size in MiB, system RAM (default: 8192)
 #   HF_TOKEN       (optional)  HuggingFace token for gated models
 #   EXTRA_ARGS     (optional)  Additional llama-server flags
 # ============================================================================
@@ -19,14 +21,14 @@ set -euo pipefail
 declare -A MODELS=(
   # 24-32 GB GPUs (Q4 — best quality)
   [qwen3.5-27b]="unsloth/Qwen3.5-27B-GGUF|Qwen3.5-27B-Q4_K_M.gguf|114688|"
-  [qwen3.5-27b-reasoning]="mradermacher/Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-i1-GGUF|Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-i1-Q4_K_M.gguf|131072|"
-  [gemma4-26b]="unsloth/gemma-4-26B-A4B-it-GGUF|gemma-4-26B-A4B-it-UD-Q4_K_XL.gguf|131072|--samplers top_p,top_k,temperature --temp 1.0 --top-p 0.95 --top-k 64"
+  [qwen3.5-27b-reasoning]="mradermacher/Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-i1-GGUF|Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-i1-Q4_K_M.gguf|114688|"
+  [gemma4-26b]="unsloth/gemma-4-26B-A4B-it-GGUF|gemma-4-26B-A4B-it-UD-Q4_K_XL.gguf|114688|--samplers top_p,top_k,temperature --temp 1.0 --top-p 0.95 --top-k 64"
 
   # 16 GB GPUs (imatrix quants — fit with usable context)
-  [qwen3.5-27b-q3]="unsloth/Qwen3.5-27B-GGUF|Qwen3.5-27B-UD-Q3_K_XL.gguf|32768|"
-  [qwen3.5-27b-q3-xxs]="unsloth/Qwen3.5-27B-GGUF|Qwen3.5-27B-UD-IQ3_XXS.gguf|65536|"
-  [qwen3.5-27b-iq4]="unsloth/Qwen3.5-27B-GGUF|Qwen3.5-27B-IQ4_XS.gguf|16384|"
-  [gemma4-26b-q3]="unsloth/gemma-4-26B-A4B-it-GGUF|gemma-4-26B-A4B-it-UD-Q3_K_M.gguf|49152|--samplers top_p,top_k,temperature --temp 1.0 --top-p 0.95 --top-k 64"
+  [qwen3.5-27b-q3]="unsloth/Qwen3.5-27B-GGUF|Qwen3.5-27B-UD-Q3_K_XL.gguf|28672|"
+  [qwen3.5-27b-q3-xxs]="unsloth/Qwen3.5-27B-GGUF|Qwen3.5-27B-UD-IQ3_XXS.gguf|57344|"
+  [qwen3.5-27b-iq4]="unsloth/Qwen3.5-27B-GGUF|Qwen3.5-27B-IQ4_XS.gguf|14336|"
+  [gemma4-26b-q3]="unsloth/gemma-4-26B-A4B-it-GGUF|gemma-4-26B-A4B-it-UD-Q3_K_M.gguf|40960|--samplers top_p,top_k,temperature --temp 1.0 --top-p 0.95 --top-k 64"
 )
 
 # ── Parse env vars ──────────────────────────────────────────────────────────
@@ -87,6 +89,8 @@ CMD=(
   --ctx-size "$CTX"
   --cache-type-k "$KV_CACHE"
   --cache-type-v "$KV_CACHE"
+  --parallel "${N_PARALLEL:-2}"
+  --cache-ram "${CACHE_RAM:-8192}"
   --flash-attn on
   --host 0.0.0.0
   --port "$PORT"

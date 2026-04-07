@@ -56,9 +56,11 @@ HF_TOKEN=hf_xxx make run-reasoning
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `KV_CACHE_TYPE` | `iso4` | KV cache type: `iso4` (default, best quality), `iso3` (max compression), `planar3`, `f16` |
-| `CTX_SIZE` | `114688` | Context window (112K default for 24 GB) |
+| `CTX_SIZE` | per-model | Context window (e.g. 114688 for Q4_K_M on 24 GB) |
 | `PORT` | `8080` | API port |
 | `GPU_LAYERS` | `99` | Layers on GPU (99 = all) |
+| `N_PARALLEL` | `2` | Concurrent request slots (shares KV cache across slots) |
+| `CACHE_RAM` | `8192` | Prompt cache size in MiB (system RAM, not VRAM) |
 | `HF_TOKEN` | — | HuggingFace token for gated models |
 
 ## Best Config by GPU
@@ -72,9 +74,9 @@ Q4_K_M doesn't fit. Use Unsloth imatrix quants:
 
 | Use Case | Quant | Size | PPL | Context (iso4) | Context (iso3) |
 |----------|-------|-----:|----:|---------------:|---------------:|
-| **Best quality** | IQ4_XS | 13.9 GB | 6.29 | ~24K | ~31K |
-| **Recommended** | **UD-Q3_K_XL** | **13.4 GB** | **6.38** | **~32K** | **~42K** |
-| Max context | UD-IQ3_XXS | 10.7 GB | 6.62 | ~74K | ~96K |
+| **Best quality** | IQ4_XS | 13.9 GB | 6.29 | ~14K | ~18K |
+| **Recommended** | **UD-Q3_K_XL** | **13.4 GB** | **6.38** | **~28K** | **~36K** |
+| Max context | UD-IQ3_XXS | 10.7 GB | 6.62 | ~56K | ~74K |
 
 > UD-Q3_K_XL is the sweet spot — only +0.08 PPL over 4-bit, 33% more context.
 
@@ -114,10 +116,10 @@ Q4_K_M doesn't fit. Use Unsloth imatrix quants:
 
 | GPU | Quant | PPL | Context | Command |
 |-----|-------|----:|--------:|---------|
-| **16 GB** | UD-Q3_K_XL | 6.38 | ~32K | `docker compose --profile qwen-q3 up` |
-| **16 GB** | UD-IQ3_XXS | 6.62 | ~65K | `docker compose --profile qwen-q3-xxs up` |
-| **16 GB** | IQ4_XS | 6.29 | ~16K | `docker compose --profile qwen-iq4 up` |
-| **16 GB** | Gemma4 Q3 | — | ~49K | `docker compose --profile gemma-q3 up` |
+| **16 GB** | UD-Q3_K_XL | 6.38 | ~28K | `docker compose --profile qwen-q3 up` |
+| **16 GB** | UD-IQ3_XXS | 6.62 | ~56K | `docker compose --profile qwen-q3-xxs up` |
+| **16 GB** | IQ4_XS | 6.29 | ~14K | `docker compose --profile qwen-iq4 up` |
+| **16 GB** | Gemma4 Q3 | — | ~40K | `docker compose --profile gemma-q3 up` |
 | **24 GB** | Q4_K_M | ~6.27 | ~112K | `docker compose --profile qwen up` |
 | **32 GB** | Q4_K_M | ~6.27 | ~252K | `docker compose --profile qwen up` |
 | **40 GB** | Q4_K_M | ~6.27 | ~375K | `docker compose --profile qwen up` |

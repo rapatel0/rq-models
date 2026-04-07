@@ -25,6 +25,8 @@ x-llm-base: &llm-base
     CTX_SIZE: ${CTX_SIZE:-}
     PORT: ${PORT:-8080}
     GPU_LAYERS: ${GPU_LAYERS:-99}
+    N_PARALLEL: ${N_PARALLEL:-}
+    CACHE_RAM: ${CACHE_RAM:-}
     HF_TOKEN: ${HF_TOKEN:-}
     EXTRA_ARGS: ${EXTRA_ARGS:-}
   deploy:
@@ -47,6 +49,8 @@ services:
       CTX_SIZE: ${CTX_SIZE:-}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
+      N_PARALLEL: ${N_PARALLEL:-}
+      CACHE_RAM: ${CACHE_RAM:-}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 
@@ -60,6 +64,8 @@ services:
       CTX_SIZE: ${CTX_SIZE:-}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
+      N_PARALLEL: ${N_PARALLEL:-}
+      CACHE_RAM: ${CACHE_RAM:-}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 
@@ -73,6 +79,8 @@ services:
       CTX_SIZE: ${CTX_SIZE:-}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
+      N_PARALLEL: ${N_PARALLEL:-}
+      CACHE_RAM: ${CACHE_RAM:-}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 
@@ -84,9 +92,11 @@ services:
     environment:
       MODEL_NAME: qwen3.5-27b-q3
       KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
-      CTX_SIZE: ${CTX_SIZE:-32768}
+      CTX_SIZE: ${CTX_SIZE:-}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
+      N_PARALLEL: ${N_PARALLEL:-}
+      CACHE_RAM: ${CACHE_RAM:-}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 
@@ -97,9 +107,11 @@ services:
     environment:
       MODEL_NAME: qwen3.5-27b-q3-xxs
       KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
-      CTX_SIZE: ${CTX_SIZE:-65536}
+      CTX_SIZE: ${CTX_SIZE:-}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
+      N_PARALLEL: ${N_PARALLEL:-}
+      CACHE_RAM: ${CACHE_RAM:-}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 
@@ -110,9 +122,11 @@ services:
     environment:
       MODEL_NAME: qwen3.5-27b-iq4
       KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
-      CTX_SIZE: ${CTX_SIZE:-16384}
+      CTX_SIZE: ${CTX_SIZE:-}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
+      N_PARALLEL: ${N_PARALLEL:-}
+      CACHE_RAM: ${CACHE_RAM:-}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 
@@ -123,9 +137,11 @@ services:
     environment:
       MODEL_NAME: gemma4-26b-q3
       KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
-      CTX_SIZE: ${CTX_SIZE:-49152}
+      CTX_SIZE: ${CTX_SIZE:-}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
+      N_PARALLEL: ${N_PARALLEL:-}
+      CACHE_RAM: ${CACHE_RAM:-}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 
