@@ -7,7 +7,7 @@
 #
 # Configuration via env vars:
 #   KV_CACHE_TYPE=f16 docker compose --profile qwen up     # disable RotorQuant
-#   CTX_SIZE=32768 docker compose --profile qwen up        # reduce context
+#   CTX_SIZE=32768 docker compose --profile qwen up        # override context (default per-model)
 #   PORT=9090 docker compose --profile qwen up -p 9090:9090
 
 x-llm-base: &llm-base
@@ -17,11 +17,12 @@ x-llm-base: &llm-base
     dockerfile: docker/Dockerfile
   volumes:
     - llm-models:/models
+    - ${HF_HOME:-${HOME}/.cache/huggingface}/token:/home/llm/.cache/huggingface/token:ro
   ports:
     - "${PORT:-8080}:${PORT:-8080}"
   environment:
     KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
-    CTX_SIZE: ${CTX_SIZE:-131072}
+    CTX_SIZE: ${CTX_SIZE:-}
     PORT: ${PORT:-8080}
     GPU_LAYERS: ${GPU_LAYERS:-99}
     HF_TOKEN: ${HF_TOKEN:-}
@@ -43,7 +44,7 @@ services:
     environment:
       MODEL_NAME: qwen3.5-27b
       KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
-      CTX_SIZE: ${CTX_SIZE:-131072}
+      CTX_SIZE: ${CTX_SIZE:-}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
       HF_TOKEN: ${HF_TOKEN:-}
@@ -56,7 +57,7 @@ services:
     environment:
       MODEL_NAME: qwen3.5-27b-reasoning
       KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
-      CTX_SIZE: ${CTX_SIZE:-131072}
+      CTX_SIZE: ${CTX_SIZE:-}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
       HF_TOKEN: ${HF_TOKEN:-}
@@ -69,7 +70,7 @@ services:
     environment:
       MODEL_NAME: gemma4-26b
       KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
-      CTX_SIZE: ${CTX_SIZE:-131072}
+      CTX_SIZE: ${CTX_SIZE:-}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
       HF_TOKEN: ${HF_TOKEN:-}

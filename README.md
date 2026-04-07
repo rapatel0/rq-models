@@ -1,6 +1,6 @@
 # RotorQuant LLM Server
 
-Serve Qwen3.5-27B, Gemma 4 26B, and other large models with **128K+ context on a single consumer GPU** using RotorQuant KV cache compression (3.8x compression at iso4 default, 97% decode speed of fp16).
+Serve Qwen3.5-27B, Gemma 4 26B, and other large models with **112K+ context on a single consumer GPU** using RotorQuant KV cache compression (3.8x compression at iso4 default, 97% decode speed of fp16).
 
 > **Default: iso4 (4-bit)** — best balance of quality and compression. Use `iso3` for maximum compression (4.9x) if you need more context headroom.
 
@@ -56,7 +56,7 @@ HF_TOKEN=hf_xxx make run-reasoning
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `KV_CACHE_TYPE` | `iso4` | KV cache type: `iso4` (default, best quality), `iso3` (max compression), `planar3`, `f16` |
-| `CTX_SIZE` | `131072` | Context window (128K default) |
+| `CTX_SIZE` | `114688` | Context window (112K default for 24 GB) |
 | `PORT` | `8080` | API port |
 | `GPU_LAYERS` | `99` | Layers on GPU (99 = all) |
 | `HF_TOKEN` | — | HuggingFace token for gated models |
@@ -82,12 +82,12 @@ Q4_K_M doesn't fit. Use Unsloth imatrix quants:
 
 | Use Case | Quant | Size | PPL | Context (iso4) | Context (iso3) |
 |----------|-------|-----:|----:|---------------:|---------------:|
-| **Recommended** | **Q4_K_M** | **15.6 GB** | **~6.27** | **~131K** | **~171K** |
+| **Recommended** | **Q4_K_M** | **15.6 GB** | **~6.27** | **~112K** | **~171K** |
 | More context | IQ4_XS | 13.9 GB | 6.29 | ~155K | ~203K |
 | Max context | UD-Q3_K_XL | 13.4 GB | 6.38 | ~163K | ~213K |
 
-> Q4_K_M at iso4 gives full quality with 128K context — the default config.
-> For 128K+ switch to iso3: `KV_CACHE_TYPE=iso3 make run-qwen`
+> Q4_K_M at iso4 gives full quality with 112K context on 24 GB GPUs.
+> For more context, switch to iso3: `KV_CACHE_TYPE=iso3 make run-qwen`
 
 ### 32 GB (RTX 5090)
 
@@ -118,7 +118,7 @@ Q4_K_M doesn't fit. Use Unsloth imatrix quants:
 | **16 GB** | UD-IQ3_XXS | 6.62 | ~65K | `docker compose --profile qwen-q3-xxs up` |
 | **16 GB** | IQ4_XS | 6.29 | ~16K | `docker compose --profile qwen-iq4 up` |
 | **16 GB** | Gemma4 Q3 | — | ~49K | `docker compose --profile gemma-q3 up` |
-| **24 GB** | Q4_K_M | ~6.27 | ~131K | `docker compose --profile qwen up` |
+| **24 GB** | Q4_K_M | ~6.27 | ~112K | `docker compose --profile qwen up` |
 | **32 GB** | Q4_K_M | ~6.27 | ~252K | `docker compose --profile qwen up` |
 | **40 GB** | Q4_K_M | ~6.27 | ~375K | `docker compose --profile qwen up` |
 

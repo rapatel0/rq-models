@@ -18,7 +18,7 @@ set -euo pipefail
 # Format: "HF_REPO|FILENAME|DEFAULT_CTX|EXTRA_FLAGS"
 declare -A MODELS=(
   # 24-32 GB GPUs (Q4 — best quality)
-  [qwen3.5-27b]="unsloth/Qwen3.5-27B-GGUF|Qwen3.5-27B-Q4_K_M.gguf|131072|"
+  [qwen3.5-27b]="unsloth/Qwen3.5-27B-GGUF|Qwen3.5-27B-Q4_K_M.gguf|114688|"
   [qwen3.5-27b-reasoning]="mradermacher/Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-i1-GGUF|Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-i1-Q4_K_M.gguf|131072|"
   [gemma4-26b]="unsloth/gemma-4-26B-A4B-it-GGUF|gemma-4-26B-A4B-it-UD-Q4_K_XL.gguf|131072|--samplers top_p,top_k,temperature --temp 1.0 --top-p 0.95 --top-k 64"
 
@@ -61,12 +61,12 @@ if [ ! -f "$MODEL_PATH" ]; then
   echo "╚══════════════════════════════════════════════════╝"
   echo ""
 
-  HF_ARGS=(download "$HF_REPO" "$FILENAME" --local-dir /models --local-dir-use-symlinks False)
+  HF_ARGS=(download "$HF_REPO" "$FILENAME" --local-dir /models)
   if [ -n "${HF_TOKEN:-}" ]; then
     HF_ARGS+=(--token "$HF_TOKEN")
   fi
 
-  huggingface-cli "${HF_ARGS[@]}"
+  hf "${HF_ARGS[@]}"
 
   if [ ! -f "$MODEL_PATH" ]; then
     echo "ERROR: Download completed but $MODEL_PATH not found"
