@@ -34,6 +34,7 @@ MODEL_NAME="${MODEL_NAME:?ERROR: MODEL_NAME is required. Options: ${!MODELS[*]}}
 KV_CACHE="${KV_CACHE_TYPE:-iso4}"
 PORT="${PORT:-8080}"
 NGL="${GPU_LAYERS:-99}"
+PARALLEL="${PARALLEL_SLOTS:-1}"
 
 # ── Validate model name ─────────────────────────────────────────────────────
 if [[ -z "${MODELS[$MODEL_NAME]+x}" ]]; then
@@ -85,6 +86,7 @@ CMD=(
   --model "$MODEL_PATH"
   --n-gpu-layers "$NGL"
   --ctx-size "$CTX"
+  --parallel "$PARALLEL"
   --cache-type-k "$KV_CACHE"
   --cache-type-v "$KV_CACHE"
   --flash-attn on
@@ -113,6 +115,7 @@ echo "║  Model:    $MODEL_NAME"
 echo "║  File:     $FILENAME"
 echo "║  KV Cache: $KV_CACHE / $KV_CACHE (RotorQuant)"
 echo "║  Context:  $CTX tokens"
+echo "║  Parallel: $PARALLEL slots"
 echo "║  Port:     $PORT"
 echo "║  GPU:      $NGL layers offloaded"
 echo "╚══════════════════════════════════════════════════╝"

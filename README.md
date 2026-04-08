@@ -59,6 +59,7 @@ HF_TOKEN=hf_xxx make run-reasoning
 | `CTX_SIZE` | `131072` | Context window (128K default) |
 | `PORT` | `8080` | API port |
 | `GPU_LAYERS` | `99` | Layers on GPU (99 = all) |
+| `PARALLEL_SLOTS` | `1` | Concurrent inference slots (set >1 for throughput mode) |
 | `HF_TOKEN` | — | HuggingFace token for gated models |
 
 ## Best Config by GPU
@@ -123,6 +124,32 @@ Q4_K_M doesn't fit. Use Unsloth imatrix quants:
 | **40 GB** | Q4_K_M | ~6.27 | ~375K | `docker compose --profile qwen up` |
 
 All profiles auto-download the correct model on first run.
+
+### Throughput Mode (Parallel Slots)
+
+For serving multiple concurrent users, trade context length for parallel slots.
+During decode, single-user inference is memory-bandwidth bound (mat-vec). With
+N parallel slots, the weight multiplications become mat-mat and tensor cores
+engage — aggregate throughput scales near-linearly.
+
+RotorQuant is the multiplier: iso4 KV at 16K = 1.06 GB/slot vs f16 = 4.0 GB/slot — **3.8x more concurrent users at the same VRAM.**
+
+| GPU | Slots (iso4) | Slots (f16) | Est. Aggregate tok/s | Command |
+|-----|-------------:|------------:|---------------------:|---------|
+| **24 GB** | 6 | 1 | ~320 | `PARALLEL_SLOTS=6 docker compose --profile qwen-throughput up` |
+| **32 GB** | 14 | 3 | ~660 | `docker compose --profile qwen-throughput up` |
+| **40 GB** | 22 | 5 | ~880 | `PARALLEL_SLOTS=22 docker compose --profile qwen-throughput up` |
+| **80 GB** | 59 | 15 | ~2,400 | `PARALLEL_SLOTS=59 docker compose --profile qwen-throughput up` |
+
+```bash
+# Quick start: max throughput on RTX 5090 (32 GB)
+make run-throughput
+
+# Custom slot count
+PARALLEL_SLOTS=8 docker compose --profile qwen-throughput up
+```
+
+Per-user latency stays ~67 tok/s at low load; at full capacity, ~50-55 tok/s per user.
 
 ## Requirements
 

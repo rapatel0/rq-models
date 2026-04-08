@@ -29,6 +29,18 @@ run-reasoning-bg:
 run-gemma-bg:
 	docker compose --profile gemma up -d
 
+# ── Throughput mode (parallel slots, 16K context) ────────────────────
+run-throughput:
+	docker compose --profile qwen-throughput up
+
+run-throughput-bg:
+	docker compose --profile qwen-throughput up -d
+	@echo "Waiting for server (14 parallel slots)..." && \
+	for i in $$(seq 1 150); do \
+		curl -sf http://localhost:$${PORT:-8080}/health >/dev/null 2>&1 && echo "Ready on port $${PORT:-8080}" && break; \
+		sleep 1; \
+	done
+
 # ── Stop ─────────────────────────────────────────────────────────────
 stop:
 	docker compose --profile qwen --profile reasoning --profile gemma down
