@@ -1,4 +1,4 @@
-.PHONY: build run-qwen run-reasoning run-gemma stop test bench clean
+.PHONY: build run-qwen run-reasoning run-gemma stop logs test bench clean
 
 # ── Build ────────────────────────────────────────────────────────────
 build:
@@ -35,11 +35,15 @@ run-throughput:
 
 run-throughput-bg:
 	docker compose --profile qwen-throughput up -d
-	@echo "Waiting for server (14 parallel slots)..." && \
+	@echo "Waiting for server..." && \
 	for i in $$(seq 1 150); do \
 		curl -sf http://localhost:$${PORT:-8080}/health >/dev/null 2>&1 && echo "Ready on port $${PORT:-8080}" && break; \
 		sleep 1; \
 	done
+
+# ── Logs ─────────────────────────────────────────────────────────────
+logs:
+	docker compose --profile qwen --profile reasoning --profile gemma --profile qwen-q3 --profile qwen-q3-xxs --profile qwen-iq4 --profile gemma-q3 logs -f --tail 50
 
 # ── Stop ─────────────────────────────────────────────────────────────
 stop:

@@ -59,8 +59,9 @@ COPY docker/entrypoint.sh /app/entrypoint.sh
 COPY scripts/benchmark_rotorquant.py /app/benchmark.py
 RUN chmod +x /app/entrypoint.sh
 
-# Create models directory (volume mount point)
+# Create models directory (volume mount point) and HF cache dir
 RUN mkdir -p /models && chown llm:llm /models
+RUN mkdir -p /home/llm/.cache/huggingface && chown -R llm:llm /home/llm/.cache
 
 ENV LD_LIBRARY_PATH=/app/lib
 ENV PATH="/app/bin:${PATH}"
