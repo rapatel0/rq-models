@@ -1,8 +1,10 @@
 # RotorQuant LLM Server
+> NOTE: Gemma Models have not been tested for ppl and qualtity. YMMV
 
 Serve Qwen3.5-27B, Gemma 4 26B, and other large models with **112K+ context on a single consumer GPU** using RotorQuant KV cache compression (3.8x compression at iso4 default, 97% decode speed of fp16).
 
 > **Default: iso4 (4-bit)** — best balance of quality and compression. Use `iso3` for maximum compression (4.9x) if you need more context headroom.
+
 
 ## Quick Start
 
