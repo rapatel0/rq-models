@@ -24,7 +24,7 @@ x-llm-base: &llm-base
   ports:
     - "${PORT:-8080}:${PORT:-8080}"
   environment:
-    KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
+    KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar4}
     CTX_SIZE: ${CTX_SIZE:-}
     PORT: ${PORT:-8080}
     GPU_LAYERS: ${GPU_LAYERS:-99}
@@ -47,8 +47,38 @@ services:
     profiles: [qwen]
     container_name: rotorquant-qwen
     environment:
-      MODEL_NAME: qwen3.5-27b
-      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
+      MODEL_NAME: qwen3.6-35b
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar4}
+      CTX_SIZE: ${CTX_SIZE:-}
+      PORT: ${PORT:-8080}
+      GPU_LAYERS: ${GPU_LAYERS:-99}
+      N_PARALLEL: ${N_PARALLEL:-}
+      CACHE_RAM: ${CACHE_RAM:-}
+      HF_TOKEN: ${HF_TOKEN:-}
+      EXTRA_ARGS: ${EXTRA_ARGS:-}
+
+  qwen36-q3:
+    <<: *llm-base
+    profiles: [qwen36-q3]
+    container_name: rotorquant-qwen36-q3
+    environment:
+      MODEL_NAME: qwen3.6-35b-q3
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar4}
+      CTX_SIZE: ${CTX_SIZE:-}
+      PORT: ${PORT:-8080}
+      GPU_LAYERS: ${GPU_LAYERS:-99}
+      N_PARALLEL: ${N_PARALLEL:-}
+      CACHE_RAM: ${CACHE_RAM:-}
+      HF_TOKEN: ${HF_TOKEN:-}
+      EXTRA_ARGS: ${EXTRA_ARGS:-}
+
+  qwen36-iq3:
+    <<: *llm-base
+    profiles: [qwen36-iq3]
+    container_name: rotorquant-qwen36-iq3
+    environment:
+      MODEL_NAME: qwen3.6-35b-iq3
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar4}
       CTX_SIZE: ${CTX_SIZE:-}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
@@ -63,7 +93,7 @@ services:
     container_name: rotorquant-reasoning
     environment:
       MODEL_NAME: qwen3.5-27b-reasoning
-      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar4}
       CTX_SIZE: ${CTX_SIZE:-}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
@@ -78,7 +108,7 @@ services:
     container_name: rotorquant-gemma
     environment:
       MODEL_NAME: gemma4-26b
-      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar4}
       CTX_SIZE: ${CTX_SIZE:-}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
@@ -94,7 +124,7 @@ services:
     container_name: rotorquant-qwen-q3
     environment:
       MODEL_NAME: qwen3.5-27b-q3
-      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar4}
       CTX_SIZE: ${CTX_SIZE:-}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
@@ -109,7 +139,7 @@ services:
     container_name: rotorquant-qwen-q3-xxs
     environment:
       MODEL_NAME: qwen3.5-27b-q3-xxs
-      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar4}
       CTX_SIZE: ${CTX_SIZE:-}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
@@ -124,7 +154,7 @@ services:
     container_name: rotorquant-qwen-iq4
     environment:
       MODEL_NAME: qwen3.5-27b-iq4
-      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar4}
       CTX_SIZE: ${CTX_SIZE:-}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
@@ -139,7 +169,7 @@ services:
     container_name: rotorquant-gemma-q3
     environment:
       MODEL_NAME: gemma4-26b-q3
-      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar4}
       CTX_SIZE: ${CTX_SIZE:-}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
@@ -155,7 +185,7 @@ services:
     container_name: rotorquant-qwen-tp
     environment:
       MODEL_NAME: qwen3.5-27b
-      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar4}
       CTX_SIZE: ${CTX_SIZE:-16384}
       N_PARALLEL: ${N_PARALLEL:-14}
       CACHE_RAM: ${CACHE_RAM:-8192}
@@ -170,7 +200,7 @@ services:
     container_name: rotorquant-qwen-tp-q3
     environment:
       MODEL_NAME: qwen3.5-27b-q3
-      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso4}
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar4}
       CTX_SIZE: ${CTX_SIZE:-16384}
       N_PARALLEL: ${N_PARALLEL:-4}
       CACHE_RAM: ${CACHE_RAM:-8192}

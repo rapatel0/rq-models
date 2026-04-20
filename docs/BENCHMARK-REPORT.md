@@ -7,11 +7,84 @@
 **KV Cache (benchmarked)**: iso3/iso3 (RotorQuant IsoQuant 3-bit symmetric)
 **Default Context**: 131,072 tokens (128K)
 
-> **Note (2026-04-05):** Default KV cache switched from `iso3` to `iso4` (4-bit)
-> for better output quality. iso4 provides 3.8x compression (vs iso3's 4.9x) with
-> lower perplexity and improved reasoning accuracy. Benchmarks below were run with
-> iso3 — iso4 results will be strictly better on quality metrics and slightly higher
-> on VRAM usage (~8.5 GB KV at 128K vs ~6.5 GB).
+> **Note (2026-04-05):** Default KV cache switched from `iso3` to `iso4` for better quality.
+>
+> **Note (2026-04-20):** Default switched again from `iso4` → `planar4` after perplexity
+> benchmarks showed PlanarQuant consistently outperforms IsoQuant at every bit depth.
+> `planar4` beats `iso4` by ~0.17 PPL (2.5 sigma) at 4K context on Qwen3.5-27B.
+> `planar3` is now the recommended high-compression alternative (replaces `iso3`).
+>
+> ## KV Cache Perplexity Comparison (2026-04-20)
+>
+> **Model**: Qwen3.5-27B Q4_K_M, wikitext-2-raw, RTX 5090
+>
+> | KV Cache | Bits/elem | PPL (ctx=512) | PPL (ctx=4096) | vs f16 (4K) |
+> |----------|:---------:|:-------------:|:--------------:|:-----------:|
+> | f16 | 16.0 | ~6.55 | 7.5942 | baseline |
+> | **planar3** | 0.875 | **7.1950** | **8.1973** | +0.603 |
+> | planar4 | 4.25 | — | 8.2548 | +0.661 |
+> | iso4 (old default) | 4.25 | 7.2549 | 8.3689 | +0.775 |
+> | iso3 | 0.875 | 7.2771 | 8.4344 | +0.840 |
+>
+> Key findings:
+> - PlanarQuant beats IsoQuant at every bit depth by a statistically significant margin
+> - `planar3` (3-bit) beats `iso4` (4-bit) — better compression *and* better quality
+> - Default is now `planar4`; use `planar3` (`KV_CACHE_TYPE=planar3`) for max compression
+
+---
+
+> ## Qwen3.6-35B-A3B Throughput Benchmarks (2026-04-20)
+>
+> **Model**: Qwen3.6-35B-A3B UD-Q4_K_XL (22.3 GB), unsloth/Qwen3.6-35B-A3B-GGUF
+> **Hardware**: RTX 5090 (32 GB), 23.1 GB used at idle post-load, 9 GB free
+> **Config**: ctx=65536, KV cache=planar4/planar4, 2 parallel slots, 99 GPU layers, flash-attn on
+>
+> ### Prefill throughput (prompt processing)
+>
+> | Prompt tokens | Time (ms) | Prefill tok/s |
+> |:-------------:|----------:|:-------------:|
+> | 25 | 33 | ~750 |
+> | 249 | 351 | 710 |
+> | 505 | 98 | **5,174** |
+>
+> Notes: Short prompts (<30 tok) are dispatch-latency dominated. At 505 tokens the GPU saturates
+> and throughput jumps to ~5,174 tok/s — significantly faster than Qwen3.5-27B's ~3,500 tok/s
+> peak (MoE activates fewer params per token, reducing compute per prefill step).
+>
+> ### Decode throughput (token generation)
+>
+> | n_predict | Time (ms) | Decode tok/s |
+> |:---------:|----------:|:------------:|
+> | 50 | 338 | 148 |
+> | 200 | 1,019 | **196** |
+> | 500 | 2,606 | 192 |
+>
+> **Single-slot decode: ~190–196 tok/s** — roughly 2.8× faster than Qwen3.5-27B's 69.3 tok/s.
+> This is the MoE advantage: 35B total params but only ~3B active per token.
+>
+> ### Concurrent throughput (2 parallel slots)
+>
+> | Slots | Per-slot tok/s | Aggregate tok/s |
+> |:-----:|:--------------:|:---------------:|
+> | 2 | 149 | **298** |
+>
+> Both slots served simultaneously at 149 tok/s each — near-linear scaling, total ~298 tok/s
+> aggregate throughput.
+>
+> ### Summary vs Qwen3.5-27B
+>
+> | Metric | Qwen3.5-27B Q4_K_M | Qwen3.6-35B-A3B Q4_K_XL | Delta |
+> |--------|:-------------------:|:------------------------:|:-----:|
+> | Model size | 16.7 GB | 22.3 GB | +5.6 GB |
+> | VRAM at ctx=65K | ~20 GB | 23.1 GB | +3.1 GB |
+> | Decode tok/s (single) | 69 | **196** | **+184%** |
+> | Decode tok/s (2-slot) | ~138 aggregate | **298** | **+116%** |
+> | Peak prefill tok/s | ~3,500 | ~5,174 | +48% |
+> | Active params/token | 27B | ~3B | -89% |
+>
+> The throughput gain is purely architectural: Qwen3.6's MoE routing activates ~3B params per
+> token vs Qwen3.5's full 27B dense activation. At 22.3 GB it still fits comfortably in 32 GB
+> with room for up to 65K context.
 
 ---
 

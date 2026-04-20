@@ -19,6 +19,15 @@ set -euo pipefail
 # ── Model Registry ──────────────────────────────────────────────────────────
 # Format: "HF_REPO|FILENAME|DEFAULT_CTX|EXTRA_FLAGS"
 declare -A MODELS=(
+  # ── Qwen3.6-35B-A3B MoE (default) ───────────────────────────────────
+  # 32 GB+ (RTX 5090, A100): UD-Q4_K_XL — best quality
+  [qwen3.6-35b]="unsloth/Qwen3.6-35B-A3B-GGUF|Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf|65536|"
+  # 24 GB (RTX 4090): UD-Q3_K_XL — best fit
+  [qwen3.6-35b-q3]="unsloth/Qwen3.6-35B-A3B-GGUF|Qwen3.6-35B-A3B-UD-Q3_K_XL.gguf|65536|"
+  # 16 GB (RTX 5060/4060 Ti): IQ3_XXS — max compression
+  [qwen3.6-35b-iq3]="unsloth/Qwen3.6-35B-A3B-GGUF|Qwen3.6-35B-A3B-UD-IQ3_XXS.gguf|32768|"
+
+  # ── Qwen3.5-27B dense (legacy) ───────────────────────────────────────
   # 24-32 GB GPUs (Q4 — best quality)
   [qwen3.5-27b]="unsloth/Qwen3.5-27B-GGUF|Qwen3.5-27B-Q4_K_M.gguf|114688|"
   [qwen3.5-27b-reasoning]="mradermacher/Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-i1-GGUF|Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-i1-Q4_K_M.gguf|114688|"
@@ -33,7 +42,7 @@ declare -A MODELS=(
 
 # ── Parse env vars ──────────────────────────────────────────────────────────
 MODEL_NAME="${MODEL_NAME:?ERROR: MODEL_NAME is required. Options: ${!MODELS[*]}}"
-KV_CACHE="${KV_CACHE_TYPE:-iso4}"
+KV_CACHE="${KV_CACHE_TYPE:-planar4}"
 PORT="${PORT:-8080}"
 NGL="${GPU_LAYERS:-99}"
 
@@ -117,7 +126,7 @@ echo "║  Model:    $MODEL_NAME"
 echo "║  File:     $FILENAME"
 echo "║  KV Cache: $KV_CACHE / $KV_CACHE (RotorQuant)"
 echo "║  Context:  $CTX tokens"
-echo "║  Parallel: $PARALLEL slots"
+echo "║  Parallel: ${N_PARALLEL:-2} slots"
 echo "║  Port:     $PORT"
 echo "║  GPU:      $NGL layers offloaded"
 echo "╚══════════════════════════════════════════════════╝"

@@ -43,7 +43,7 @@ run-throughput-bg:
 
 # ── Logs ─────────────────────────────────────────────────────────────
 logs:
-	docker compose --profile qwen --profile reasoning --profile gemma --profile qwen-q3 --profile qwen-q3-xxs --profile qwen-iq4 --profile gemma-q3 logs -f --tail 50
+	docker compose --profile qwen --profile qwen36-q3 --profile qwen36-iq3 --profile reasoning --profile gemma --profile qwen-q3 --profile qwen-q3-xxs --profile qwen-iq4 --profile gemma-q3 logs -f --tail 50
 
 # ── Stop ─────────────────────────────────────────────────────────────
 stop:
