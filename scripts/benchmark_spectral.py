@@ -88,9 +88,9 @@ def compute_perplexity(model, tokenizer, texts: list[str], device, cache_cls=Non
                 continue
 
             if cache_cls is not None and calibration is not None:
-                past_kv = cache_cls(calibration)
+                past_kv = cache_cls(calibration, config=model.config)
             else:
-                past_kv = DynamicCache()
+                past_kv = DynamicCache(config=model.config)
 
             outputs = model(
                 input_ids,
@@ -237,7 +237,7 @@ def benchmark_throughput(model, tokenizer, calibration: dict, device, n_tokens: 
 
     for label, cache_factory in [
         ("f16_baseline", lambda: None),
-        ("spectral_cache", lambda: SpectralKVCache(calibration)),
+        ("spectral_cache", lambda: SpectralKVCache(calibration, config=model.config)),
     ]:
         # Warmup
         with torch.no_grad():

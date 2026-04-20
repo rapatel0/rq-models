@@ -160,7 +160,7 @@ def main():
             sys.exit(1)
         from turboquant.spectral import SpectralKVCache, load_calibration
         calibration = load_calibration(args.calibration)
-        cache_factory = lambda: SpectralKVCache(calibration)
+        cache_factory = lambda: SpectralKVCache(calibration, config=model.config)
         cache_label = f"SpectralKVCache ({Path(args.calibration).stem})"
 
     print(f"\nEvaluating {cache_label}...")

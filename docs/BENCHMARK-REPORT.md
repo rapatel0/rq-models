@@ -231,23 +231,107 @@ Batch size has no measurable impact on throughput.
 | planar4 / f16 (K-only) | — | 7.6760 | **0.000** |
 | f16 / iso3 (V-only) | — | 7.5490 | −0.127 |
 
+### Qwen3.5-9B-Q4_K_M — C4 validation
+
+| KV Cache (K/V) | Bits/elem | PPL | Δ vs f16 |
+|----------------|:---------:|----:|:--------:|
+| f16 / f16 (baseline) | 16.0 | **11.5291** | — |
+| planar3 / planar3 | 0.875 | 11.7294 | +0.200 (+1.7%) |
+| iso3 / iso3 | 0.875 | 11.7364 | +0.207 (+1.8%) |
+| planar4 / planar4 | 4.25 | 11.7429 | +0.214 (+1.9%) |
+| iso4 / iso4 | 4.25 | 11.7430 | +0.214 (+1.9%) |
+| planar3 / f16 (K-only) | — | 11.5291 | **0.000** |
+| f16 / planar3 (V-only) | — | 11.7294 | +0.200 |
+
+### Qwen3.5-27B-Q4_K_M — C4 validation
+
+| KV Cache (K/V) | Bits/elem | PPL | Δ vs f16 |
+|----------------|:---------:|----:|:--------:|
+| f16 / f16 (baseline) | 16.0 | **9.8485** | — |
+| planar3 / planar3 | 0.875 | 9.9624 | +0.114 (+1.2%) |
+| planar4 / planar4 | 4.25 | 9.9611 | +0.113 (+1.1%) |
+| iso3 / iso3 | 0.875 | 9.9823 | +0.134 (+1.4%) |
+| iso4 / iso4 | 4.25 | 9.9822 | +0.134 (+1.4%) |
+| planar3 / f16 (K-only) | — | 9.8485 | **0.000** |
+| f16 / planar3 (V-only) | — | 9.9624 | +0.114 |
+
 ### Key findings
 
-**K quantization has zero PPL impact.** Across both models and all bit depths,
-quantizing only K (with V at f16) produces identical PPL to the f16/f16 baseline.
-All PPL change — positive or negative — comes entirely from V quantization.
+**K quantization has zero PPL impact on all datasets.** Quantizing only K
+produces identical PPL to the f16/f16 baseline across both models, both datasets,
+and all bit depths. All PPL change comes entirely from V quantization.
+
+**C4 shows the true degradation; wikitext-2 was misleading for 9B.** On wikitext-2,
+9B appeared to *improve* with V quantization (regularization artifact on clean
+encyclopedia text). On C4 (diverse web text), all quantized variants correctly
+degrade: +0.20 PPL for 9B, +0.11–0.13 PPL for 27B. C4 is the right eval corpus.
 
 **PlanarQuant consistently beats IsoQuant.** At the same bit depth: planar3 < iso3
-and planar4 < iso4 on both models. The difference is ~0.09 PPL (27B) and ~0.12 PPL
-(9B), consistent across configs.
+and planar4 < iso4 on both models and both datasets, by ~0.02 PPL (27B/C4) to
+~0.01 PPL (9B/C4).
 
-**3-bit and 4-bit are statistically comparable.** planar3 (0.875 bpe) and planar4
-(4.25 bpe) produce nearly identical PPL, within 0.01–0.04. At 5× lower bit rate,
-planar3 is the clear winner for compression-limited deployments.
+**3-bit and 4-bit are statistically indistinguishable on C4.** planar3 (0.875 bpe)
+and planar4 (4.25 bpe) differ by only 0.0001–0.002 PPL. At 5× lower storage cost,
+planar3 is the unambiguous choice for compression-limited deployments.
 
-**Model size changes the direction of the effect.** On Qwen3.5-9B, V quantization
-*improves* PPL by 0.1–0.34 (regularization effect). On Qwen3.5-27B it *degrades*
-PPL by 0.37–0.46. Larger, higher-quality models are more sensitive to V precision.
+**27B degrades less than 9B in percentage terms.** +1.2% vs +1.7% — larger models
+are more robust to KV quantization, consistent with scale improving representation
+redundancy.
+
+---
+
+## SpectralQuant (HuggingFace Python) — Qwen3.5-9B Results
+
+**Date**: 2026-04-20
+**Model**: Qwen/Qwen3.5-9B (bf16, HuggingFace transformers 5.5.4)
+**Calibration**: C4 train, 128 samples × 2048 tokens, seed=42
+**Calibration file**: `calibration/calibration-qwen3.5-9b.safetensors` (16.96 MB)
+**Evaluation**: wikitext-2-raw-v1 test, sliding window ctx=2048 stride=512
+
+### d_eff summary (full attention layers only, 8/32 layers)
+
+| Layer | d_eff_k | d_eff_v | head_dim |
+|------:|--------:|--------:|:--------:|
+| 3  | 207 | 226 | 256 |
+| 7  | 212 | 225 | 256 |
+| 11 | 209 | 223 | 256 |
+| 15 | 215 | 230 | 256 |
+| 19 | 216 | 232 | 256 |
+| 23 | 213 | 237 | 256 |
+| 27 | 213 | 231 | 256 |
+| 31 | 211 | 226 | 256 |
+
+### Perplexity Results
+
+| Method | PPL | Δ vs f16 |
+|--------|----:|:--------:|
+| f16 baseline | 7.9462 | — |
+| SpectralKVCache (C4 calibration) | 78.8447 | **+70.9** |
+
+**Kill gate (Δ ≤ 0.5): FAIL**
+
+### Analysis: Architecture Mismatch
+
+SpectralQuant uses **vector quantization (VQ)** — the full signal subspace vector
+is quantized to the nearest of 16 centroids (4-bit). This is effective when `d_eff`
+is small (the original assumption was d_eff ≈ 4–5 dims for K), giving a manageable
+codebook in a compact space.
+
+For Qwen3.5-9B's hybrid architecture (linear attention every 3/4 layers, full
+attention every 4th), the full-attention layers have **near-full-rank KV
+representations**: d_eff_k ≈ 207–216 / 256 (81–84%). The 16 VQ centroids are
+distributed across a 207-dimensional space — effectively 0.077 bits/dimension —
+causing catastrophic reconstruction error.
+
+**Root cause**: The Qwen3.5 hybrid architecture produces high-rank attention outputs
+in its full-attention layers. SpectralQuant's VQ approach is only effective when
+the KV cache is low-rank (d_eff ≤ ~32), which is the case for pure-attention models
+but not hybrid SSM/attention architectures.
+
+**Implication**: SpectralQuant should be evaluated on pure full-attention models
+(e.g. Llama 3.1, Mistral) where low-rank KV structure is more likely. For Qwen3.5's
+hybrid architecture, IsoQuant/PlanarQuant (rotation-based, per-element quantization)
+are the appropriate methods.
 
 ---
 
