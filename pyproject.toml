@@ -12,11 +12,12 @@ dependencies = [
     "transformers>=4.40.0,<5.0",
     "scipy>=1.10.0",
     "numpy>=1.24.0",
+    "datasets>=2.14.0",
+    "safetensors>=0.4.0",
 ]
 
 [project.optional-dependencies]
-eval = ["datasets>=2.14.0"]
-dev  = ["pytest>=7.0.0", "pytest-cov>=4.0.0"]
+dev = ["pytest>=7.0.0", "pytest-cov>=4.0.0"]
 
 [tool.setuptools.packages.find]
 where = ["."]

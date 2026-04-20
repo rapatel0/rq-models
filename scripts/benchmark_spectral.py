@@ -52,18 +52,6 @@ logger = logging.getLogger("benchmark_spectral")
 # PPL evaluation helpers
 # ---------------------------------------------------------------------------
 
-WIKITEXT_EVAL = [
-    "The transformer architecture has revolutionized natural language processing, enabling models to capture long-range dependencies in text through attention mechanisms.",
-    "Quantum computing leverages the principles of superposition and entanglement to perform computations that would be intractable on classical hardware.",
-    "The human brain contains approximately 86 billion neurons, each connected to thousands of others through synapses, forming a complex network.",
-    "Climate scientists use general circulation models to simulate the dynamics of the atmosphere and ocean, projecting future temperature and precipitation patterns.",
-    "The synthesis of penicillin by Alexander Fleming in 1928 marked the beginning of the antibiotic era and transformed the treatment of bacterial infections.",
-    "Reinforcement learning agents learn to make decisions by interacting with an environment and receiving feedback in the form of rewards and penalties.",
-    "The expansion of the universe, first observed by Edwin Hubble in 1929, indicates that galaxies are moving away from each other at velocities proportional to their distances.",
-    "Cryptographic hash functions map data of arbitrary size to a fixed-length output and are fundamental to digital signatures and blockchain protocols.",
-]
-
-
 def compute_perplexity(model, tokenizer, texts: list[str], device, cache_cls=None, calibration=None) -> float:
     """
     Compute per-token negative log likelihood (≈ perplexity) on a list of texts.
@@ -366,13 +354,18 @@ def main():
     if run_ppl:
         logger.info("Running perplexity benchmark...")
         from turboquant.spectral.kv_cache import SpectralKVCache
+        from turboquant.corpus import load_eval_text
+
+        eval_texts_str = load_eval_text()  # wikitext-2 test, same as eval_perplexity.py
+        # Split into individual documents for compute_perplexity (which takes list[str])
+        eval_texts = [t for t in eval_texts_str.split("\n\n") if len(t.strip()) > 100][:64]
 
         logger.info("  Computing f16 baseline PPL...")
-        ppl_f16 = compute_perplexity(model, tokenizer, WIKITEXT_EVAL, device)
+        ppl_f16 = compute_perplexity(model, tokenizer, eval_texts, device)
 
         logger.info("  Computing SpectralKVCache PPL...")
         ppl_spectral = compute_perplexity(
-            model, tokenizer, WIKITEXT_EVAL, device,
+            model, tokenizer, eval_texts, device,
             cache_cls=SpectralKVCache, calibration=calibration
         )
 

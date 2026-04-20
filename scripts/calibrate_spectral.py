@@ -5,12 +5,18 @@ Offline calibration script for SpectralQuant KV cache.
 Runs calibration prompts through the model, computes PCA bases per attention
 layer, fits Lloyd-Max codebooks, and saves as a safetensors sidecar.
 
+Calibration standard (matches GPTQ / AWQ):
+  Dataset:  allenai/c4, English, train split
+  Samples:  128 sequences × 2048 tokens
+  Seed:     42
+
 Usage:
     python scripts/calibrate_spectral.py \
         --model Qwen/Qwen3.5-9B-Instruct \
-        --output calibration/ \
-        --n-prompts 32 \
-        --max-length 512
+        --output calibration/
+
+    # Different dataset or sample count:
+    python scripts/calibrate_spectral.py --model ... --dataset wikitext --n-samples 64
 
     # With HF token for gated models:
     HF_TOKEN=hf_... python scripts/calibrate_spectral.py --model ...
@@ -34,43 +40,6 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger("calibrate_spectral")
-
-
-WIKITEXT_PROMPTS = [
-    # Diverse excerpts for calibration corpus (not from private data)
-    "The history of artificial intelligence dates back to the 1950s, when pioneers such as Alan Turing and John McCarthy laid the theoretical foundations for machine cognition.",
-    "Quantum mechanics describes the physical properties of nature at the scale of atoms and subatomic particles, fundamentally different from classical physics.",
-    "The development of the internet transformed global communication, enabling instantaneous exchange of information across continents and reshaping commerce.",
-    "Language models learn statistical patterns from vast corpora of text, enabling them to generate coherent and contextually appropriate responses.",
-    "Climate change presents one of the most significant challenges of the twenty-first century, requiring coordinated international effort to address.",
-    "The human genome contains approximately three billion base pairs encoding roughly twenty thousand protein-coding genes.",
-    "Neural networks are computational systems inspired by biological neural networks, consisting of interconnected nodes that process information.",
-    "The industrial revolution fundamentally altered patterns of work and daily life, accelerating urbanization and transforming economic structures.",
-    "Protein folding refers to the physical process by which a protein chain acquires its functional three-dimensional structure.",
-    "Mathematics provides the language and tools to describe patterns and relationships in the physical and abstract world.",
-    "The theory of evolution by natural selection, first articulated by Charles Darwin, explains the diversity of life on Earth.",
-    "Software engineering involves systematic approaches to the design, development, testing, and maintenance of software systems.",
-    "The Big Bang theory describes the origin and evolution of the universe from an extremely hot and dense initial state.",
-    "Photosynthesis is the process by which plants convert light energy into chemical energy stored in glucose molecules.",
-    "Democracy refers to a system of government in which power is vested in the people, who exercise it through elected representatives.",
-    "Cryptography is the practice of securing communications through encoding, ensuring that only intended recipients can read messages.",
-    "The immune system defends the body against pathogens through a complex network of cells, tissues, and organs.",
-    "Renewable energy sources such as solar and wind power are increasingly cost-competitive with fossil fuels.",
-    "Cognitive science is an interdisciplinary field studying the nature of mind and intelligence, drawing on psychology and neuroscience.",
-    "The rules of thermodynamics govern energy transformations, establishing fundamental limits on the efficiency of engines and processes.",
-    "Computer vision enables machines to interpret and understand visual information from the world, using convolutional neural networks.",
-    "Economic policy involves government decisions about taxation, spending, and regulation that affect the broader economy.",
-    "The structure of DNA was elucidated by Watson and Crick in 1953, revealing the double helix mechanism of genetic inheritance.",
-    "Compiler design involves translating high-level programming languages into machine code through lexical analysis and code generation.",
-    "Philosophy of mind examines questions about consciousness, perception, and the relationship between mental and physical states.",
-    "Fluid dynamics describes the motion of liquids and gases, with applications in aerodynamics, meteorology, and engineering.",
-    "The principles of object-oriented programming include encapsulation, inheritance, polymorphism, and abstraction.",
-    "Neuroscience investigates the structure and function of the nervous system, from individual neurons to complex brain circuits.",
-    "Statistical methods allow researchers to draw inferences about populations from samples, quantifying uncertainty in conclusions.",
-    "The laws of motion formulated by Isaac Newton describe how objects move under the influence of forces.",
-    "Distributed systems coordinate multiple computers to achieve common goals, requiring careful handling of consistency and fault tolerance.",
-    "Ecology studies the relationships between organisms and their environments, including energy flow and nutrient cycling.",
-]
 
 
 def load_model_and_tokenizer(model_name: str, device: str):
@@ -98,20 +67,31 @@ def load_model_and_tokenizer(model_name: str, device: str):
     return model, tokenizer
 
 
-def build_prompts(n: int) -> list[str]:
-    """Return n calibration prompts, cycling through the corpus if needed."""
-    prompts = []
-    while len(prompts) < n:
-        prompts.extend(WIKITEXT_PROMPTS)
-    return prompts[:n]
-
-
 def main():
+    from turboquant.corpus import (
+        CALIBRATION_DATASET, CALIBRATION_N_SAMPLES, CALIBRATION_SEQ_LEN, CALIBRATION_SEED,
+        load_calibration_texts,
+    )
+
     parser = argparse.ArgumentParser(description="SpectralQuant offline calibration")
     parser.add_argument("--model", required=True, help="HF model name or local path")
     parser.add_argument("--output", default="calibration/", help="Output directory")
-    parser.add_argument("--n-prompts", type=int, default=32, help="Number of calibration prompts")
-    parser.add_argument("--max-length", type=int, default=512, help="Max token length per prompt")
+    parser.add_argument(
+        "--dataset", default=CALIBRATION_DATASET,
+        help=f"HuggingFace dataset for calibration (default: {CALIBRATION_DATASET})"
+    )
+    parser.add_argument(
+        "--n-samples", type=int, default=CALIBRATION_N_SAMPLES,
+        help=f"Number of calibration samples (default: {CALIBRATION_N_SAMPLES})"
+    )
+    parser.add_argument(
+        "--max-length", type=int, default=CALIBRATION_SEQ_LEN,
+        help=f"Max token length per sample (default: {CALIBRATION_SEQ_LEN})"
+    )
+    parser.add_argument(
+        "--seed", type=int, default=CALIBRATION_SEED,
+        help=f"Random seed for corpus sampling (default: {CALIBRATION_SEED})"
+    )
     parser.add_argument("--device", default="cuda", help="Device (cuda or cpu)")
     parser.add_argument(
         "--variance-threshold", type=float, default=0.99,
@@ -133,8 +113,12 @@ def main():
 
     model, tokenizer = load_model_and_tokenizer(args.model, args.device)
 
-    prompts = build_prompts(args.n_prompts)
-    logger.info(f"Using {len(prompts)} calibration prompts (max {args.max_length} tokens each)")
+    prompts = load_calibration_texts(
+        n_samples=args.n_samples,
+        dataset=args.dataset,
+        seed=args.seed,
+    )
+    logger.info(f"Using {len(prompts)} calibration samples from {args.dataset} (max {args.max_length} tokens each)")
 
     from turboquant.spectral.calibrator import SpectralCalibrator
     from turboquant.spectral.store import CalibrationStore
