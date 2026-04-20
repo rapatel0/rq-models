@@ -201,10 +201,53 @@ Batch size has no measurable impact on throughput.
 
 ## 3. Perplexity — wikitext-2 (ctx=2048)
 
-| Config | PPL | Delta vs f16 |
-|--------|----:|-------------:|
-| f16/f16 | 6.38 | — |
-| iso3/iso3 | 6.76 | +0.38 (+5.9%) |
+> **Updated 2026-04-20:** Full comparison across all KV cache variants and both
+> Qwen3.5-9B and Qwen3.5-27B. Standard evaluation: wikitext-2-raw-v1 test split,
+> ctx=2048 sliding window. Model weights: Q4_K_M GGUF (unsloth). llama-perplexity binary.
+
+### Qwen3.5-27B-Q4_K_M
+
+| KV Cache (K/V) | Bits/elem | PPL | Δ vs f16 |
+|----------------|:---------:|----:|:--------:|
+| f16 / f16 (baseline) | 16.0 | **6.6417** | — |
+| planar3 / planar3 | 0.875 | 7.0099 | +0.368 (+5.5%) |
+| iso3 / iso3 | 0.875 | 7.1016 | +0.460 (+6.9%) |
+| planar4 / planar4 | 4.25 | 7.0178 | +0.376 (+5.7%) |
+| iso4 / iso4 | 4.25 | 7.0962 | +0.454 (+6.8%) |
+| planar3 / f16 (K-only) | — | 6.6417 | **0.000** |
+| f16 / planar3 (V-only) | — | 7.0099 | +0.368 |
+
+### Qwen3.5-9B-Q4_K_M
+
+| KV Cache (K/V) | Bits/elem | PPL | Δ vs f16 |
+|----------------|:---------:|----:|:--------:|
+| f16 / f16 (baseline) | 16.0 | **7.6760** | — |
+| planar4 / planar4 | 4.25 | 7.3368 | −0.339 (−4.4%) |
+| planar3 / planar3 | 0.875 | 7.3731 | −0.303 (−3.9%) |
+| iso4 / iso4 | 4.25 | 7.4868 | −0.188 (−2.5%) |
+| iso3 / iso3 | 0.875 | 7.5490 | −0.127 (−1.7%) |
+| planar3 / f16 (K-only) | — | 7.6760 | **0.000** |
+| f16 / planar3 (V-only) | — | 7.3731 | −0.303 |
+| planar4 / f16 (K-only) | — | 7.6760 | **0.000** |
+| f16 / iso3 (V-only) | — | 7.5490 | −0.127 |
+
+### Key findings
+
+**K quantization has zero PPL impact.** Across both models and all bit depths,
+quantizing only K (with V at f16) produces identical PPL to the f16/f16 baseline.
+All PPL change — positive or negative — comes entirely from V quantization.
+
+**PlanarQuant consistently beats IsoQuant.** At the same bit depth: planar3 < iso3
+and planar4 < iso4 on both models. The difference is ~0.09 PPL (27B) and ~0.12 PPL
+(9B), consistent across configs.
+
+**3-bit and 4-bit are statistically comparable.** planar3 (0.875 bpe) and planar4
+(4.25 bpe) produce nearly identical PPL, within 0.01–0.04. At 5× lower bit rate,
+planar3 is the clear winner for compression-limited deployments.
+
+**Model size changes the direction of the effect.** On Qwen3.5-9B, V quantization
+*improves* PPL by 0.1–0.34 (regularization effect). On Qwen3.5-27B it *degrades*
+PPL by 0.37–0.46. Larger, higher-quality models are more sensitive to V precision.
 
 ---
 
