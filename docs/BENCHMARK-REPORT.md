@@ -88,6 +88,52 @@
 
 ---
 
+> ## Qwen3.6-35B-A3B Parallelization & Context Benchmarks (2026-04-20)
+>
+> **Model**: Qwen3.6-35B-A3B UD-Q4_K_XL (22.3 GB)
+> **Config**: iso3/iso3, ctx=524288 total (65K/slot), 8 parallel slots, flash-attn on
+> **Hardware**: RTX 5090 (32 GB) — 29.7 GB used at benchmark time, 2.9 GB headroom
+>
+> ### KV Cache Architecture Discovery
+>
+> - `planar3/planar4`: K stored at **f16 (uncompressed)**, only V is compressed. K at f16
+>   costs ~10 GB at 1M ctx, bottlenecking context window.
+> - `iso3/iso4`: Both K and V compressed at 0.875/4.25 bpe. iso3 KV = 7.1 GB for 524K ctx
+>   vs planar4 KV = 0.98 GB for only 65K ctx — iso3 enables 8× more total context at same VRAM.
+>
+> ### Max context window per configuration (RTX 5090 32 GB)
+>
+> | KV type | Per-slot ctx | Parallel slots | Total KV | VRAM total |
+> |---------|:------------:|:--------------:|:--------:|:----------:|
+> | planar4 | 32,768 | 2 | 0.98 GB | 22.4 GB |
+> | planar3 | 262,144 | 2 | 5.4 GB | 26.8 GB |
+> | **iso3** | **262,144** | **2** | **7.1 GB** | **28.7 GB** |
+> | iso3 | 65,536 | 8 | 7.1 GB | 28.7 GB |
+>
+> Qwen3.6 training context = 262,144. iso3 P=2 achieves the full training context per slot.
+>
+> ### Parallelization impact on throughput (iso3, 65K ctx/slot, 500 tokens, 3 trials)
+>
+> | Concurrent requests | Per-slot tok/s | Aggregate tok/s | Per-slot vs P=1 | Agg. scaling |
+> |:-------------------:|:--------------:|:---------------:|:---------------:|:------------:|
+> | 1 | **193** | 193 | baseline | 1.0× |
+> | 2 | 150 | **299** | −22% | 1.55× |
+> | 4 | 99 | **397** | −49% | 2.06× |
+> | 8 | 54 | **431** | −72% | 2.23× |
+>
+> All results are stable across 3 trials (variance < 1%). Warmup: 3 discarded requests.
+>
+> **Key findings:**
+> - At P=2: aggregate throughput nearly doubles (+55%). Per-slot cost is only −22%.
+>   Best sweet spot for interactive use with 2 concurrent users.
+> - At P=4: aggregate 2× single-slot, per-slot halves. Good for batch inference.
+> - At P=8: diminishing returns — aggregate only 2.2× vs 4× theoretical. GPU compute
+>   saturates. Each slot gets 54 tok/s which is still usable for interactive chat.
+> - **P=4 is the practical optimum**: 397 tok/s aggregate at 99 tok/s/slot — users
+>   experience ~100 tok/s each while 4 simultaneous conversations run.
+
+---
+
 ## 1. Throughput Comparison — iso3/iso3 vs f16/f16
 
 Measured with `llama-bench`, 1 repetition, batch_size=1.

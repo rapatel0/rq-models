@@ -21,9 +21,9 @@ set -euo pipefail
 declare -A MODELS=(
   # ── Qwen3.6-35B-A3B MoE (default) ───────────────────────────────────
   # 32 GB+ (RTX 5090, A100): UD-Q4_K_XL — best quality
-  [qwen3.6-35b]="unsloth/Qwen3.6-35B-A3B-GGUF|Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf|65536|"
+  [qwen3.6-35b]="unsloth/Qwen3.6-35B-A3B-GGUF|Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf|262144|"
   # 24 GB (RTX 4090): UD-Q3_K_XL — best fit
-  [qwen3.6-35b-q3]="unsloth/Qwen3.6-35B-A3B-GGUF|Qwen3.6-35B-A3B-UD-Q3_K_XL.gguf|65536|"
+  [qwen3.6-35b-q3]="unsloth/Qwen3.6-35B-A3B-GGUF|Qwen3.6-35B-A3B-UD-Q3_K_XL.gguf|131072|"
   # 16 GB (RTX 5060/4060 Ti): IQ3_XXS — max compression
   [qwen3.6-35b-iq3]="unsloth/Qwen3.6-35B-A3B-GGUF|Qwen3.6-35B-A3B-UD-IQ3_XXS.gguf|32768|"
 

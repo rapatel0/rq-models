@@ -48,12 +48,16 @@ services:
     container_name: rotorquant-qwen
     environment:
       MODEL_NAME: qwen3.6-35b
-      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar4}
-      CTX_SIZE: ${CTX_SIZE:-}
+      # iso3: K+V both at 0.875 bpe — enables full 262K context per slot
+      # iso3 P=2 ctx=524288: 262K/slot (full training ctx), KV ~7.1 GB, total ~28.7 GB
+      # planar3 alternative (better quality, K stays f16): P=2 max at same VRAM budget
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso3}
+      # 524,288 = 262,144 × 2 → full training context per slot at N_PARALLEL=2
+      CTX_SIZE: ${CTX_SIZE:-524288}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
-      N_PARALLEL: ${N_PARALLEL:-}
-      CACHE_RAM: ${CACHE_RAM:-}
+      N_PARALLEL: ${N_PARALLEL:-2}
+      CACHE_RAM: ${CACHE_RAM:-2048}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 
@@ -175,6 +179,25 @@ services:
       GPU_LAYERS: ${GPU_LAYERS:-99}
       N_PARALLEL: ${N_PARALLEL:-}
       CACHE_RAM: ${CACHE_RAM:-}
+      HF_TOKEN: ${HF_TOKEN:-}
+      EXTRA_ARGS: ${EXTRA_ARGS:-}
+
+  # ── Qwen3.6 max throughput: 8 slots × 65K ctx, iso3, RTX 5090 ──
+  # iso3 P=8 ctx=524288: 65K/slot, KV ~7.1 GB, total ~28.7 GB — same budget as qwen default
+  # Use for aggregate throughput benchmarking; per-slot ctx = 65K
+  qwen36-throughput:
+    <<: *llm-base
+    profiles: [qwen36-throughput]
+    container_name: rotorquant-qwen36-tp
+    environment:
+      MODEL_NAME: qwen3.6-35b
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso3}
+      # 524,288 = 65,536 × 8 → 65K ctx per slot at N_PARALLEL=8
+      CTX_SIZE: ${CTX_SIZE:-524288}
+      PORT: ${PORT:-8080}
+      GPU_LAYERS: ${GPU_LAYERS:-99}
+      N_PARALLEL: ${N_PARALLEL:-8}
+      CACHE_RAM: ${CACHE_RAM:-2048}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 
