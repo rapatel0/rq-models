@@ -7,6 +7,12 @@ For each attention layer, computes:
   - Eigenvalue gap fallback: if no clear gap, d_eff = head_dim (full-dim quantization)
   - Lloyd-Max codebooks: 4-bit (16 centroids) for signal dims, 2-bit (4 centroids) for noise
 
+IMPORTANT: Calibration captures K/V tensors via DynamicCache.update patching, NOT via
+k_proj/v_proj hooks. This captures post-RoPE, post-k_norm K/V — identical to what
+SpectralKVCache.update() receives at inference time. Hooking k_proj captures pre-RoPE
+activations which have completely different eigenvalue structure (near-full-rank after
+RoPE is applied).
+
 Usage:
     from turboquant.spectral.calibrator import SpectralCalibrator
     cal = SpectralCalibrator(model, variance_threshold=0.99)
@@ -38,8 +44,8 @@ MIN_TOKENS_FOR_PCA = 64
 class LayerCalibration:
     """Calibration artifacts for one attention layer."""
     layer_idx: int
-    d_eff_k: int                  # signal dims for K (e.g. 4-5)
-    d_eff_v: int                  # signal dims for V (e.g. 40-55)
+    d_eff_k: int                  # signal dims for K
+    d_eff_v: int                  # signal dims for V
 
     eigvec_k: Tensor              # [n_kv_heads, head_dim, head_dim] f32, columns=eigenvectors
     eigvec_v: Tensor              # [n_kv_heads, head_dim, head_dim] f32
@@ -75,18 +81,15 @@ def _lloyd_max_fit(data: Tensor, n_centroids: int, n_iter: int = 100) -> Tensor:
 
     data_np = data.float().cpu().numpy()
     if len(data_np) < n_centroids:
-        # Not enough data — use uniform quantile initialization
         quantiles = np.linspace(0, 100, n_centroids)
         centroids = np.percentile(data_np, quantiles, axis=0)
         return torch.from_numpy(centroids.astype(np.float32))
 
-    # k-means with uniform quantile init
     init_idx = np.linspace(0, len(data_np) - 1, n_centroids, dtype=int)
     init = data_np[init_idx]
     try:
         centroids, _ = kmeans(data_np, init, iter=n_iter, check_finite=False)
     except Exception:
-        # Fall back to quantile init if k-means fails
         quantiles = np.linspace(0, 100, n_centroids)
         centroids = np.percentile(data_np, quantiles, axis=0)
 
@@ -106,12 +109,11 @@ def _select_d_eff(eigenvalues: Tensor, variance_threshold: float) -> tuple[int, 
         return eigenvalues.shape[-1], True
 
     cumvar = eigenvalues.cumsum(-1) / total
-    # Find first index where cumulative variance >= threshold
     exceeded = (cumvar >= variance_threshold).nonzero(as_tuple=True)[-1]
     if len(exceeded) == 0:
         return eigenvalues.shape[-1], True
 
-    d_eff = int(exceeded[0].item()) + 1  # +1: 0-indexed → count
+    d_eff = int(exceeded[0].item()) + 1
 
     # Flat spectrum check: if top eigenvalue explains < 2× the mean, no clear gap
     mean_eigenval = total / eigenvalues.shape[-1]
@@ -126,6 +128,10 @@ class SpectralCalibrator:
     """
     Runs a calibration pass through the model to compute per-layer PCA bases
     and Lloyd-Max codebooks for K and V separately.
+
+    Captures K/V tensors by patching DynamicCache.update — this ensures we
+    calibrate on post-RoPE, post-normalization K/V, which is exactly what
+    SpectralKVCache.update() receives at inference time.
 
     Args:
         model: HuggingFace model (must expose attention layers with k_proj/v_proj)
@@ -145,60 +151,7 @@ class SpectralCalibrator:
         self.variance_threshold = variance_threshold
         self.signal_centroids = signal_centroids
         self.noise_centroids = noise_centroids
-        self._hooks: list = []
         self._activations: dict[int, dict[str, list[Tensor]]] = {}
-
-    def _register_hooks(self, attention_layer_indices: list[int]) -> None:
-        """Register forward hooks on attention layers to collect KV activations."""
-        self._activations = {idx: {"k": [], "v": []} for idx in attention_layer_indices}
-
-        # Walk model layers and hook k_proj / v_proj outputs
-        # Works for Qwen3.5 and most HF attention implementations
-        layers = self._get_attention_layers(attention_layer_indices)
-        for layer_idx, (k_proj, v_proj) in layers.items():
-            def make_k_hook(idx):
-                def hook(module, inp, out):
-                    self._activations[idx]["k"].append(out.detach().float().cpu())
-                return hook
-
-            def make_v_hook(idx):
-                def hook(module, inp, out):
-                    self._activations[idx]["v"].append(out.detach().float().cpu())
-                return hook
-
-            self._hooks.append(k_proj.register_forward_hook(make_k_hook(layer_idx)))
-            self._hooks.append(v_proj.register_forward_hook(make_v_hook(layer_idx)))
-
-    def _remove_hooks(self) -> None:
-        for h in self._hooks:
-            h.remove()
-        self._hooks.clear()
-
-    def _get_attention_layers(
-        self, attention_layer_indices: list[int]
-    ) -> dict[int, tuple[nn.Module, nn.Module]]:
-        """
-        Return {layer_idx: (k_proj, v_proj)} for each attention layer.
-        Handles Qwen3.5/Qwen3.6 layer naming conventions.
-        """
-        result = {}
-        # Try standard HF naming: model.layers[i].self_attn.{k,v}_proj
-        layers_attr = getattr(self.model, "model", self.model)
-        raw_layers = getattr(layers_attr, "layers", None)
-        if raw_layers is None:
-            raise RuntimeError("Cannot find model.layers — unsupported architecture")
-
-        for idx in attention_layer_indices:
-            layer = raw_layers[idx]
-            attn = getattr(layer, "self_attn", None)
-            if attn is None:
-                continue
-            k_proj = getattr(attn, "k_proj", None)
-            v_proj = getattr(attn, "v_proj", None)
-            if k_proj is not None and v_proj is not None:
-                result[idx] = (k_proj, v_proj)
-
-        return result
 
     def _find_attention_layers(self) -> list[int]:
         """
@@ -219,29 +172,56 @@ class SpectralCalibrator:
         self,
         prompts: list[str],
         tokenizer,
+        attention_layer_indices: list[int],
         max_length: int = 512,
         device: Optional[torch.device] = None,
     ) -> None:
-        """Run calibration prompts through model to populate self._activations."""
+        """
+        Run calibration prompts through model with DynamicCache.update patched.
+
+        Captures post-RoPE, post-norm K/V tensors — identical to what
+        SpectralKVCache.update() receives at inference time. Uses use_cache=True
+        so DynamicCache.update is called for every attention layer.
+        """
+        from transformers.cache_utils import DynamicCache
+
         if device is None:
             device = next(self.model.parameters()).device
 
+        self._activations = {idx: {"k": [], "v": []} for idx in attention_layer_indices}
+        attn_set = set(attention_layer_indices)
+        activations = self._activations  # local ref for closure
+
+        _orig_update = DynamicCache.update
+
+        def _capture_hook(cache_self, key_states, value_states, layer_idx, *args, **kwargs):
+            if layer_idx in attn_set:
+                # key_states: [batch, n_kv_heads, seq, head_dim] — post-RoPE, post-norm
+                activations[layer_idx]["k"].append(key_states.detach().float().cpu())
+                activations[layer_idx]["v"].append(value_states.detach().float().cpu())
+            return _orig_update(cache_self, key_states, value_states, layer_idx, *args, **kwargs)
+
         self.model.eval()
-        with torch.no_grad():
-            for i, prompt in enumerate(prompts):
-                try:
-                    inputs = tokenizer(
-                        prompt,
-                        return_tensors="pt",
-                        truncation=True,
-                        max_length=max_length,
-                    ).to(device)
-                    self.model(**inputs, use_cache=False)
-                    if (i + 1) % 8 == 0:
-                        logger.info(f"  Calibration: {i+1}/{len(prompts)} prompts processed")
-                except torch.cuda.OutOfMemoryError:
-                    logger.warning(f"OOM on prompt {i}, skipping")
-                    torch.cuda.empty_cache()
+        DynamicCache.update = _capture_hook
+        try:
+            with torch.no_grad():
+                for i, prompt in enumerate(prompts):
+                    try:
+                        inputs = tokenizer(
+                            prompt,
+                            return_tensors="pt",
+                            truncation=True,
+                            max_length=max_length,
+                        ).to(device)
+                        # use_cache=True is required: triggers DynamicCache.update calls
+                        self.model(**inputs, use_cache=True)
+                        if (i + 1) % 8 == 0:
+                            logger.info(f"  Calibration: {i+1}/{len(prompts)} prompts processed")
+                    except torch.cuda.OutOfMemoryError:
+                        logger.warning(f"OOM on prompt {i}, skipping")
+                        torch.cuda.empty_cache()
+        finally:
+            DynamicCache.update = _orig_update
 
     def _pca_for_layer(
         self, activations: list[Tensor], n_kv_heads: int, head_dim: int
@@ -250,26 +230,23 @@ class SpectralCalibrator:
         Compute PCA (eigenvectors + eigenvalues) from collected activation tensors.
 
         Args:
-            activations: list of [batch, n_kv_heads * head_dim, seq_len] or
-                         [batch, seq_len, n_kv_heads * head_dim] tensors
-                         (output of k_proj / v_proj)
+            activations: list of [batch, n_kv_heads, seq_len, head_dim] tensors
+                         (shape from DynamicCache.update key_states / value_states)
 
         Returns:
             eigvecs: [n_kv_heads, head_dim, head_dim] — columns are eigenvectors, f32
             eigenvalues: [n_kv_heads, head_dim] — descending, f32
         """
-        # Stack activations: collect [N_total_tokens, n_kv_heads, head_dim]
         token_vecs_per_head = [[] for _ in range(n_kv_heads)]
 
         for act in activations:
-            # act shape: [batch, seq_len, n_kv_heads * head_dim] (most HF models)
-            if act.dim() == 3 and act.shape[-1] == n_kv_heads * head_dim:
-                act = act.reshape(-1, n_kv_heads, head_dim)  # [B*T, H, D]
-            elif act.dim() == 3 and act.shape[1] == n_kv_heads * head_dim:
-                act = act.permute(0, 2, 1).reshape(-1, n_kv_heads, head_dim)
-            elif act.dim() == 4:
-                # [batch, n_kv_heads, seq_len, head_dim]
-                act = act.permute(0, 2, 1, 3).reshape(-1, n_kv_heads, head_dim)
+            # act: [batch, n_kv_heads, seq_len, head_dim] from DynamicCache.update
+            if act.dim() == 4:
+                # [batch, n_kv_heads, seq, head_dim] → [batch*seq, n_kv_heads, head_dim]
+                b, h, s, d = act.shape
+                act = act.permute(0, 2, 1, 3).reshape(b * s, h, d)
+            elif act.dim() == 3 and act.shape[-1] == n_kv_heads * head_dim:
+                act = act.reshape(-1, n_kv_heads, head_dim)
             else:
                 logger.warning(f"Unexpected activation shape {act.shape}, skipping")
                 continue
@@ -290,18 +267,16 @@ class SpectralCalibrator:
                 eigenvalues_list.append(torch.ones(head_dim))
                 continue
 
-            # Zero-mean
+            # Zero-mean before PCA
             mean = vecs.mean(0, keepdim=True)
             vecs = vecs - mean
 
-            # Covariance and eigendecomposition (f32 for stability)
-            # torch.linalg.eigh returns eigenvalues in ascending order
             cov = (vecs.T @ vecs) / (N - 1)
             eigenvalues, eigvecs = torch.linalg.eigh(cov)
 
             # Flip to descending order
             eigenvalues = eigenvalues.flip(-1).clamp(min=0)
-            eigvecs = eigvecs.flip(-1)  # [head_dim, head_dim], columns=eigenvectors
+            eigvecs = eigvecs.flip(-1)
 
             eigvecs_list.append(eigvecs)
             eigenvalues_list.append(eigenvalues)
@@ -320,8 +295,7 @@ class SpectralCalibrator:
         head_dim: int,
     ) -> tuple[Tensor, Tensor]:
         """
-        Project activations onto eigenvectors and fit Lloyd-Max codebooks for
-        signal (top d_eff dims) and noise (remaining dims).
+        Project activations onto eigenvectors and fit Lloyd-Max codebooks.
 
         Returns:
             codebook_signal: [n_kv_heads, SIGNAL_CENTROIDS, d_eff]
@@ -331,10 +305,11 @@ class SpectralCalibrator:
         projected_noise  = [[] for _ in range(n_kv_heads)]
 
         for act in activations:
-            if act.dim() == 3 and act.shape[-1] == n_kv_heads * head_dim:
+            if act.dim() == 4:
+                b, h, s, d = act.shape
+                act = act.permute(0, 2, 1, 3).reshape(b * s, h, d).float()
+            elif act.dim() == 3 and act.shape[-1] == n_kv_heads * head_dim:
                 act = act.reshape(-1, n_kv_heads, head_dim).float()
-            elif act.dim() == 4:
-                act = act.permute(0, 2, 1, 3).reshape(-1, n_kv_heads, head_dim).float()
             else:
                 continue
 
@@ -390,23 +365,22 @@ class SpectralCalibrator:
 
         logger.info(f"Calibrating {len(attn_indices)} attention layers on {len(prompts)} prompts")
 
-        self._register_hooks(attn_indices)
         t0 = time.time()
-        try:
-            self._collect_activations(prompts, tokenizer, max_length=max_length, device=device)
-        finally:
-            self._remove_hooks()
+        self._collect_activations(
+            prompts, tokenizer, attn_indices, max_length=max_length, device=device
+        )
 
         elapsed = time.time() - t0
         logger.info(f"Activation collection: {elapsed:.1f}s")
 
         # Get model head config
         cfg = getattr(self.model, "config", None)
-        n_kv_heads = getattr(cfg, "num_key_value_heads", 1)
-        head_dim = getattr(cfg, "head_dim", None)
+        text_cfg = getattr(cfg, "text_config", cfg)
+        n_kv_heads = getattr(text_cfg, "num_key_value_heads", None) or getattr(cfg, "num_key_value_heads", 1)
+        head_dim = getattr(text_cfg, "head_dim", None) or getattr(cfg, "head_dim", None)
         if head_dim is None:
-            hidden = getattr(cfg, "hidden_size", None)
-            n_heads = getattr(cfg, "num_attention_heads", 1)
+            hidden = getattr(text_cfg, "hidden_size", None) or getattr(cfg, "hidden_size", None)
+            n_heads = getattr(text_cfg, "num_attention_heads", 1) or getattr(cfg, "num_attention_heads", 1)
             head_dim = hidden // n_heads if hidden else 128
 
         logger.info(f"n_kv_heads={n_kv_heads}, head_dim={head_dim}")
@@ -424,11 +398,9 @@ class SpectralCalibrator:
 
             t1 = time.time()
 
-            # PCA for K and V
             eigvec_k, eigenvalues_k = self._pca_for_layer(k_acts, n_kv_heads, head_dim)
             eigvec_v, eigenvalues_v = self._pca_for_layer(v_acts, n_kv_heads, head_dim)
 
-            # d_eff selection per head — use median across heads
             d_eff_k_per_head = []
             d_eff_v_per_head = []
             fallback_k = False
@@ -442,7 +414,6 @@ class SpectralCalibrator:
                 if fb_k: fallback_k = True
                 if fb_v: fallback_v = True
 
-            # Use min across heads so all heads can share the same d_eff
             d_eff_k = min(d_eff_k_per_head)
             d_eff_v = min(d_eff_v_per_head)
 
@@ -453,7 +424,6 @@ class SpectralCalibrator:
                 + (" [V-fallback]" if fallback_v else "")
             )
 
-            # Fit codebooks
             cb_k_sig, cb_k_noi = self._fit_codebooks(
                 k_acts, eigvec_k, d_eff_k, n_kv_heads, head_dim
             )
@@ -479,7 +449,6 @@ class SpectralCalibrator:
 
             logger.debug(f"Layer {layer_idx} calibrated in {time.time() - t1:.1f}s")
 
-        # Free activation memory
         self._activations.clear()
 
         total = time.time() - t0
