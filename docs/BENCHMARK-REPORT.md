@@ -260,10 +260,11 @@ Batch size has no measurable impact on throughput.
 
 ### Qwen3.6-35B-A3B-Q4_K_XL
 
-> **Note (2026-04-21):** Qwen3.6 inverts the planar vs iso ordering seen on Qwen3.5.
-> **iso4 is the best quantized option** and iso consistently beats planar at both bit
-> depths. Docker-compose default updated from `planar3` → `iso3` (same 3.125 bpe memory
-> budget, better PPL). Use `iso4` if VRAM allows.
+> **Note (2026-04-21):** Qwen3.6 MoE inverts the planar vs iso ordering seen on Qwen3.5.
+> **iso consistently beats planar** on both corpora. Docker-compose default: `iso3`
+> (same 3.125 bpe / 7.1 GB KV budget, better PPL than planar3). Use `iso4` for quality.
+
+#### wikitext-2-raw-v1 test
 
 | KV Cache (K/V) | Bits/elem | PPL | Δ vs f16 |
 |----------------|:---------:|----:|:--------:|
@@ -273,7 +274,17 @@ Batch size has no measurable impact on throughput.
 | planar4 / planar4 | 4.25 | 6.2529 | +0.121 (+2.0%) |
 | planar3 / planar3 | 3.125 | 6.2904 | +0.159 (+2.6%) |
 
-Note: iso3 ≈ planar4 within the ±0.039 measurement uncertainty.
+#### C4 validation
+
+| KV Cache (K/V) | Bits/elem | PPL | Δ vs f16 |
+|----------------|:---------:|----:|:--------:|
+| f16 / f16 (baseline) | 16.0 | **10.5681** | — |
+| **iso4 / iso4** | 4.25 | **10.6928** | **+0.125 (+1.2%)** |
+| iso3 / iso3 | 3.125 | 10.7108 | +0.143 (+1.4%) |
+| planar4 / planar4 | 4.25 | 10.7335 | +0.165 (+1.6%) |
+| planar3 / planar3 | 3.125 | 10.7354 | +0.167 (+1.6%) |
+
+Both corpora agree: iso4 best, iso3 ≈ planar4 (within ±0.038 noise), planar3 worst.
 
 ### Key findings
 
