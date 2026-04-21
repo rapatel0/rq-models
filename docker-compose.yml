@@ -1,7 +1,7 @@
 # RotorQuant LLM Server — Docker Compose with model profiles
 #
 # Usage:
-#   docker compose --profile qwen up          # Qwen3.5-27B (base)
+#   docker compose --profile qwen up          # Qwen3.6-35B-A3B MoE (default, 32GB+)
 #   docker compose --profile reasoning up     # Qwen3.5-27B Claude Reasoning Distilled
 #   docker compose --profile gemma up         # Gemma 4 26B MoE
 #
@@ -48,10 +48,9 @@ services:
     container_name: rotorquant-qwen
     environment:
       MODEL_NAME: qwen3.6-35b
-      # iso3: K+V both at 0.875 bpe — enables full 262K context per slot
-      # iso3 P=2 ctx=524288: 262K/slot (full training ctx), KV ~7.1 GB, total ~28.7 GB
-      # planar3 alternative (better quality, K stays f16): P=2 max at same VRAM budget
-      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso3}
+      # planar3: K+V both at 0.875 bpe — same memory as iso3, better PPL quality
+      # P=2 ctx=524288: 262K/slot (full training ctx), KV ~7.1 GB, total ~28.7 GB
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar3}
       # 524,288 = 262,144 × 2 → full training context per slot at N_PARALLEL=2
       CTX_SIZE: ${CTX_SIZE:-524288}
       PORT: ${PORT:-8080}

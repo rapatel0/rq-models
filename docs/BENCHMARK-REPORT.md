@@ -255,6 +255,20 @@ Batch size has no measurable impact on throughput.
 | planar3 / f16 (K-only) | — | 9.8485 | **0.000** |
 | f16 / planar3 (V-only) | — | 9.9624 | +0.114 |
 
+### Qwen3.6-35B-A3B-Q4_K_XL
+
+> **Note (2026-04-20):** PPL sweep pending — GPU occupied during benchmarking session.
+> Recommendation: `planar3` (same VRAM as iso3 for this model, consistently better PPL
+> across all Qwen3.5 benchmarks above). Results will be added when GPU is available.
+
+| KV Cache (K/V) | Bits/elem | PPL | Δ vs f16 |
+|----------------|:---------:|----:|:--------:|
+| f16 / f16 (baseline) | 16.0 | _pending_ | — |
+| planar3 / planar3 | 0.875 | _pending_ | — |
+| iso3 / iso3 | 0.875 | _pending_ | — |
+| planar4 / planar4 | 4.25 | _pending_ | — |
+| iso4 / iso4 | 4.25 | _pending_ | — |
+
 ### Key findings
 
 **K quantization has zero PPL impact on all datasets.** Quantizing only K
@@ -415,19 +429,22 @@ curl http://localhost:8080/v1/chat/completions \
 
 ### Available Models
 
-| Profile | Model | Size | Notes |
-|---------|-------|------|-------|
-| `--profile qwen` | Qwen3.5-27B Q4_K_M | 16.7 GB | Base model |
-| `--profile reasoning` | Qwen3.5-27B Claude Opus Distilled | 16.6 GB | Reasoning-tuned |
-| `--profile gemma` | Gemma 4 26B MoE UD-Q4_K_XL | 17.1 GB | 3.8B active params |
+| Profile | Model | Size | VRAM | Notes |
+|---------|-------|------|------|-------|
+| `--profile qwen` | Qwen3.6-35B-A3B UD-Q4_K_XL | 22.3 GB | ~27 GB | Default — 35B MoE, ~3B active, 196 tok/s |
+| `--profile qwen36-q3` | Qwen3.6-35B-A3B UD-Q3_K_XL | ~17 GB | ~24 GB | 24 GB GPUs (RTX 4090) |
+| `--profile qwen36-iq3` | Qwen3.6-35B-A3B UD-IQ3_XXS | ~14 GB | ~16 GB | 16 GB GPUs |
+| `--profile reasoning` | Qwen3.5-27B Claude Opus Distilled | 16.6 GB | ~20 GB | Reasoning-tuned |
+| `--profile gemma` | Gemma 4 26B MoE UD-Q4_K_XL | 17.1 GB | ~21 GB | 3.8B active params |
 
 ### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `MODEL_NAME` | (required) | Model to serve |
-| `KV_CACHE_TYPE` | `iso3` | KV cache quantization (iso3, iso4, planar3, f16) |
-| `CTX_SIZE` | `131072` | Context window size |
+| `KV_CACHE_TYPE` | `planar3` | KV cache quantization (planar3, planar4, iso3, f16) |
+| `CTX_SIZE` | per-model | Context window size |
 | `PORT` | `8080` | Server port |
 | `GPU_LAYERS` | `99` | Layers offloaded to GPU |
+| `N_PARALLEL` | `2` | Concurrent request slots |
 | `HF_TOKEN` | — | HuggingFace token for gated models |
