@@ -21,10 +21,10 @@
 > | KV Cache | Bits/elem | PPL (ctx=512) | PPL (ctx=4096) | vs f16 (4K) |
 > |----------|:---------:|:-------------:|:--------------:|:-----------:|
 > | f16 | 16.0 | ~6.55 | 7.5942 | baseline |
-> | **planar3** | 0.875 | **7.1950** | **8.1973** | +0.603 |
+> | **planar3** | 3.125 | **7.1950** | **8.1973** | +0.603 |
 > | planar4 | 4.25 | — | 8.2548 | +0.661 |
 > | iso4 (old default) | 4.25 | 7.2549 | 8.3689 | +0.775 |
-> | iso3 | 0.875 | 7.2771 | 8.4344 | +0.840 |
+> | iso3 | 3.125 | 7.2771 | 8.4344 | +0.840 |
 >
 > Key findings:
 > - PlanarQuant beats IsoQuant at every bit depth by a statistically significant margin
@@ -94,12 +94,15 @@
 > **Config**: iso3/iso3, ctx=524288 total (65K/slot), 8 parallel slots, flash-attn on
 > **Hardware**: RTX 5090 (32 GB) — 29.7 GB used at benchmark time, 2.9 GB headroom
 >
-> ### KV Cache Architecture Discovery
+> ### KV Cache Architecture Notes
 >
-> - `planar3/planar4`: K stored at **f16 (uncompressed)**, only V is compressed. K at f16
->   costs ~10 GB at 1M ctx, bottlenecking context window.
-> - `iso3/iso4`: Both K and V compressed at 0.875/4.25 bpe. iso3 KV = 7.1 GB for 524K ctx
->   vs planar4 KV = 0.98 GB for only 65K ctx — iso3 enables 8× more total context at same VRAM.
+> - All four types (planar3, planar4, iso3, iso4) use **deferred K quantization**: K is
+>   allocated as f16 during prefill to avoid error compounding, then converted to the target
+>   type after prefill completes (`convert_deferred_keys()`). Steady-state K is compressed.
+> - Actual bit depths: **planar3/iso3 = 3.125 bpe** (2-bit centroid + 1-bit QJL sign,
+>   50 bytes/128 values); **planar4/iso4 = 4.25 bpe** (4-bit nibble, 68 bytes/128 values).
+> - VRAM difference between planar3 and iso3 at the same context reflects the different
+>   rotation schemes' compute/memory tradeoffs during the deferred-conversion window.
 >
 > ### Max context window per configuration (RTX 5090 32 GB)
 >
@@ -210,8 +213,8 @@ Batch size has no measurable impact on throughput.
 | KV Cache (K/V) | Bits/elem | PPL | Δ vs f16 |
 |----------------|:---------:|----:|:--------:|
 | f16 / f16 (baseline) | 16.0 | **6.6417** | — |
-| planar3 / planar3 | 0.875 | 7.0099 | +0.368 (+5.5%) |
-| iso3 / iso3 | 0.875 | 7.1016 | +0.460 (+6.9%) |
+| planar3 / planar3 | 3.125 | 7.0099 | +0.368 (+5.5%) |
+| iso3 / iso3 | 3.125 | 7.1016 | +0.460 (+6.9%) |
 | planar4 / planar4 | 4.25 | 7.0178 | +0.376 (+5.7%) |
 | iso4 / iso4 | 4.25 | 7.0962 | +0.454 (+6.8%) |
 | planar3 / f16 (K-only) | — | 6.6417 | **0.000** |
@@ -223,9 +226,9 @@ Batch size has no measurable impact on throughput.
 |----------------|:---------:|----:|:--------:|
 | f16 / f16 (baseline) | 16.0 | **7.6760** | — |
 | planar4 / planar4 | 4.25 | 7.3368 | −0.339 (−4.4%) |
-| planar3 / planar3 | 0.875 | 7.3731 | −0.303 (−3.9%) |
+| planar3 / planar3 | 3.125 | 7.3731 | −0.303 (−3.9%) |
 | iso4 / iso4 | 4.25 | 7.4868 | −0.188 (−2.5%) |
-| iso3 / iso3 | 0.875 | 7.5490 | −0.127 (−1.7%) |
+| iso3 / iso3 | 3.125 | 7.5490 | −0.127 (−1.7%) |
 | planar3 / f16 (K-only) | — | 7.6760 | **0.000** |
 | f16 / planar3 (V-only) | — | 7.3731 | −0.303 |
 | planar4 / f16 (K-only) | — | 7.6760 | **0.000** |
@@ -236,8 +239,8 @@ Batch size has no measurable impact on throughput.
 | KV Cache (K/V) | Bits/elem | PPL | Δ vs f16 |
 |----------------|:---------:|----:|:--------:|
 | f16 / f16 (baseline) | 16.0 | **11.5291** | — |
-| planar3 / planar3 | 0.875 | 11.7294 | +0.200 (+1.7%) |
-| iso3 / iso3 | 0.875 | 11.7364 | +0.207 (+1.8%) |
+| planar3 / planar3 | 3.125 | 11.7294 | +0.200 (+1.7%) |
+| iso3 / iso3 | 3.125 | 11.7364 | +0.207 (+1.8%) |
 | planar4 / planar4 | 4.25 | 11.7429 | +0.214 (+1.9%) |
 | iso4 / iso4 | 4.25 | 11.7430 | +0.214 (+1.9%) |
 | planar3 / f16 (K-only) | — | 11.5291 | **0.000** |
@@ -248,9 +251,9 @@ Batch size has no measurable impact on throughput.
 | KV Cache (K/V) | Bits/elem | PPL | Δ vs f16 |
 |----------------|:---------:|----:|:--------:|
 | f16 / f16 (baseline) | 16.0 | **9.8485** | — |
-| planar3 / planar3 | 0.875 | 9.9624 | +0.114 (+1.2%) |
+| planar3 / planar3 | 3.125 | 9.9624 | +0.114 (+1.2%) |
 | planar4 / planar4 | 4.25 | 9.9611 | +0.113 (+1.1%) |
-| iso3 / iso3 | 0.875 | 9.9823 | +0.134 (+1.4%) |
+| iso3 / iso3 | 3.125 | 9.9823 | +0.134 (+1.4%) |
 | iso4 / iso4 | 4.25 | 9.9822 | +0.134 (+1.4%) |
 | planar3 / f16 (K-only) | — | 9.8485 | **0.000** |
 | f16 / planar3 (V-only) | — | 9.9624 | +0.114 |
@@ -264,8 +267,8 @@ Batch size has no measurable impact on throughput.
 | KV Cache (K/V) | Bits/elem | PPL | Δ vs f16 |
 |----------------|:---------:|----:|:--------:|
 | f16 / f16 (baseline) | 16.0 | _pending_ | — |
-| planar3 / planar3 | 0.875 | _pending_ | — |
-| iso3 / iso3 | 0.875 | _pending_ | — |
+| planar3 / planar3 | 3.125 | _pending_ | — |
+| iso3 / iso3 | 3.125 | _pending_ | — |
 | planar4 / planar4 | 4.25 | _pending_ | — |
 | iso4 / iso4 | 4.25 | _pending_ | — |
 
