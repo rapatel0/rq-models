@@ -260,17 +260,20 @@ Batch size has no measurable impact on throughput.
 
 ### Qwen3.6-35B-A3B-Q4_K_XL
 
-> **Note (2026-04-20):** PPL sweep pending — GPU occupied during benchmarking session.
-> Recommendation: `planar3` (same VRAM as iso3 for this model, consistently better PPL
-> across all Qwen3.5 benchmarks above). Results will be added when GPU is available.
+> **Note (2026-04-21):** Qwen3.6 inverts the planar vs iso ordering seen on Qwen3.5.
+> **iso4 is the best quantized option** and iso consistently beats planar at both bit
+> depths. Docker-compose default updated from `planar3` → `iso3` (same 3.125 bpe memory
+> budget, better PPL). Use `iso4` if VRAM allows.
 
 | KV Cache (K/V) | Bits/elem | PPL | Δ vs f16 |
 |----------------|:---------:|----:|:--------:|
-| f16 / f16 (baseline) | 16.0 | _pending_ | — |
-| planar3 / planar3 | 3.125 | _pending_ | — |
-| iso3 / iso3 | 3.125 | _pending_ | — |
-| planar4 / planar4 | 4.25 | _pending_ | — |
-| iso4 / iso4 | 4.25 | _pending_ | — |
+| f16 / f16 (baseline) | 16.0 | **6.1316** | — |
+| **iso4 / iso4** | 4.25 | **6.2262** | **+0.095 (+1.5%)** |
+| iso3 / iso3 | 3.125 | 6.2515 | +0.120 (+2.0%) |
+| planar4 / planar4 | 4.25 | 6.2529 | +0.121 (+2.0%) |
+| planar3 / planar3 | 3.125 | 6.2904 | +0.159 (+2.6%) |
+
+Note: iso3 ≈ planar4 within the ±0.039 measurement uncertainty.
 
 ### Key findings
 
@@ -283,13 +286,18 @@ and all bit depths. All PPL change comes entirely from V quantization.
 encyclopedia text). On C4 (diverse web text), all quantized variants correctly
 degrade: +0.20 PPL for 9B, +0.11–0.13 PPL for 27B. C4 is the right eval corpus.
 
-**PlanarQuant consistently beats IsoQuant.** At the same bit depth: planar3 < iso3
-and planar4 < iso4 on both models and both datasets, by ~0.02 PPL (27B/C4) to
-~0.01 PPL (9B/C4).
+**PlanarQuant beats IsoQuant on dense Qwen3.5 models.** At the same bit depth:
+planar3 < iso3 and planar4 < iso4 on Qwen3.5-9B and 27B (both datasets), by
+~0.02 PPL (27B/C4) to ~0.01 PPL (9B/C4).
 
-**3-bit and 4-bit are statistically indistinguishable on C4.** planar3 (0.875 bpe)
-and planar4 (4.25 bpe) differ by only 0.0001–0.002 PPL. At 5× lower storage cost,
-planar3 is the unambiguous choice for compression-limited deployments.
+**IsoQuant beats PlanarQuant on Qwen3.6-35B-A3B MoE.** The ordering inverts on the
+MoE model: iso4 (6.2262) < iso3 ≈ planar4 (~6.252) < planar3 (6.2904). The iso
+transform appears better suited to MoE activation statistics (Gated Delta Net hybrid
+architecture). Best choice for Qwen3.6: `iso4` for quality, `iso3` for compression.
+
+**3-bit and 4-bit are statistically indistinguishable on C4 (Qwen3.5).** planar3
+and planar4 differ by only 0.0001–0.002 PPL on Qwen3.5/C4. On Qwen3.6/wikitext-2,
+iso4 edges iso3 by 0.025 PPL — within noise but consistently in the same direction.
 
 **27B degrades less than 9B in percentage terms.** +1.2% vs +1.7% — larger models
 are more robust to KV quantization, consistent with scale improving representation

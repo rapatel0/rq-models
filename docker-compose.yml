@@ -48,9 +48,9 @@ services:
     container_name: rotorquant-qwen
     environment:
       MODEL_NAME: qwen3.6-35b
-      # planar3: K+V both at 0.875 bpe — same memory as iso3, better PPL quality
+      # iso3: K+V both at 3.125 bpe — best PPL for Qwen3.6 MoE at this memory budget
       # P=2 ctx=524288: 262K/slot (full training ctx), KV ~7.1 GB, total ~28.7 GB
-      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar3}
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso3}
       # 524,288 = 262,144 × 2 → full training context per slot at N_PARALLEL=2
       CTX_SIZE: ${CTX_SIZE:-524288}
       PORT: ${PORT:-8080}
