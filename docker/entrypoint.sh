@@ -27,6 +27,14 @@ declare -A MODELS=(
   # 16 GB (RTX 5060/4060 Ti): IQ3_XXS — max compression
   [qwen3.6-35b-iq3]="unsloth/Qwen3.6-35B-A3B-GGUF|Qwen3.6-35B-A3B-UD-IQ3_XXS.gguf|32768|"
 
+  # ── Qwen3.6-27B dense ────────────────────────────────────────────────
+  # 32 GB+ (RTX 5090, A100): UD-Q4_K_XL — best quality
+  [qwen3.6-27b]="unsloth/Qwen3.6-27B-GGUF|Qwen3.6-27B-UD-Q4_K_XL.gguf|131072|"
+  # 24 GB (RTX 4090): UD-Q3_K_XL
+  [qwen3.6-27b-q3]="unsloth/Qwen3.6-27B-GGUF|Qwen3.6-27B-UD-Q3_K_XL.gguf|131072|"
+  # 16 GB (RTX 5060/4060 Ti): UD-IQ3_XXS
+  [qwen3.6-27b-iq3]="unsloth/Qwen3.6-27B-GGUF|Qwen3.6-27B-UD-IQ3_XXS.gguf|32768|"
+
   # ── Qwen3.5-27B dense (legacy) ───────────────────────────────────────
   # 24-32 GB GPUs (Q4 — best quality)
   [qwen3.5-27b]="unsloth/Qwen3.5-27B-GGUF|Qwen3.5-27B-Q4_K_M.gguf|114688|"

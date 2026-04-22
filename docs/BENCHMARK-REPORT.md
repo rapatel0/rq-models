@@ -286,6 +286,36 @@ Batch size has no measurable impact on throughput.
 
 Both corpora agree: iso4 best, iso3 ≈ planar4 (within ±0.038 noise), planar3 worst.
 
+### Qwen3.6-27B-Q4_K_XL (dense)
+
+> **Note (2026-04-22):** Dense model reverts to the Qwen3.5 pattern — planar beats iso.
+> Compose default: `planar3`. The iso > planar inversion appears specific to the Gated
+> Delta Net (MoE) architecture of Qwen3.6-35B-A3B.
+
+#### wikitext-2-raw-v1 test
+
+| KV Cache (K/V) | Bits/elem | PPL | Δ vs f16 |
+|----------------|:---------:|----:|:--------:|
+| f16 / f16 (baseline) | 16.0 | **7.0901** | — |
+| **planar3 / planar3** | 3.125 | **7.4044** | **+0.314 (+4.4%)** |
+| planar4 / planar4 | 4.25 | 7.4703 | +0.380 (+5.4%) |
+| iso3 / iso3 | 3.125 | 7.5587 | +0.469 (+6.6%) |
+| iso4 / iso4 | 4.25 | 7.6405 | +0.550 (+7.8%) |
+
+#### C4 validation
+
+| KV Cache (K/V) | Bits/elem | PPL | Δ vs f16 |
+|----------------|:---------:|----:|:--------:|
+| f16 / f16 (baseline) | 16.0 | **10.2963** | — |
+| **planar4 / planar4** | 4.25 | **10.4032** | **+0.107 (+1.0%)** |
+| planar3 / planar3 | 3.125 | 10.4176 | +0.121 (+1.2%) |
+| iso4 / iso4 | 4.25 | 10.4366 | +0.140 (+1.4%) |
+| iso3 / iso3 | 3.125 | 10.4506 | +0.154 (+1.5%) |
+
+planar4 vs planar3 gap on C4 (0.014) is within ±0.037 noise. **planar3 is the better
+default**: same quality as planar4 on C4, clearly better on wikitext-2, at 3.125 vs
+4.25 bpe (lower memory).
+
 ### Key findings
 
 **K quantization has zero PPL impact on all datasets.** Quantizing only K
@@ -301,10 +331,11 @@ degrade: +0.20 PPL for 9B, +0.11–0.13 PPL for 27B. C4 is the right eval corpus
 planar3 < iso3 and planar4 < iso4 on Qwen3.5-9B and 27B (both datasets), by
 ~0.02 PPL (27B/C4) to ~0.01 PPL (9B/C4).
 
-**IsoQuant beats PlanarQuant on Qwen3.6-35B-A3B MoE.** The ordering inverts on the
-MoE model: iso4 (6.2262) < iso3 ≈ planar4 (~6.252) < planar3 (6.2904). The iso
-transform appears better suited to MoE activation statistics (Gated Delta Net hybrid
-architecture). Best choice for Qwen3.6: `iso4` for quality, `iso3` for compression.
+**IsoQuant beats PlanarQuant on Qwen3.6-35B-A3B MoE; PlanarQuant wins on dense models.**
+The iso > planar inversion is specific to the Gated Delta Net hybrid MoE architecture:
+iso4 (6.2262) < iso3 ≈ planar4 (~6.252) < planar3 (6.2904) on the 35B-A3B MoE.
+For Qwen3.6-27B dense, the pattern reverts: planar3 < planar4 < iso3 < iso4 (same as
+Qwen3.5). Rule of thumb: **MoE → iso, dense → planar**.
 
 **3-bit and 4-bit are statistically indistinguishable on C4 (Qwen3.5).** planar3
 and planar4 differ by only 0.0001–0.002 PPL on Qwen3.5/C4. On Qwen3.6/wikitext-2,
@@ -456,6 +487,9 @@ curl http://localhost:8080/v1/chat/completions \
 | `--profile qwen` | Qwen3.6-35B-A3B UD-Q4_K_XL | 22.3 GB | ~27 GB | Default — 35B MoE, ~3B active, 196 tok/s |
 | `--profile qwen36-q3` | Qwen3.6-35B-A3B UD-Q3_K_XL | ~17 GB | ~24 GB | 24 GB GPUs (RTX 4090) |
 | `--profile qwen36-iq3` | Qwen3.6-35B-A3B UD-IQ3_XXS | ~14 GB | ~16 GB | 16 GB GPUs |
+| `--profile qwen36-27b` | Qwen3.6-27B UD-Q4_K_XL | 16.4 GB | ~20 GB | Dense 27B, planar3 |
+| `--profile qwen36-27b-q3` | Qwen3.6-27B UD-Q3_K_XL | ~12 GB | ~16 GB | 24 GB GPUs |
+| `--profile qwen36-27b-iq3` | Qwen3.6-27B UD-IQ3_XXS | ~9 GB | ~12 GB | 16 GB GPUs |
 | `--profile reasoning` | Qwen3.5-27B Claude Opus Distilled | 16.6 GB | ~20 GB | Reasoning-tuned |
 | `--profile gemma` | Gemma 4 26B MoE UD-Q4_K_XL | 17.1 GB | ~21 GB | 3.8B active params |
 
