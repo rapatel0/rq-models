@@ -5,7 +5,7 @@ set -euo pipefail
 # RotorQuant llama.cpp Server — Entrypoint
 #
 # Env vars:
-#   MODEL_NAME     (required)  One of: qwen3.5-27b, qwen3.5-27b-reasoning, gemma4-26b
+#   MODEL_NAME     (required)  One of: qwen3.6-35b, qwen3.6-27b, qwen3.5-27b, qwen3.5-27b-reasoning, gemma4-26b, ...
 #   KV_CACHE_TYPE  (optional)  KV cache quantization type (default: iso4)
 #   CTX_SIZE       (optional)  Context window size (default: per-model)
 #   PORT           (optional)  Server port (default: 8080)

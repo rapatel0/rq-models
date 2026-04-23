@@ -142,7 +142,8 @@ services:
     container_name: rotorquant-reasoning
     environment:
       MODEL_NAME: qwen3.5-27b-reasoning
-      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar4}
+      # Dense model: planar3 beats iso3 on PPL at same compression (4.9x)
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar3}
       CTX_SIZE: ${CTX_SIZE:-}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
@@ -173,7 +174,7 @@ services:
     container_name: rotorquant-qwen-q3
     environment:
       MODEL_NAME: qwen3.5-27b-q3
-      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar4}
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar3}
       CTX_SIZE: ${CTX_SIZE:-}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
@@ -188,7 +189,7 @@ services:
     container_name: rotorquant-qwen-q3-xxs
     environment:
       MODEL_NAME: qwen3.5-27b-q3-xxs
-      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar4}
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar3}
       CTX_SIZE: ${CTX_SIZE:-}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
@@ -203,7 +204,7 @@ services:
     container_name: rotorquant-qwen-iq4
     environment:
       MODEL_NAME: qwen3.5-27b-iq4
-      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar4}
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar3}
       CTX_SIZE: ${CTX_SIZE:-}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}

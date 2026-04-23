@@ -1,9 +1,9 @@
 # RotorQuant LLM Server
 > NOTE: Gemma Models have not been tested for ppl and qualtity. YMMV
 
-Serve Qwen3.6-35B-A3B, Qwen3.5-27B, Gemma 4 26B, and other large models with **large context on a single consumer GPU** using RotorQuant KV cache compression (3.8x compression at planar4 default, 97% decode speed of fp16).
+Serve Qwen3.6-35B-A3B, Qwen3.6-27B, Qwen3.5-27B, Gemma 4 26B, and other large models with **large context on a single consumer GPU** using RotorQuant KV cache compression (4.9x at 3-bit, 97% decode speed of fp16).
 
-> **Default: planar4 (4-bit)** — best balance of quality and compression. Use `iso3` for maximum compression (4.9x) if you need more context headroom.
+> **KV defaults**: `iso3` for MoE models (Qwen3.6-35B-A3B), `planar3` for dense models (Qwen3.6-27B, Qwen3.5-27B). Both are 3.125 bpe (4.9x compression). Benchmarks show rotation type matters: iso beats planar on MoE; planar beats iso on dense.
 
 
 ## Quick Start
@@ -23,22 +23,27 @@ curl http://localhost:8080/v1/chat/completions \
 
 ## Available Models
 
-| Command | Model | Weights | Active Params |
-|---------|-------|---------|---------------|
-| `make run-qwen` | **Qwen3.6-35B-A3B** (default) | UD-Q4_K_XL (22.4 GB) | 3B active (MoE) |
-| `docker compose --profile qwen36-q3 up` | Qwen3.6-35B-A3B | UD-Q3_K_XL (16.8 GB) | 3B active (MoE) |
-| `docker compose --profile qwen36-iq3 up` | Qwen3.6-35B-A3B | UD-IQ3_XXS (13.2 GB) | 3B active (MoE) |
-| `make run-reasoning` | Qwen3.5-27B Claude Opus Distilled | i1-Q4_K_M (16.6 GB) | 27B dense |
-| `make run-gemma` | Gemma 4 26B MoE | UD-Q4_K_XL (17.1 GB) | 3.8B active |
+| Command | Model | Weights | Active Params | KV default |
+|---------|-------|---------|---------------|:----------:|
+| `make run-qwen` | **Qwen3.6-35B-A3B** (default) | UD-Q4_K_XL (20.8 GB) | 3B active (MoE) | `iso3` |
+| `docker compose --profile qwen36-q3 up` | Qwen3.6-35B-A3B | UD-Q3_K_XL (16.8 GB) | 3B active (MoE) | `planar4` |
+| `docker compose --profile qwen36-iq3 up` | Qwen3.6-35B-A3B | UD-IQ3_XXS (13.2 GB) | 3B active (MoE) | `planar4` |
+| `make run-qwen36-27b` | **Qwen3.6-27B** (dense) | UD-Q4_K_XL (16.4 GB) | 27B dense | `planar3` |
+| `docker compose --profile qwen36-27b-q3 up` | Qwen3.6-27B | UD-Q3_K_XL (~12 GB) | 27B dense | `planar3` |
+| `docker compose --profile qwen36-27b-iq3 up` | Qwen3.6-27B | UD-IQ3_XXS (~9 GB) | 27B dense | `planar3` |
+| `make run-reasoning` | Qwen3.5-27B Claude Opus Distilled | i1-Q4_K_M (16.6 GB) | 27B dense | `planar3` |
+| `make run-gemma` | Gemma 4 26B MoE | UD-Q4_K_XL (17.1 GB) | 3.8B active | `planar4` |
 
 Or use Docker Compose directly:
 
 ```bash
-docker compose --profile qwen up        # Qwen3.6-35B-A3B Q4 (32 GB+)
-docker compose --profile qwen36-q3 up  # Qwen3.6-35B-A3B Q3 (24 GB)
-docker compose --profile qwen36-iq3 up # Qwen3.6-35B-A3B IQ3 (16 GB)
-docker compose --profile reasoning up  # Qwen3.5-27B reasoning-tuned
-docker compose --profile gemma up      # Gemma 4 MoE
+docker compose --profile qwen up           # Qwen3.6-35B-A3B Q4 (32 GB+), iso3
+docker compose --profile qwen36-q3 up     # Qwen3.6-35B-A3B Q3 (24 GB)
+docker compose --profile qwen36-iq3 up    # Qwen3.6-35B-A3B IQ3 (16 GB)
+docker compose --profile qwen36-27b up    # Qwen3.6-27B dense (24 GB+), planar3
+docker compose --profile qwen36-27b-q3 up # Qwen3.6-27B Q3 (16 GB)
+docker compose --profile reasoning up     # Qwen3.5-27B reasoning-tuned
+docker compose --profile gemma up         # Gemma 4 MoE
 ```
 
 ### Recommended Sampling (Qwen3.6)
@@ -68,7 +73,7 @@ HF_TOKEN=hf_xxx make run-reasoning
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `KV_CACHE_TYPE` | `planar4` | KV cache type: `planar4` (default), `planar3` (max compression, beats iso4 quality), `iso3`, `f16` |
+| `KV_CACHE_TYPE` | per-profile | KV cache type: `iso3` (MoE default), `planar3` (dense default), `planar4`, `iso4`, `f16` |
 | `CTX_SIZE` | per-model | Context window (e.g. 114688 for Q4_K_M on 24 GB) |
 | `PORT` | `8080` | API port |
 | `GPU_LAYERS` | `99` | Layers on GPU (99 = all) |
@@ -79,65 +84,54 @@ HF_TOKEN=hf_xxx make run-reasoning
 ## Best Config by GPU
 
 Recommended configurations per VRAM tier, based on measured perplexity
-(see [docs/QUANTIZATION-GUIDE.md](docs/QUANTIZATION-GUIDE.md) for full data).
+(see [docs/BENCHMARK-REPORT.md](docs/BENCHMARK-REPORT.md) and [docs/QUANTIZATION-GUIDE.md](docs/QUANTIZATION-GUIDE.md) for full data).
 
-### 16 GB (RTX 4060 Ti, RTX 5060, RTX 4080)
+### 32 GB+ (RTX 5090) — Recommended Default
 
-Q4_K_M doesn't fit. Use Unsloth imatrix quants:
+**Use Qwen3.6-35B-A3B** (`make run-qwen`). 196 tok/s decode, 262K context, iso3 KV (4.9x compression).
 
-| Use Case | Quant | Size | PPL | Context (planar4) | Context (iso3) |
-|----------|-------|-----:|----:|---------------:|---------------:|
-| **Best quality** | IQ4_XS | 13.9 GB | 6.29 | ~14K | ~18K |
-| **Recommended** | **UD-Q3_K_XL** | **13.4 GB** | **6.38** | **~28K** | **~36K** |
-| Max context | UD-IQ3_XXS | 10.7 GB | 6.62 | ~56K | ~74K |
+| Use Case | Quant | Size | KV | Context | Command |
+|----------|-------|-----:|:--:|--------:|---------|
+| **Default** | **UD-Q4_K_XL** | **20.8 GB** | **iso3** | **262K** | **`make run-qwen`** |
+| Max context | UD-Q4_K_XL | 20.8 GB | iso3 | 262K × 2 slots | default |
+| Max throughput | UD-Q4_K_XL | 20.8 GB | iso3 | 65K × 8 slots | `--profile qwen36-throughput` |
 
-> UD-Q3_K_XL is the sweet spot — only +0.08 PPL over 4-bit, 33% more context.
+### 24 GB (RTX 4090, RTX 3090) — Qwen3.6-27B Dense
 
-### 24 GB (RTX 3090, RTX 4090)
+**Use Qwen3.6-27B** (`--profile qwen36-27b`). 131K context, planar3 KV (4.9x compression).
 
-| Use Case | Quant | Size | PPL | Context (planar4) | Context (iso3) |
-|----------|-------|-----:|----:|---------------:|---------------:|
-| **Recommended** | **Q4_K_M** | **15.6 GB** | **~6.27** | **~112K** | **~171K** |
-| More context | IQ4_XS | 13.9 GB | 6.29 | ~155K | ~203K |
-| Max context | UD-Q3_K_XL | 13.4 GB | 6.38 | ~163K | ~213K |
+| Use Case | Quant | Size | KV | Context |
+|----------|-------|-----:|:--:|--------:|
+| **Recommended** | **UD-Q4_K_XL** | **16.4 GB** | **planar3** | **131K** |
+| More context | UD-Q3_K_XL | ~12 GB | planar3 | ~180K |
+| Max context | UD-IQ3_XXS | ~9 GB | planar3 | ~240K |
 
-> Q4_K_M at planar4 gives full quality with 112K context on 24 GB GPUs.
-> For more context, switch to iso3: `KV_CACHE_TYPE=iso3 make run-qwen`
+### 16 GB (RTX 4060 Ti, RTX 5060, RTX 4080) — Qwen3.5-27B Quants
 
-### 32 GB (RTX 5090)
+Qwen3.5-27B Q4_K_M doesn't fit. Use Unsloth imatrix quants (Qwen3.5-27B):
 
-| Use Case | Quant | Size | PPL | Context (planar4) | Context (iso3) |
-|----------|-------|-----:|----:|---------------:|---------------:|
-| **Recommended** | **Q4_K_M** | **15.6 GB** | **~6.27** | **~252K** | **~330K** |
-| Best quality | UD-Q4_K_XL | 16.4 GB | ~6.25 | ~240K | ~314K |
-| Max context | IQ4_XS | 13.9 GB | 6.29 | ~278K | ~364K |
+| Use Case | Quant | Size | PPL | Context (planar3) |
+|----------|-------|-----:|----:|------------------:|
+| **Best quality** | IQ4_XS | 13.9 GB | 6.29 | ~18K |
+| **Recommended** | **UD-Q3_K_XL** | **13.4 GB** | **6.38** | **~36K** |
+| Max context | UD-IQ3_XXS | 10.7 GB | 6.62 | ~74K |
 
-> RTX 5090 has headroom for Q4 quality + 250K context. No compromises needed.
-
-### 40 GB (A100 40GB, A6000)
-
-| Use Case | Quant | Size | PPL | Context (planar4) | Context (iso3) |
-|----------|-------|-----:|----:|---------------:|---------------:|
-| **Recommended** | **Q4_K_M** | **15.6 GB** | **~6.27** | **~375K** | **~491K** |
-| Best quality | Q5_K_M | 18.3 GB | ~6.22 | ~334K | ~437K |
-| Overkill | Q6_K | 20.9 GB | ~6.20 | ~293K | ~384K |
-
-> At 40 GB there's no reason to go below Q4. Use Q5_K_M if you want the
-> absolute best quality; the extra 2.7 GB is negligible.
+> UD-Q3_K_XL is the sweet spot — only +0.08 PPL over 4-bit, 2× more context.
 
 ### Quick Reference
 
-| GPU | Quant | PPL | Context | Command |
-|-----|-------|----:|--------:|---------|
-| **16 GB** | UD-Q3_K_XL | 6.38 | ~28K | `docker compose --profile qwen-q3 up` |
-| **16 GB** | UD-IQ3_XXS | 6.62 | ~56K | `docker compose --profile qwen-q3-xxs up` |
-| **16 GB** | IQ4_XS | 6.29 | ~14K | `docker compose --profile qwen-iq4 up` |
-| **16 GB** | Gemma4 Q3 | — | ~40K | `docker compose --profile gemma-q3 up` |
-| **24 GB** | Q4_K_M | ~6.27 | ~112K | `docker compose --profile qwen up` |
-| **32 GB** | Q4_K_M | ~6.27 | ~252K | `docker compose --profile qwen up` |
-| **40 GB** | Q4_K_M | ~6.27 | ~375K | `docker compose --profile qwen up` |
+| GPU | Model | Quant | PPL | KV | Context | Command |
+|-----|-------|-------|----:|:--:|--------:|---------|
+| **32 GB** | Qwen3.6-35B-A3B | UD-Q4_K_XL | 6.13 | iso3 | 262K | `make run-qwen` |
+| **24 GB** | Qwen3.6-27B | UD-Q4_K_XL | 7.09 | planar3 | 131K | `--profile qwen36-27b` |
+| **24 GB** | Qwen3.6-27B | UD-Q3_K_XL | — | planar3 | ~180K | `--profile qwen36-27b-q3` |
+| **16 GB** | Qwen3.6-35B-A3B | UD-IQ3_XXS | — | planar4 | ~32K | `--profile qwen36-iq3` |
+| **16 GB** | Qwen3.6-27B | UD-IQ3_XXS | — | planar3 | ~90K | `--profile qwen36-27b-iq3` |
+| **16 GB** | Qwen3.5-27B | UD-Q3_K_XL | 6.38 | planar3 | ~36K | `--profile qwen-q3` |
+| **16 GB** | Qwen3.5-27B | UD-IQ3_XXS | 6.62 | planar3 | ~74K | `--profile qwen-q3-xxs` |
+| **16 GB** | Gemma4 26B | UD-Q3_K_M | — | planar4 | ~40K | `--profile gemma-q3` |
 
-All profiles auto-download the correct model on first run.
+PPL values are f16 baseline (wikitext-2). All profiles auto-download the correct model on first run.
 
 ### Throughput Mode (Parallel Slots)
 
@@ -146,7 +140,24 @@ During decode, single-user inference is memory-bandwidth bound (mat-vec). With
 N parallel slots, the weight multiplications become mat-mat and tensor cores
 engage — aggregate throughput scales near-linearly.
 
-RotorQuant is the multiplier: planar4 KV at 16K = 1.06 GB/slot vs f16 = 4.0 GB/slot — **3.8x more concurrent users at the same VRAM.**
+#### Qwen3.6-35B-A3B MoE — measured on RTX 5090 (iso3, 65K ctx/slot)
+
+| Slots | Per-slot tok/s | Aggregate tok/s | Profile |
+|:-----:|:--------------:|:---------------:|---------|
+| 1 | 193 | 193 | `--profile qwen` |
+| 2 | 150 | **299** | `--profile qwen` (default) |
+| 4 | 99 | **397** | `--profile qwen36-throughput` |
+| 8 | 54 | **431** | `--profile qwen36-throughput` |
+
+P=4 is the practical optimum: 397 tok/s aggregate at 99 tok/s per slot.
+
+```bash
+docker compose --profile qwen36-throughput up   # 8 slots × 65K ctx
+```
+
+#### Qwen3.5-27B Dense — estimated on RTX 5090 (planar4, 16K ctx/slot)
+
+RotorQuant is the multiplier: planar4 KV at 16K = 1.06 GB/slot vs f16 = 4.0 GB/slot — **3.8× more concurrent users at the same VRAM.**
 
 | GPU | Slots (planar4) | Slots (f16) | Est. Aggregate tok/s | Command |
 |-----|-------------:|------------:|---------------------:|---------|
@@ -156,14 +167,8 @@ RotorQuant is the multiplier: planar4 KV at 16K = 1.06 GB/slot vs f16 = 4.0 GB/s
 | **80 GB** | 59 | 15 | ~2,400 | `N_PARALLEL=59 docker compose --profile qwen-throughput up` |
 
 ```bash
-# Quick start: max throughput on RTX 5090 (32 GB)
-make run-throughput
-
-# Custom slot count
-N_PARALLEL=8 docker compose --profile qwen-throughput up
+make run-throughput   # Qwen3.5-27B, 14 slots × 16K, RTX 5090
 ```
-
-Per-user latency stays ~67 tok/s at low load; at full capacity, ~50-55 tok/s per user.
 
 ## Requirements
 
@@ -175,20 +180,31 @@ Per-user latency stays ~67 tok/s at low load; at full capacity, ~50-55 tok/s per
 
 ## Performance
 
-Benchmarked on RTX 5090 (32 GB) with Qwen3.5-27B Q4_K_M:
+Benchmarked on RTX 5090 (32 GB). Full results in [docs/BENCHMARK-REPORT.md](docs/BENCHMARK-REPORT.md).
 
-| Metric | planar4 (default) | planar3 | iso3 | f16 |
+### Qwen3.6-35B-A3B MoE (default, `--profile qwen`)
+
+| Metric | iso3 (default) | iso4 | planar3 | f16 |
+|--------|:-:|:-:|:-:|:-:|
+| Decode speed (1 slot) | **196 tok/s** | ~196 tok/s | ~196 tok/s | ~196 tok/s |
+| KV compression | 4.9x | 3.8x | 4.9x | 1x |
+| Max ctx (RTX 5090, 2 slots) | **262K** | ~190K | 262K | ~30K |
+| PPL wikitext-2 (ctx=2048) | 6.25 | **6.23** | 6.29 | **6.13** |
+| NIAH recall | — | — | — | — |
+
+> `iso3` and `iso4` both beat `planar` on this Gated Delta Net MoE architecture. `iso3` is the default: same context as iso4 with 4.9× vs 3.8× compression.
+
+### Qwen3.5-27B Q4_K_M (legacy dense, `--profile reasoning`)
+
+| Metric | planar3 (default) | planar4 | iso3 | f16 |
 |--------|:-:|:-:|:-:|:-:|
 | Decode speed | ~67 tok/s | ~67 tok/s | 67.5 tok/s | 69.3 tok/s |
-| KV compression | **3.8x** | **4.9x** | 4.9x | 1x |
-| Max ctx (RTX 5090) | **236K** | **300K** | 300K | 32K |
-| Max ctx (RTX 4090) | **112K** | **147K** | 147K | 16K |
-| PPL wikitext-2 (4K ctx) | 8.25 | **8.20** | 8.43 | 7.59 |
+| KV compression | **4.9x** | 3.8x | 4.9x | 1x |
+| Max ctx (RTX 5090) | **300K** | 236K | 300K | ~45K |
+| PPL wikitext-2 (ctx=2048) | **7.01** | 7.02 | 7.10 | 6.64 |
 | NIAH recall (4K) | 100% | 100% | 100% | 100% |
 
-> `planar3` achieves better perplexity than `iso4` (8.20 vs 8.37) at higher compression — use it when you need more context headroom without sacrificing quality.
-
-See [docs/BENCHMARK-REPORT.md](docs/BENCHMARK-REPORT.md) for full results.
+> `planar3` wins on all dense models: same compression as iso3 (4.9×) but lower PPL.
 
 ## Project Structure
 
