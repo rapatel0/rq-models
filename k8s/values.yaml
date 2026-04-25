@@ -63,13 +63,28 @@ existingHfTokenSecret: ""    # if set, expects key `token`
 # Extra raw flags appended to llama-server invocation.
 extraArgs: ""
 
-# Model storage. By default we use a shared NFS-RWX PVC so all replicas (and
-# any other LLM deployments using the same PVC) share downloaded GGUFs.
+# Model storage. Two patterns supported:
+#
+#   kind: nfs    — RWX PVC backed by NFS or other RWX storage. Shared across
+#                  replicas (and across deployments). Good when you have many
+#                  replicas across nodes, or want one model cache shared by
+#                  several different LLM deployments. Network read at startup.
+#
+#   kind: local  — Pre-existing PVC bound to a node-local PV (e.g. hostPath
+#                  or a local-static-provisioner PV). Faster startup (local
+#                  read), no network dependency, but pinned to whichever
+#                  node(s) the PV affines to. Required: existingClaim must
+#                  point at a PVC you've created and hydrated separately
+#                  (e.g. via a hf-download Job — see chart README).
+#
+# General convention for this stack: model files (HF GGUFs, Ollama pulls —
+# anything reproducible from a URL) belong on `local`; only train artifacts
+# / app state should live on RWX/persistent storage.
 models:
-  storageClass: nfs-rwx
-  size: 80Gi
-  # If existing PVC, set name and skip size/storageClass:
-  existingClaim: ""
+  kind: nfs               # nfs | local
+  storageClass: nfs-rwx   # only used when kind=nfs
+  size: 80Gi              # only used when kind=nfs
+  existingClaim: ""       # required when kind=local; optional when kind=nfs
 
 # Service: ClusterIP by default. The Ingress (below) is the public entrypoint.
 service:

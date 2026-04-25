@@ -1,4 +1,11 @@
-{{- if not .Values.models.existingClaim }}
+{{/*
+PVC is only auto-created when:
+  - models.kind == "nfs" (RWX shared storage), AND
+  - no existingClaim was provided.
+For models.kind == "local" the operator must pre-create the PVC + hydrate
+the model files (e.g. via a hf-download Job pinned to the right node).
+*/}}
+{{- if and (eq .Values.models.kind "nfs") (not .Values.models.existingClaim) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

@@ -10,16 +10,23 @@ configurable replication and multi-GPU layout.
 - A pre-built RotorQuant image pushed to a registry your cluster can pull
   from. Build:
   ```bash
-  # default (all modern arches: V100, A100, A10G, RTX 4090, H100, B100, RTX 5090)
+  # default (V100 + all modern arches: A100, A10G, RTX 4090, H100, B100, RTX 5090)
   docker build -t <registry>/rotorquant:latest -f docker/Dockerfile .
 
   # V100-only — much faster compile when targeting a single architecture
-  docker build --build-arg CUDA_ARCHES="70" \
+  # (also pin CUDA 12.6 — CUDA 13.x dropped Volta/Turing)
+  docker build \
+    --build-arg CUDA_VERSION=12.6.3 --build-arg CUDA_ARCHES="70" \
     -t <registry>/rotorquant:v0-v100 -f docker/Dockerfile .
   ```
-- A `ReadWriteMany` StorageClass (NFS / CephFS / etc.) for the shared model
-  cache. Each replica reads the same GGUF files; a single download serves
-  the whole deployment.
+- Storage for the model cache (one of):
+  - **`models.kind=nfs`**: a `ReadWriteMany` StorageClass (NFS / CephFS / etc.).
+    All replicas read the same GGUF; a single download serves the whole
+    deployment. Network read at startup. Default.
+  - **`models.kind=local`**: a pre-existing PVC bound to a node-local PV.
+    Requires `models.existingClaim` to point at the PVC and that you have
+    pre-hydrated the GGUF onto the volume (sample Job below). Faster startup
+    (local read), no NFS dependency, but pinned to the affined node(s).
 
 ## Quick start
 
@@ -99,10 +106,90 @@ See [`values.yaml`](values.yaml) for the full set with comments. Key ones:
 | `splitMode` | `layer` / `row` / `none` (multi-GPU only) | `""` |
 | `tensorSplit` | e.g. `"1,1,1,1"` | `""` |
 | `mainGpu` | Primary GPU ordinal | `""` |
-| `models.storageClass` | RWX storage class for shared model cache | `nfs-rwx` |
-| `models.size` | Model cache PVC size | `80Gi` |
+| `models.kind` | `nfs` (auto-create RWX PVC) or `local` (use existingClaim) | `nfs` |
+| `models.storageClass` | StorageClass when `kind=nfs` | `nfs-rwx` |
+| `models.size` | Auto-PVC size when `kind=nfs` | `80Gi` |
+| `models.existingClaim` | Required when `kind=local`; optional otherwise | `""` |
 | `ingress.host` | Hostname for the Ingress | `rotorquant.homelab.local` |
 | `hfToken` | HF token (only needed for gated repos) | `""` |
+
+## Hydrating a local PVC
+
+When `models.kind=local`, you create the PVC + populate it yourself before
+installing the chart. Typical flow on a single GPU node:
+
+1. **Create a `local` StorageClass + PV pinned to the node** (one-time):
+   ```yaml
+   apiVersion: storage.k8s.io/v1
+   kind: StorageClass
+   metadata:
+     name: local-models
+   provisioner: kubernetes.io/no-provisioner
+   volumeBindingMode: WaitForFirstConsumer
+   reclaimPolicy: Retain
+   ---
+   apiVersion: v1
+   kind: PersistentVolume
+   metadata:
+     name: models-<node>
+   spec:
+     capacity: {storage: 500Gi}
+     accessModes: [ReadWriteOnce]
+     persistentVolumeReclaimPolicy: Retain
+     storageClassName: local-models
+     local: {path: /srv/models}      # or wherever you have local SSD/ZFS
+     nodeAffinity:
+       required:
+         nodeSelectorTerms:
+           - matchExpressions:
+               - {key: kubernetes.io/hostname, operator: In, values: [<node>]}
+   ```
+
+2. **Bind a PVC** in the target namespace:
+   ```yaml
+   apiVersion: v1
+   kind: PersistentVolumeClaim
+   metadata:
+     name: llm-models-local
+     namespace: llm
+   spec:
+     accessModes: [ReadWriteOnce]
+     storageClassName: local-models
+     resources: {requests: {storage: 500Gi}}
+     volumeName: models-<node>
+   ```
+
+3. **Hydrate** with a one-shot Job (re-runnable for adding model variants):
+   ```yaml
+   apiVersion: batch/v1
+   kind: Job
+   metadata: {name: hydrate-qwen, namespace: llm}
+   spec:
+     template:
+       spec:
+         restartPolicy: Never
+         nodeSelector: {kubernetes.io/hostname: <node>}
+         containers:
+           - name: hf
+             image: <registry>/rotorquant:<tag>     # ships with `hf` CLI
+             command: ["bash","-c","hf download unsloth/Qwen3.6-27B-GGUF Qwen3.6-27B-UD-Q4_K_XL.gguf --local-dir /models"]
+             volumeMounts: [{name: models, mountPath: /models}]
+         volumes:
+           - name: models
+             persistentVolumeClaim: {claimName: llm-models-local}
+   ```
+
+4. **Install with `kind=local`**:
+   ```bash
+   helm install rotorquant ./k8s \
+     --namespace llm \
+     --set models.kind=local \
+     --set models.existingClaim=llm-models-local \
+     --set image.repository=... --set image.tag=...
+   ```
+
+Multiple replicas on the **same node** can share a single RWO local PVC
+without trouble.
 
 ## OpenAI-compatible API
 
