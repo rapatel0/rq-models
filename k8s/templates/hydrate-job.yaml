@@ -1,0 +1,94 @@
+{{- if .Values.models.hydrate.enabled -}}
+{{- if not (or .Values.models.existingClaim (eq .Values.models.kind "nfs")) -}}
+{{- fail "models.hydrate.enabled requires either models.existingClaim or models.kind=nfs (so a PVC exists to write into)" -}}
+{{- end -}}
+{{- if not .Values.models.hydrate.hfRepo -}}
+{{- fail "models.hydrate.enabled requires models.hydrate.hfRepo" -}}
+{{- end -}}
+{{- if not .Values.models.hydrate.hfFile -}}
+{{- fail "models.hydrate.enabled requires models.hydrate.hfFile" -}}
+{{- end -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "rotorquant.fullname" . }}-hydrate
+  labels:
+    {{- include "rotorquant.labels" . | nindent 4 }}
+  annotations:
+    # Re-run on every helm upgrade — the Job script is idempotent
+    # (skips if the file is already present).
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        {{- include "rotorquant.selectorLabels" . | nindent 8 }}
+        rotorquant.io/role: hydrate
+    spec:
+      restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with (.Values.models.hydrate.nodeSelector | default .Values.nodeSelector) }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.dnsConfig.enabled }}
+      dnsPolicy: {{ .Values.dnsConfig.policy }}
+      dnsConfig:
+        nameservers:
+          {{- toYaml .Values.dnsConfig.nameservers | nindent 10 }}
+        {{- with .Values.dnsConfig.searches }}
+        searches:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        options:
+          - name: ndots
+            value: "5"
+      {{- end }}
+      containers:
+        - name: hf
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - bash
+            - -c
+            - |
+              set -eux
+              if [ -f /models/{{ .Values.models.hydrate.hfFile }} ]; then
+                echo "Already hydrated: /models/{{ .Values.models.hydrate.hfFile }}"
+                exit 0
+              fi
+              hf download {{ .Values.models.hydrate.hfRepo }} {{ .Values.models.hydrate.hfFile }} --local-dir /models
+              ls -lh /models/{{ .Values.models.hydrate.hfFile }}
+          {{- if or .Values.hfToken .Values.existingHfTokenSecret }}
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingHfTokenSecret | default (printf "%s-hf-token" (include "rotorquant.fullname" .)) }}
+                  key: token
+          {{- end }}
+          volumeMounts:
+            - name: models
+              mountPath: /models
+              # Hydration writes; deployment mounts read-only.
+              readOnly: false
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: {{ include "rotorquant.modelsPvcName" . }}
+{{- end }}

@@ -20,6 +20,10 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -31,6 +35,19 @@ spec:
       {{- with .Values.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.dnsConfig.enabled }}
+      dnsPolicy: {{ .Values.dnsConfig.policy }}
+      dnsConfig:
+        nameservers:
+          {{- toYaml .Values.dnsConfig.nameservers | nindent 10 }}
+        {{- with .Values.dnsConfig.searches }}
+        searches:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        options:
+          - name: ndots
+            value: "5"
       {{- end }}
       containers:
         - name: server
@@ -88,6 +105,7 @@ spec:
           volumeMounts:
             - name: models
               mountPath: /models
+              readOnly: {{ .Values.models.readOnly }}
           readinessProbe:
             httpGet:
               path: /health

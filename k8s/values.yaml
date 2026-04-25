@@ -1,29 +1,37 @@
 # Default values for rotorquant.
-# See README.md / docs/ in this chart for examples (single-GPU 4-replica
-# throughput vs single-replica 4-GPU tensor-split).
+# See README.md for end-to-end examples and the bench-driven topology guide.
 
 # Image to deploy. The image must already exist in a registry your cluster
-# can pull from. Build with: docker build -t <repo>/rotorquant:<tag> -f docker/Dockerfile .
+# can pull from. Build with:
+#   docker build -t <repo>/rotorquant:<tag> -f docker/Dockerfile .
+# For V100 / Volta hosts, pin CUDA 12.6 (CUDA 13.x dropped sm_70):
+#   docker build --build-arg CUDA_VERSION=12.6.3 --build-arg CUDA_ARCHES=70 \
+#     -t <repo>/rotorquant:v0-v100 -f docker/Dockerfile .
 image:
   repository: rotorquant
   tag: latest
-  pullPolicy: Always
+  # IfNotPresent is the right default for a tagged image — Always re-pulls
+  # every restart, which is wasteful when the image hasn't changed.
+  pullPolicy: IfNotPresent
 
 imagePullSecrets: []
 
-# How many pod replicas. Each replica grabs `gpusPerReplica` GPUs.
-# - 4×1 (default for V100/4090-class on a 4-GPU node, model fits on 1 GPU):
-#     replicaCount: 4   gpusPerReplica: 1
-# - 1×4 (model spans 4 GPUs, single request at a time):
-#     replicaCount: 1   gpusPerReplica: 4   splitMode: row
-# - 2×2 (two requests in parallel, each split across 2 GPUs):
-#     replicaCount: 2   gpusPerReplica: 2   splitMode: layer
+# Topology — replicas × GPUs per replica. The bench-supported guidance is:
+#
+#   Model fits on one GPU?
+#     Yes → 1 GPU per replica is fastest (no NVLink comm overhead).
+#           Use replicaCount = number of concurrent users you want.
+#     No  → gpusPerReplica = ceil(modelGB / GPU_VRAM_GB), splitMode=row.
+#           Tensor parallelism only beats single-GPU when forced by memory.
+#
+# Bench data on Tesla V100-SXM2-32GB with Qwen3.6-27B Q4 (16 GB), planar3 KV,
+# 256 K context: 1 GPU/replica = 30 t/s; 2 GPUs (TP, NVLink NV1/NV2) = 25 t/s;
+# 4 GPUs (TP) = 21 t/s. TP loses on this hardware for any model that fits.
 replicaCount: 1
 gpusPerReplica: 1
 
-# Recreate is safer than RollingUpdate when GPUs are exclusive — the new pod
-# can't schedule until the old one releases its GPU. Set to RollingUpdate
-# only if you have spare GPU capacity.
+# Recreate avoids GPU contention during rolls; pick RollingUpdate only if
+# you have spare GPU capacity for both old and new pod simultaneously.
 strategy:
   type: Recreate
 
@@ -31,17 +39,22 @@ strategy:
 # qwen3.6-27b, qwen3.6-35b, qwen3.5-27b, qwen3.5-27b-reasoning, gemma4-26b, ...
 modelName: qwen3.6-27b
 
-# RotorQuant KV-cache type. Per the README:
-#   iso3      — best for MoE models (qwen3.6-35b)
-#   planar3   — best for dense models (qwen3.6-27b, qwen3.5-27b)
+# RotorQuant KV-cache type:
+#   iso3      — best for MoE  (qwen3.6-35b)
+#   planar3   — best for dense (qwen3.6-27b, qwen3.5-27b)        ← default
+#   planar4 / iso4 — symmetric variants, slightly higher quality, less compression
 #   f16       — disables RotorQuant (baseline)
 kvCacheType: planar3
 
 # Context size in tokens. Empty = use the per-model default from entrypoint.
+# llama.cpp divides this by nParallel for per-slot context, so for max
+# per-request context set nParallel=1.
 contextSize: ""
 
-# Concurrent slots per replica. Each slot consumes its own KV cache budget.
-nParallel: 2
+# Concurrent slots per replica. nParallel=1 maximizes per-request decode rate
+# and per-slot context. Bump to batch more concurrent users at lower per-user
+# latency.
+nParallel: 1
 
 # Prompt cache size in MiB (system RAM, not VRAM).
 cacheRam: 8192
@@ -56,35 +69,99 @@ mainGpu: ""          # 0..N-1 — which GPU is primary
 
 # HuggingFace token. Empty = pull public repos only (Unsloth GGUFs are public).
 # When needed, create a Secret named `<release>-hf-token` with key `token`,
-# or override via existingSecret below.
+# or override via existingHfTokenSecret.
 hfToken: ""
 existingHfTokenSecret: ""    # if set, expects key `token`
 
 # Extra raw flags appended to llama-server invocation.
 extraArgs: ""
 
-# Model storage. Two patterns supported:
+# Pod-level security context. Local hostPath / local-static-provisioner PVs
+# arrive owned by root with no fsGroup remap; the image's `llm` user can't
+# write to them. Default to root for portability across both PV kinds. If
+# you're using NFS with proper export options + fsGroup support, you can
+# clear this and let the image's USER llm (uid 1001) take effect.
+podSecurityContext:
+  runAsUser: 0
+  runAsGroup: 0
+  fsGroup: 0
+
+# Pod placement. Default: any node with NVIDIA GPUs.
+# For local-PV setups pinned to a specific node, override with hostname:
+#   nodeSelector: {kubernetes.io/hostname: gpu-01}
+nodeSelector:
+  nvidia.com/gpu.present: "true"
+tolerations: []
+affinity: {}
+
+# DNS overrides. Useful when the cluster's CoreDNS upstream is flaky for
+# external resolution (e.g. during HF downloads). Default off — opt in by
+# setting `enabled: true`. Nameservers list is appended to whatever cluster
+# DNS provides (when policy=ClusterFirst), or replaces it entirely (None).
+dnsConfig:
+  enabled: false
+  policy: None     # None | ClusterFirst | ClusterFirstWithHostNet | Default
+  nameservers:
+    - "1.1.1.1"
+    - "8.8.8.8"
+  searches: []     # extra search domains; cluster ones added if policy=None
+
+# ============================================================================
+# Model storage
+# ============================================================================
 #
-#   kind: nfs    — RWX PVC backed by NFS or other RWX storage. Shared across
-#                  replicas (and across deployments). Good when you have many
-#                  replicas across nodes, or want one model cache shared by
-#                  several different LLM deployments. Network read at startup.
+# Two patterns supported:
 #
-#   kind: local  — Pre-existing PVC bound to a node-local PV (e.g. hostPath
-#                  or a local-static-provisioner PV). Faster startup (local
-#                  read), no network dependency, but pinned to whichever
-#                  node(s) the PV affines to. Required: existingClaim must
-#                  point at a PVC you've created and hydrated separately
-#                  (e.g. via a hf-download Job — see chart README).
+#   kind: nfs    — RWX PVC backed by NFS (or other RWX storage). Shared across
+#                  replicas, downloaded once. Network read at startup. Right
+#                  for multi-node clusters or cross-deployment cache sharing.
 #
-# General convention for this stack: model files (HF GGUFs, Ollama pulls —
-# anything reproducible from a URL) belong on `local`; only train artifacts
-# / app state should live on RWX/persistent storage.
+#   kind: local  — Pre-existing PVC bound to a node-local PV. Faster startup
+#                  (local NVMe), pinned to one node. Right for single-node
+#                  GPU setups, or any case where storing model files on
+#                  shared storage isn't worth it.
+#
+# Storage convention for this stack: model files (anything reproducible from
+# a URL — HF GGUFs, Ollama pulls, base weights you didn't train) belong on
+# `local`. Only training artifacts and app state belong on RWX/persistent.
+#
+# When kind=local, you can either:
+#   (a) Pre-create the PVC + hydrate it manually (set existingClaim), or
+#   (b) Have the chart render a hydration Job that runs `hf download` against
+#       an existing PVC before the deployment starts (set models.hydrate.enabled).
+#
+# The chart never creates cluster-scoped resources (StorageClass, PV) on your
+# behalf — those are operator-owned. See the chart README for sample
+# StorageClass + PV manifests for both kinds.
 models:
   kind: nfs               # nfs | local
-  storageClass: nfs-rwx   # only used when kind=nfs
-  size: 80Gi              # only used when kind=nfs
-  existingClaim: ""       # required when kind=local; optional when kind=nfs
+
+  # kind=nfs only: chart auto-creates a RWX PVC with these specs.
+  storageClass: nfs-rwx
+  size: 80Gi
+
+  # kind=local: required (unless hydrate.enabled creates the PVC for you).
+  # kind=nfs: optional override of the auto-created PVC name.
+  existingClaim: ""
+
+  # Mount /models as read-only inside pods. Inference never writes; only
+  # the hydration step does. Defensive default.
+  readOnly: true
+
+  # Optional: render a one-shot hydration Job that runs `hf download` into
+  # the PVC before the deployment starts. The Job uses the same image as
+  # the server (which ships `hf` CLI). Pinned to nodeSelector.
+  #
+  # The Job uses the same PVC as the deployment (existingClaim). Mounts
+  # /models read-write for the duration of hydration; the deployment can
+  # still mount it read-only because RWO local PVs allow multiple pods on
+  # the same node.
+  hydrate:
+    enabled: false
+    hfRepo: ""             # e.g. unsloth/Qwen3.6-27B-GGUF
+    hfFile: ""             # e.g. Qwen3.6-27B-UD-Q4_K_XL.gguf
+    # nodeSelector for the hydration Job (must match the local PV's affinity)
+    nodeSelector: {}
 
 # Service: ClusterIP by default. The Ingress (below) is the public entrypoint.
 service:
@@ -106,15 +183,8 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
     nginx.ingress.kubernetes.io/proxy-body-size: "0"
 
-# Pod placement. Default: any node with NVIDIA GPUs.
-nodeSelector:
-  nvidia.com/gpu.present: "true"
-tolerations: []
-affinity: {}
-
 # Resource requests/limits. nvidia.com/gpu is set automatically from
-# gpusPerReplica above. CPU/memory below are sane defaults for serving;
-# adjust based on observed usage.
+# gpusPerReplica above. CPU/memory below are sane defaults for serving.
 resources:
   requests:
     cpu: "2"
