@@ -1,0 +1,120 @@
+# Default values for rotorquant.
+# See README.md / docs/ in this chart for examples (single-GPU 4-replica
+# throughput vs single-replica 4-GPU tensor-split).
+
+# Image to deploy. The image must already exist in a registry your cluster
+# can pull from. Build with: docker build -t <repo>/rotorquant:<tag> -f docker/Dockerfile .
+image:
+  repository: rotorquant
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+
+# How many pod replicas. Each replica grabs `gpusPerReplica` GPUs.
+# - 4×1 (default for V100/4090-class on a 4-GPU node, model fits on 1 GPU):
+#     replicaCount: 4   gpusPerReplica: 1
+# - 1×4 (model spans 4 GPUs, single request at a time):
+#     replicaCount: 1   gpusPerReplica: 4   splitMode: row
+# - 2×2 (two requests in parallel, each split across 2 GPUs):
+#     replicaCount: 2   gpusPerReplica: 2   splitMode: layer
+replicaCount: 1
+gpusPerReplica: 1
+
+# Recreate is safer than RollingUpdate when GPUs are exclusive — the new pod
+# can't schedule until the old one releases its GPU. Set to RollingUpdate
+# only if you have spare GPU capacity.
+strategy:
+  type: Recreate
+
+# Required: which model to serve. Must match a key in MODELS in entrypoint.sh.
+# qwen3.6-27b, qwen3.6-35b, qwen3.5-27b, qwen3.5-27b-reasoning, gemma4-26b, ...
+modelName: qwen3.6-27b
+
+# RotorQuant KV-cache type. Per the README:
+#   iso3      — best for MoE models (qwen3.6-35b)
+#   planar3   — best for dense models (qwen3.6-27b, qwen3.5-27b)
+#   f16       — disables RotorQuant (baseline)
+kvCacheType: planar3
+
+# Context size in tokens. Empty = use the per-model default from entrypoint.
+contextSize: ""
+
+# Concurrent slots per replica. Each slot consumes its own KV cache budget.
+nParallel: 2
+
+# Prompt cache size in MiB (system RAM, not VRAM).
+cacheRam: 8192
+
+# Layers offloaded to GPU. 99 = all (recommended).
+gpuLayers: 99
+
+# Multi-GPU controls (only meaningful when gpusPerReplica > 1):
+splitMode: ""        # layer | row | none.  "" = llama.cpp default (layer)
+tensorSplit: ""      # e.g. "1,1,1,1" — proportional per-GPU weight share
+mainGpu: ""          # 0..N-1 — which GPU is primary
+
+# HuggingFace token. Empty = pull public repos only (Unsloth GGUFs are public).
+# When needed, create a Secret named `<release>-hf-token` with key `token`,
+# or override via existingSecret below.
+hfToken: ""
+existingHfTokenSecret: ""    # if set, expects key `token`
+
+# Extra raw flags appended to llama-server invocation.
+extraArgs: ""
+
+# Model storage. By default we use a shared NFS-RWX PVC so all replicas (and
+# any other LLM deployments using the same PVC) share downloaded GGUFs.
+models:
+  storageClass: nfs-rwx
+  size: 80Gi
+  # If existing PVC, set name and skip size/storageClass:
+  existingClaim: ""
+
+# Service: ClusterIP by default. The Ingress (below) is the public entrypoint.
+service:
+  type: ClusterIP
+  port: 80
+  # Optional: override targetPort if you change PORT env var
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  className: public
+  host: rotorquant.homelab.local
+  tls:
+    enabled: true
+    secretName: rotorquant-tls
+  annotations:
+    cert-manager.io/cluster-issuer: homelab-ca-issuer
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+
+# Pod placement. Default: any node with NVIDIA GPUs.
+nodeSelector:
+  nvidia.com/gpu.present: "true"
+tolerations: []
+affinity: {}
+
+# Resource requests/limits. nvidia.com/gpu is set automatically from
+# gpusPerReplica above. CPU/memory below are sane defaults for serving;
+# adjust based on observed usage.
+resources:
+  requests:
+    cpu: "2"
+    memory: 8Gi
+  limits:
+    memory: 32Gi
+
+# Liveness/readiness probes — generous timeouts to cover first model download
+# (~5–10 min for a 16 GB GGUF over LAN).
+probes:
+  readiness:
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    failureThreshold: 60        # 10 min total
+  liveness:
+    initialDelaySeconds: 600    # don't kill during slow first download
+    periodSeconds: 30
+    failureThreshold: 5

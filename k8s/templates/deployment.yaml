@@ -1,0 +1,108 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rotorquant.fullname" . }}
+  labels:
+    {{- include "rotorquant.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: {{ .Values.strategy.type }}
+  selector:
+    matchLabels:
+      {{- include "rotorquant.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "rotorquant.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: server
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: MODEL_NAME
+              value: {{ .Values.modelName | quote }}
+            - name: KV_CACHE_TYPE
+              value: {{ .Values.kvCacheType | quote }}
+            {{- if .Values.contextSize }}
+            - name: CTX_SIZE
+              value: {{ .Values.contextSize | quote }}
+            {{- end }}
+            - name: PORT
+              value: {{ .Values.service.targetPort | quote }}
+            - name: GPU_LAYERS
+              value: {{ .Values.gpuLayers | quote }}
+            - name: N_PARALLEL
+              value: {{ .Values.nParallel | quote }}
+            - name: CACHE_RAM
+              value: {{ .Values.cacheRam | quote }}
+            {{- if .Values.splitMode }}
+            - name: SPLIT_MODE
+              value: {{ .Values.splitMode | quote }}
+            {{- end }}
+            {{- if .Values.tensorSplit }}
+            - name: TENSOR_SPLIT
+              value: {{ .Values.tensorSplit | quote }}
+            {{- end }}
+            {{- if (toString .Values.mainGpu) }}
+            - name: MAIN_GPU
+              value: {{ .Values.mainGpu | quote }}
+            {{- end }}
+            {{- if .Values.extraArgs }}
+            - name: EXTRA_ARGS
+              value: {{ .Values.extraArgs | quote }}
+            {{- end }}
+            {{- if or .Values.hfToken .Values.existingHfTokenSecret }}
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingHfTokenSecret | default (printf "%s-hf-token" (include "rotorquant.fullname" .)) }}
+                  key: token
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+          resources:
+            requests:
+              {{- toYaml .Values.resources.requests | nindent 14 }}
+            limits:
+              {{- toYaml .Values.resources.limits | nindent 14 }}
+              nvidia.com/gpu: {{ .Values.gpusPerReplica }}
+          volumeMounts:
+            - name: models
+              mountPath: /models
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: {{ include "rotorquant.modelsPvcName" . }}

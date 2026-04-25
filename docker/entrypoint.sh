@@ -113,6 +113,22 @@ CMD=(
   --port "$PORT"
 )
 
+# Multi-GPU controls (no-ops when only 1 GPU is visible to the container).
+# When the orchestrator (k8s, docker --gpus '"device=…"', etc.) exposes
+# multiple GPUs, set these to control how layers / tensors split:
+#   SPLIT_MODE     layer | row | none           (llama.cpp --split-mode)
+#   TENSOR_SPLIT   "1,1,1,1" — proportional per-GPU weight share
+#   MAIN_GPU       0..N-1
+if [ -n "${SPLIT_MODE:-}" ]; then
+  CMD+=(--split-mode "$SPLIT_MODE")
+fi
+if [ -n "${TENSOR_SPLIT:-}" ]; then
+  CMD+=(--tensor-split "$TENSOR_SPLIT")
+fi
+if [ -n "${MAIN_GPU:-}" ]; then
+  CMD+=(--main-gpu "$MAIN_GPU")
+fi
+
 # Add model-specific flags
 if [ -n "$EXTRA_FLAGS" ]; then
   read -ra EXTRA_ARRAY <<< "$EXTRA_FLAGS"

@@ -1,0 +1,17 @@
+apiVersion: v2
+name: rotorquant
+description: RotorQuant llama.cpp server (OpenAI-compatible) for GGUF models with KV-cache compression. Supports multi-replica throughput and multi-GPU tensor parallelism.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - llm
+  - llama.cpp
+  - rotorquant
+  - inference
+  - gpu
+home: https://github.com/rapatel0/rq-models
+sources:
+  - https://github.com/rapatel0/rq-models
+maintainers:
+  - name: rapatel0

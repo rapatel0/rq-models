@@ -1,0 +1,15 @@
+{{- if not .Values.models.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "rotorquant.modelsPvcName" . }}
+  labels:
+    {{- include "rotorquant.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: {{ .Values.models.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.models.size }}
+{{- end }}

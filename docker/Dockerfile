@@ -24,13 +24,15 @@ RUN git clone --depth 100 -b ${ROTORQUANT_BRANCH} \
 
 WORKDIR /src
 
-# SM 80=A100, 86=A10G, 89=RTX 4090, 90=H100, 100=B100, 120=RTX 5090
-# Link against CUDA driver stub for cuGetErrorString etc.
+# SM 70=V100, 80=A100, 86=A10G, 89=RTX 4090, 90=H100, 100=B100, 120=RTX 5090
+# Override at build time with --build-arg CUDA_ARCHES="70" for V100-only builds
+# (much faster compile when targeting a single architecture).
+ARG CUDA_ARCHES="70;80;86;89;90;100;120"
 ENV LDFLAGS="-L/usr/local/cuda/lib64/stubs -lcuda"
 RUN cmake -B build \
     -DGGML_CUDA=ON \
     -DGGML_CUDA_FA=ON \
-    -DCMAKE_CUDA_ARCHITECTURES="80;86;89;90;100;120" \
+    -DCMAKE_CUDA_ARCHITECTURES="${CUDA_ARCHES}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_EXE_LINKER_FLAGS="-L/usr/local/cuda/lib64/stubs -lcuda" \
     -DCMAKE_SHARED_LINKER_FLAGS="-L/usr/local/cuda/lib64/stubs -lcuda" \
