@@ -1,0 +1,98 @@
+{{- if .Values.router.enabled }}
+# Router config split into two ConfigMaps:
+#
+#   * `<release>-rotorquant-router` (this one) holds the static nginx.conf
+#     skeleton. It `include`s `/etc/nginx/upstreams/backends.conf` for the
+#     `server` lines.
+#   * The init container resolves the headless backends Service and writes
+#     `backends.conf` with one `server <ip>:<port>;` line per backend pod,
+#     SORTED for stable peer ordering across router replicas. Sorted order
+#     is critical: with `hash $key consistent;`, nginx's ketama ring is
+#     keyed by peer index, so every router pod must see the same list in
+#     the same order or different routers will pin the same SID to
+#     different backends.
+#
+# Why explicit `server` lines instead of `server <name> resolve;`? OSS nginx
+# doesn't run consistent-hash across runtime-resolved A records — a single
+# `server <name>;` entry expands to multiple IPs at request time but the
+# ketama ring only sees one peer and falls back to round-robin. Listing each
+# peer explicitly makes the ring real.
+#
+# Tradeoff: the router pod set must be rolled to pick up backend scale
+# changes. The deployment uses a configmap checksum annotation so chart
+# upgrades roll routers automatically; for in-place backend changes,
+# `kubectl rollout restart deploy/<release>-rotorquant-router`.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "rotorquant.fullname" . }}-router
+  labels:
+    {{- include "rotorquant.labels" . | nindent 4 }}
+    app.kubernetes.io/component: router
+data:
+  nginx.conf: |
+    events { worker_connections 4096; }
+    http {
+      resolver kube-dns.kube-system.svc.cluster.local valid=10s;
+
+      # Surfaces the hashing key and chosen upstream so session pinning is
+      # debuggable from `kubectl logs deploy/...-router`.
+      log_format pinning '$remote_addr - "$request" $status '
+                        'sid="$http_x_hermes_session_id" '
+                        'upstream=$upstream_addr';
+      access_log /dev/stdout pinning;
+
+      map $http_x_hermes_session_id $hash_key {
+        default $http_x_hermes_session_id;
+        ""      $request_id;
+      }
+
+      upstream qwen_backends {
+        hash $hash_key consistent;
+        include /etc/nginx/upstreams/backends.conf;
+      }
+
+      server {
+        listen 80;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+        proxy_set_header Host $host;
+        proxy_set_header X-Hermes-Session-Id $http_x_hermes_session_id;
+
+        location / { proxy_pass http://qwen_backends; }
+        location = /healthz { return 200 'ok'; add_header Content-Type text/plain; }
+      }
+    }
+
+  # Bash-portable resolver run by the init container. Resolves the headless
+  # backends Service via getent (musl-aware), sorts the IPs, and writes
+  # `server <ip>:<port>;` lines. Sorted order is what makes the ketama ring
+  # identical across router replicas.
+  resolve-backends.sh: |
+    #!/bin/sh
+    set -eu
+    HOST="{{ include "rotorquant.fullname" . }}-backends.{{ .Release.Namespace }}.svc.cluster.local"
+    PORT="{{ .Values.service.targetPort }}"
+    OUT="/etc/nginx/upstreams/backends.conf"
+    mkdir -p "$(dirname "$OUT")"
+    # Retry resolution; the headless service may take a beat to populate
+    # endpoints during chart install.
+    for i in $(seq 1 30); do
+      IPS=$(getent ahostsv4 "$HOST" 2>/dev/null | awk '{print $1}' | sort -u)
+      if [ -n "$IPS" ]; then break; fi
+      echo "waiting for DNS for $HOST (attempt $i)..." >&2
+      sleep 1
+    done
+    if [ -z "${IPS:-}" ]; then
+      echo "FATAL: no IPs resolved for $HOST after 30s" >&2
+      exit 1
+    fi
+    : > "$OUT"
+    for ip in $IPS; do
+      echo "server $ip:$PORT;" >> "$OUT"
+    done
+    echo "Wrote upstream peer list:" >&2
+    cat "$OUT" >&2
+{{- end }}

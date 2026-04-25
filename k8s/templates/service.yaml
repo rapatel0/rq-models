@@ -8,8 +8,18 @@ spec:
   type: {{ .Values.service.type }}
   selector:
     {{- include "rotorquant.selectorLabels" . | nindent 4 }}
+    {{- if .Values.router.enabled }}
+    app.kubernetes.io/component: router
+    {{- else }}
+    app.kubernetes.io/component: server
+    {{- end }}
   ports:
     - name: http
       port: {{ .Values.service.port }}
+      {{- if .Values.router.enabled }}
+      # Router listens on 80 regardless of backend targetPort.
+      targetPort: 80
+      {{- else }}
       targetPort: {{ .Values.service.targetPort }}
+      {{- end }}
       protocol: TCP

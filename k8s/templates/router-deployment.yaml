@@ -1,0 +1,90 @@
+{{- if .Values.router.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rotorquant.fullname" . }}-router
+  labels:
+    {{- include "rotorquant.labels" . | nindent 4 }}
+    app.kubernetes.io/component: router
+spec:
+  replicas: {{ .Values.router.replicas }}
+  selector:
+    matchLabels:
+      {{- include "rotorquant.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: router
+  template:
+    metadata:
+      labels:
+        {{- include "rotorquant.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: router
+      annotations:
+        # Roll router pods when nginx config / resolver script changes.
+        checksum/config: {{ include (print $.Template.BasePath "/router-configmap.yaml") . | sha256sum }}
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    {{- include "rotorquant.selectorLabels" . | nindent 20 }}
+                    app.kubernetes.io/component: router
+      initContainers:
+        # Resolves the headless backends Service to its current pod IPs and
+        # writes them as sorted `server <ip>:<port>;` lines into a shared
+        # emptyDir. Sorted order is what makes the consistent-hash ring
+        # identical across router replicas — see router-configmap.yaml.
+        - name: resolve-backends
+          image: "{{ .Values.router.image.repository }}:{{ .Values.router.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "/scripts/resolve-backends.sh"]
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /scripts
+              readOnly: true
+            - name: upstreams
+              mountPath: /etc/nginx/upstreams
+      containers:
+        - name: nginx
+          image: "{{ .Values.router.image.repository }}:{{ .Values.router.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+          resources:
+            {{- toYaml .Values.router.resources | nindent 12 }}
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+            - name: upstreams
+              mountPath: /etc/nginx/upstreams
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: {{ include "rotorquant.fullname" . }}-router
+            defaultMode: 0755
+            items:
+              - key: nginx.conf
+                path: nginx.conf
+              - key: resolve-backends.sh
+                path: resolve-backends.sh
+        - name: upstreams
+          emptyDir: {}
+{{- end }}

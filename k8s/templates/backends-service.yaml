@@ -1,0 +1,26 @@
+{{- if .Values.router.enabled }}
+# Headless Service that always points at the rotorquant model pods, regardless
+# of router state. The router's nginx upstream resolves this name on a 10s TTL
+# so backend pod IPs roll in/out without an nginx reload. Keeping this as a
+# distinct Service (instead of reusing the public one) lets the public
+# Service's selector swap to the router pods.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "rotorquant.fullname" . }}-backends
+  labels:
+    {{- include "rotorquant.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backends
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: false
+  selector:
+    {{- include "rotorquant.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+  ports:
+    - name: http
+      port: {{ .Values.service.targetPort }}
+      targetPort: {{ .Values.service.targetPort }}
+      protocol: TCP
+{{- end }}

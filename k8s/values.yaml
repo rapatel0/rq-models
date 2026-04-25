@@ -183,6 +183,27 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
     nginx.ingress.kubernetes.io/proxy-body-size: "0"
 
+# In-cluster session-pinning router. When enabled, the public Service
+# (`<release>-rotorquant`) selects an nginx Deployment that consistent-hashes
+# requests on the X-Hermes-Session-Id header (random fallback when absent),
+# proxying to a headless backends Service that selects the rotorquant pods.
+# The Service name and DNS stay identical, so clients are unaware. Set to
+# false to restore direct routing — the public Service then selects the
+# rotorquant pods directly.
+router:
+  enabled: true
+  replicas: 2
+  image:
+    repository: nginx
+    tag: "1.27-alpine"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
 # Resource requests/limits. nvidia.com/gpu is set automatically from
 # gpusPerReplica above. CPU/memory below are sane defaults for serving.
 resources:
