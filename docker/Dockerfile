@@ -1,15 +1,20 @@
 # RotorQuant llama.cpp server — multi-model Docker image
 #
-# Self-contained multi-stage build with CUDA 13.1.
-# Compiles the RotorQuant llama.cpp fork from source inside Docker.
+# Self-contained multi-stage build. Default CUDA 13.1 (Ada/Hopper/Blackwell).
+# For older GPUs (V100/Volta sm_70, T4/Turing sm_75) override CUDA_VERSION
+# to 12.6.3 — CUDA 13.x dropped sm_70 and sm_75 support entirely.
 #
-# Build: docker build -t rotorquant -f docker/Dockerfile .
-# Run:   docker run --gpus all -e MODEL_NAME=qwen3.5-27b -v llm-models:/models -p 8080:8080 rotorquant
+# Build (default — modern arches): docker build -t rotorquant -f docker/Dockerfile .
+# Build (V100/Volta):
+#   docker build --build-arg CUDA_VERSION=12.6.3 --build-arg CUDA_ARCHES=70 \
+#     -t rotorquant:v100 -f docker/Dockerfile .
+# Run: docker run --gpus all -e MODEL_NAME=qwen3.5-27b -v llm-models:/models -p 8080:8080 rotorquant
 
 # ============================================================================
-# Build Stage: compile llama.cpp with RotorQuant + CUDA 13.1
+# Build Stage: compile llama.cpp with RotorQuant
 # ============================================================================
-FROM nvidia/cuda:13.1.0-devel-ubuntu24.04 AS build
+ARG CUDA_VERSION=13.1.0
+FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu24.04 AS build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git cmake build-essential \
@@ -41,7 +46,9 @@ RUN cmake -B build \
 # ============================================================================
 # Runtime Stage: slim image with binaries + model download tooling
 # ============================================================================
-FROM nvidia/cuda:13.1.0-runtime-ubuntu24.04
+# Re-declare ARG after FROM (Docker scoping rule).
+ARG CUDA_VERSION
+FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu24.04
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl python3 python3-pip ca-certificates libgomp1 \
