@@ -46,6 +46,15 @@ declare -A MODELS=(
   [qwen3.5-27b-q3-xxs]="unsloth/Qwen3.5-27B-GGUF|Qwen3.5-27B-UD-IQ3_XXS.gguf|57344|"
   [qwen3.5-27b-iq4]="unsloth/Qwen3.5-27B-GGUF|Qwen3.5-27B-IQ4_XS.gguf|14336|"
   [gemma4-26b-q3]="unsloth/gemma-4-26B-A4B-it-GGUF|gemma-4-26B-A4B-it-UD-Q3_K_M.gguf|40960|--samplers top_p,top_k,temperature --temp 1.0 --top-p 0.95 --top-k 64"
+
+  # ── DeepSeek V4-Flash MoE (158B total, ~30B active) ──────────────────
+  # GGUF declares general.architecture=deepseek2; runs on the existing
+  # DEEPSEEK2 codepath. Needs ~120 GB VRAM at Q4 — TP across 4× V100 fits.
+  # Recommended runtime args:
+  #   SPLIT_MODE=row  TENSOR_SPLIT="1,1,1,1"  N_PARALLEL=1  CTX_SIZE=32768
+  [dsv4-flash]="tecaprovn/deepseek-v4-flash-gguf|DeepSeekV4-Flash-158B-Q4_K_M.gguf|32768|"
+  [dsv4-flash-q3]="tecaprovn/deepseek-v4-flash-gguf|DeepSeekV4-Flash-158B-Q3_K_M.gguf|32768|"
+  [dsv4-flash-q5]="tecaprovn/deepseek-v4-flash-gguf|DeepSeekV4-Flash-158B-Q5_K_M.gguf|32768|"
 )
 
 # ── Parse env vars ──────────────────────────────────────────────────────────
