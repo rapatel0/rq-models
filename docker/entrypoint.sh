@@ -118,6 +118,9 @@ CMD=(
   --cache-type-v "$KV_CACHE"
   --cache-ram "${CACHE_RAM:-8192}"
   --flash-attn on
+  # Always expose Prometheus /metrics. Endpoint is no-cost when not
+  # scraped; required for ServiceMonitor / OpenMetrics integration.
+  --metrics
   --host 0.0.0.0
   --port "$PORT"
 )

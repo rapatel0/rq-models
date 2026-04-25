@@ -1,0 +1,37 @@
+{{- if .Values.observability.serviceMonitor.enabled -}}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "rotorquant.fullname" . }}
+  {{- with .Values.observability.serviceMonitor.namespace }}
+  namespace: {{ . }}
+  {{- end }}
+  labels:
+    {{- include "rotorquant.labels" . | nindent 4 }}
+    {{- with .Values.observability.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  # Scrape the headless backends Service (when router.enabled) so each
+  # llama-server pod is its own scrape target. With the router off, fall
+  # back to selecting the user-facing Service.
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/name: {{ include "rotorquant.name" . }}
+      {{- if .Values.router.enabled }}
+      app.kubernetes.io/component: backends
+      {{- else }}
+      app.kubernetes.io/component: server
+      {{- end }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.observability.serviceMonitor.interval }}
+      {{- with .Values.observability.serviceMonitor.scrapeTimeout }}
+      scrapeTimeout: {{ . }}
+      {{- end }}
+{{- end }}

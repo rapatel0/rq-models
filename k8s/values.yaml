@@ -204,6 +204,28 @@ router:
       cpu: 500m
       memory: 256Mi
 
+# Observability — emits a Prometheus ServiceMonitor pointing at the
+# llama-server `/metrics` endpoint on each backend pod. Requires the
+# kube-prometheus-stack Prometheus operator (or any operator that
+# watches monitoring.coreos.com/v1 ServiceMonitors).
+#
+# The entrypoint always passes `--metrics` to llama-server, so the
+# /metrics endpoint is up regardless of this value. This switch only
+# controls whether a ServiceMonitor is created.
+observability:
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: ""        # empty = Prometheus default (10s)
+    # Default null = render in the Release namespace. Override to put
+    # the SM in the Prometheus namespace if your operator is configured
+    # with a strict `serviceMonitorNamespaceSelector`.
+    namespace: ""
+    # Extra labels — typical kube-prom-stack setups require
+    # `release: kube-prom-stack` so the operator picks it up.
+    additionalLabels:
+      release: kube-prom-stack
+
 # Resource requests/limits. nvidia.com/gpu is set automatically from
 # gpusPerReplica above. CPU/memory below are sane defaults for serving.
 resources:

@@ -4,6 +4,13 @@ metadata:
   name: {{ include "rotorquant.fullname" . }}
   labels:
     {{- include "rotorquant.labels" . | nindent 4 }}
+    # Mirror the spec.selector role on the metadata so ServiceMonitors
+    # and other label-based discovery can target this Service correctly.
+    {{- if .Values.router.enabled }}
+    app.kubernetes.io/component: router
+    {{- else }}
+    app.kubernetes.io/component: server
+    {{- end }}
 spec:
   type: {{ .Values.service.type }}
   selector:
