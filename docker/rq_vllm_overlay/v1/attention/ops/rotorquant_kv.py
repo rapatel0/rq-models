@@ -141,7 +141,15 @@ def _ext():
     from torch.utils import cpp_extension
 
     csrc = _locate_csrc()
-    sources = [str(csrc / "planar3_kv.cu"), str(csrc / "torch_bindings.cpp")]
+    # Sources include both the standalone planar3 kernels (Phase 2a) and
+    # the fused paged kernels (Phase 2.5). Bindings are unified in
+    # torch_bindings.cpp; the .cu files contribute device functions that
+    # the bindings call into.
+    sources = [
+        str(csrc / "planar3_kv.cu"),
+        str(csrc / "planar3_paged_kv.cu"),
+        str(csrc / "torch_bindings.cpp"),
+    ]
     _ext_cache = cpp_extension.load(
         name="rq_models_rotorquant",
         sources=sources,
@@ -266,3 +274,121 @@ def rotorquant_kv_read(
             f"rotorquant_kv_read called with non-RotorQuant dtype "
             f"{kv_cache_dtype!r}; supported: {SUPPORTED_ROTORQUANT_DTYPES}")
     return key_cache, value_cache
+
+
+# ---------------------------------------------------------------------------
+# Phase 2.5 fused paged ops — packed-storage hot path
+#
+# These wrap the new pack_and_scatter / gather_and_unpack kernels. They
+# are NOT yet wired into FlashAttention's forward path; the Phase 2c
+# rotorquant_kv_write above remains the active integration mode while
+# the read-path materialization design is finalized. Once that lands,
+# rotorquant_kv_write swaps its body for ``pack_and_scatter_planar3``
+# and the FlashAttention forward gains a pre-PagedAttention call to
+# ``gather_and_unpack_planar3``.
+# ---------------------------------------------------------------------------
+
+def pack_and_scatter_planar3(
+    key: torch.Tensor,                # [num_tokens, num_kv_heads, head_size] fp16
+    value: torch.Tensor,              # same
+    key_cache: torch.Tensor,          # uint8, packed flat layout
+    value_cache: torch.Tensor,        # same
+    slot_mapping: torch.Tensor,       # [num_tokens] int64
+) -> None:
+    """Fused pack-and-scatter into the packed paged KV cache.
+
+    Cache shape (flat byte view): num_blocks * block_size * num_kv_heads *
+    blocks_per_head * 50 bytes. This op derives ``num_kv_heads``,
+    ``head_size``, and ``blocks_per_head`` from the input ``key`` shape so
+    callers don't have to thread them through.
+
+    Phase 2.5 deliverable. Math identical to ``pack`` + ``scatter``; fused
+    here so we don't pay the temporary buffer in the hot path.
+    """
+    if key.shape != value.shape:
+        raise ValueError(f"K shape {key.shape} != V shape {value.shape}")
+    if key.dim() != 3:
+        raise ValueError(
+            f"K, V must be [num_tokens, num_kv_heads, head_size]; got rank {key.dim()}")
+    num_tokens, num_kv_heads, head_size = key.shape
+    if head_size % QK_PLANAR3 != 0:
+        raise ValueError(
+            f"head_size {head_size} not a multiple of {QK_PLANAR3}")
+    blocks_per_head = head_size // QK_PLANAR3
+    if slot_mapping.shape[0] != num_tokens:
+        raise ValueError(
+            f"slot_mapping len {slot_mapping.shape[0]} != num_tokens {num_tokens}")
+
+    ext = _ext()
+    ext.rotorquant_planar3_pack_and_scatter(
+        key, value, key_cache, value_cache, slot_mapping,
+        num_kv_heads, head_size, blocks_per_head)
+
+
+def gather_and_unpack_planar3(
+    key_cache: torch.Tensor,          # uint8, packed
+    value_cache: torch.Tensor,
+    block_table: torch.Tensor,        # [num_seqs, max_blocks_per_seq] int32
+    seq_lens: torch.Tensor,           # [num_seqs] int32
+    *,
+    num_kv_heads: int,
+    head_size: int,
+    block_size: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Pre-attention materialization: read packed cache, return dense fp16
+    K, V tensors of shape [num_seqs, max_seq_len, num_kv_heads, head_size].
+
+    The output is dense (not paged), so the caller can pass it to a
+    standard FlashAttention forward without per-block indirection. Cost:
+    O(num_seqs * max_seq_len * num_kv_heads * head_size) device memory
+    per attention call, plus one extra kernel launch. For decode-bound
+    workloads this is a net negative on bandwidth vs reading packed
+    inline — accepted in this iteration because integration
+    correctness gate (Phase 3 ppl) takes priority. A fused
+    PagedAttention-with-unpack kernel is the production follow-up.
+
+    Phase 2.5 deliverable.
+    """
+    if head_size % QK_PLANAR3 != 0:
+        raise ValueError(
+            f"head_size {head_size} not a multiple of {QK_PLANAR3}")
+    blocks_per_head = head_size // QK_PLANAR3
+    num_seqs = block_table.shape[0]
+    max_blocks_per_seq = block_table.shape[1]
+    max_seq_len = max_blocks_per_seq * block_size
+
+    key_unpacked = torch.empty(
+        (num_seqs, max_seq_len, num_kv_heads, head_size),
+        device=key_cache.device, dtype=torch.float16,
+    )
+    value_unpacked = torch.empty_like(key_unpacked)
+
+    ext = _ext()
+    ext.rotorquant_planar3_gather_and_unpack(
+        key_cache, value_cache, key_unpacked, value_unpacked,
+        block_table, seq_lens,
+        num_kv_heads, head_size, blocks_per_head, block_size,
+        max_blocks_per_seq)
+    return key_unpacked, value_unpacked
+
+
+def packed_cache_shape(
+    num_blocks: int,
+    block_size: int,
+    num_kv_heads: int,
+    head_size: int,
+) -> tuple[int, ...]:
+    """Return the uint8 cache shape that ``pack_and_scatter_planar3``
+    expects: 5x smaller than the equivalent fp16 shape.
+
+    fp16 cache:    [num_blocks, block_size, num_kv_heads, head_size]
+                   bytes = num_blocks * block_size * num_kv_heads * head_size * 2
+    packed cache:  [num_blocks, block_size, num_kv_heads, head_size * 50 // 128]
+                   bytes = num_blocks * block_size * num_kv_heads * head_size * 50 / 128
+    ratio = 256 / 50 = 5.12 (head_size=128 case)
+    """
+    if head_size % QK_PLANAR3 != 0:
+        raise ValueError(
+            f"head_size {head_size} not a multiple of {QK_PLANAR3}")
+    packed_bytes_per_head = (head_size // QK_PLANAR3) * PACKED_BYTES_PER_BLOCK
+    return (num_blocks, block_size, num_kv_heads, packed_bytes_per_head)

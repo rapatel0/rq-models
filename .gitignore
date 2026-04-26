@@ -30,5 +30,6 @@ codebooks/
 # Papers (reference only, not distributed)
 *.pdf
 
-# RotorQuant upstream clone (reference only)
-rotorquant/
+# RotorQuant upstream clone (reference only) — anchored to repo root so it
+# does not also exclude docker/rq_vllm_overlay/csrc/attention/rotorquant/
+/rotorquant/
