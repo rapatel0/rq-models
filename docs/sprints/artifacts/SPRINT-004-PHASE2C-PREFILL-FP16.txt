@@ -1,0 +1,10 @@
+# fp16-prefill  url=http://localhost:8080  model=Qwen/Qwen3.5-4B
+
+warm-up ...
+
+ chars   tokens   wall_ms   prefill_tps
+   200       41      32.2        1271.9
+   800      156      32.8        4760.0
+  2000      382      35.9       10628.1
+  4000      756      55.2       13692.9
+  6000     1133      79.1       14320.6

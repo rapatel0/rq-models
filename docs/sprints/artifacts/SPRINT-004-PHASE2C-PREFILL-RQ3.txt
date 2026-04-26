@@ -1,0 +1,10 @@
+# rq3-prefill  url=http://localhost:8080  model=Qwen/Qwen3.5-4B
+
+warm-up ...
+
+ chars   tokens   wall_ms   prefill_tps
+   200       41      33.2        1234.6
+   800      156      32.4        4820.5
+  2000      382      37.0       10320.8
+  4000      756      56.3       13429.5
+  6000     1133      79.4       14266.5
