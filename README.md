@@ -5,6 +5,20 @@ Serve Qwen3.6-35B-A3B, Qwen3.6-27B, Qwen3.5-27B, Gemma 4 26B, and other large mo
 
 > **KV defaults**: `iso3` for MoE models (Qwen3.6-35B-A3B), `planar3` for dense models (Qwen3.6-27B, Qwen3.5-27B). Both are 3.125 bpe (4.9x compression). Benchmarks show rotation type matters: iso beats planar on MoE; planar beats iso on dense.
 
+### Inference engineering reference
+
+Before doing perf work or planning a new substrate, read:
+- [`docs/INFERENCE_LESSONS.md`](docs/INFERENCE_LESSONS.md) — verdicts on
+  optimization techniques (what works, doesn't, when), profile-first
+  decision tree, and roadmap recommendations carried over from the
+  vortex Sprint 024 investigation.
+- [`docs/THROUGHPUT_CONFIGURATION_MODEL.md`](docs/THROUGHPUT_CONFIGURATION_MODEL.md)
+  — bandwidth-vs-compute regime model for picking
+  resident-vs-streaming × N-parallel × ctx configurations.
+
+Constants in those docs were measured on RTX 4090 / Qwen 27B; recalibrate
+on RTX 5090 / Qwen 3.6 before citing.
+
 
 ## Quick Start
 
