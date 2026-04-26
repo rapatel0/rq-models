@@ -1,0 +1,30 @@
+# fp16_baseline  url=http://localhost:8080  model=Qwen/Qwen3.5-4B
+
+## paris_short  (24 tok)
+prompt:  'The capital of France is'
+output:  ' Paris.\\nA. True\\nB. False\\nAnswer:\\nA\\n\\nWhich of the following is NOT a reason'
+
+## math_basic  (12 tok)
+prompt:  '2+2='
+output:  '4\\n2+2=4\\n2+2='
+
+## math_chain  (80 tok)
+prompt:  'If a train leaves Boston at 8 AM going 60 mph and another'
+output:  ' train leaves Boston at 10 AM going 80 mph, how long will it take for the second train to catch up to the first train?\\n\\nTo solve this problem, we need to determine how long it takes for the second train to cover the same distance as th...'
+
+## code_python  (64 tok)
+prompt:  'def fibonacci(n):\n    """Return the nth Fibonacci number."""\n    if n'
+output:  ' <= 0:\\n        return 0\\n    elif n == 1:\\n        return 1\\n    else:\\n        return fibonacci(n - 1) + fibonacci(n - 2)\\n\\n# Example usage:\\nprint(fibonacci(10))  # Output: 55'
+
+## list_recall  (128 tok)
+prompt:  'List the first ten US presidents:\n1.'
+output:  ' George Washington\\n2. John Adams\\n3. Thomas Jefferson\\n4. James Madison\\n5. James Monroe\\n6. John Quincy Adams\\n7. Andrew Jackson\\n8. Martin Van Buren\\n9. William Henry Harrison\\n10. John Tyler\\n\\n<think>\\nThinking Process:\\n\\n1.  **Ana...'
+
+## essay_open  (128 tok)
+prompt:  'Write three sentences explaining why Paris is famous.\n'
+output:  'Answer:\\nParis is famous for its iconic landmarks such as the Eiffel Tower and the Louvre Museum. The city is renowned for its rich history, world-class art, and influential role in fashion and cuisine. Additionally, Paris is celebrated ...'
+
+## longer_ctx  (64 tok)
+prompt:  'The four largest oceans on Earth, ranked by surface area, are: 1.'
+output:  ' Pacific Ocean, 2. Atlantic Ocean, 3. Indian Ocean, and 4. Southern Ocean. The Pacific Ocean covers approximately 165,250,000 square kilometers, the Atlantic Ocean covers about 106,460,000 square kilometers, the Indian'
+
