@@ -393,3 +393,41 @@ curl http://localhost:8080/v1/chat/completions \
 ### Sprint 004 Phase 1 spike — checkpoint architecture findings
 
 - Worst-case VRAM math conclusion from (a)+(c): checkpoint save/restore in this path does not duplicate KV in VRAM; incremental checkpoint footprint is host RAM. For non-SWA hybrid partial checkpoints, overhead is recurrent-state bytes only (MB-scale), so checkpoint-induced VRAM increase is effectively `~0 GiB` (not the `+KV_size` full-copy VRAM-doubling case).
+
+### Sprint 004 Phase 1 — L1 PPL regression sweep (rebased fork vs old fork)
+
+Paired-comparison sweep (`scripts/ppl_sweep.py --mode pair`) against the
+canonical `wikitext-2-raw-v1` test split at ctx=2048. **Old fork** = docker
+`rotorquant:latest` (commit `20efe75`). **Rebased fork** = local build at
+commit `8cfb44021` on branch `feature/sprint-004-rebase-dflash`. Tolerance
+±0.05 PPL; gate is "no regression" (rebased ≤ old + tolerance).
+
+Note: the §1.5–1.8 baseline numbers above (e.g. 7.0901 for Qwen3.6-27B f16)
+were measured against a different, non-canonical `wikitext-2-test.txt` file
+that has since been corrected. The numbers below are the canonical
+`wikitext-2-raw-v1` measurements and supersede §1.5–1.8 for the f16 column.
+
+| Model | KV (K/V) | New (rebased) | Old (20efe75) | Δ (new − old) | Verdict |
+|-------|:---------:|--------------:|--------------:|--------------:|---------|
+| Qwen3.6-27B | f16     | 8.0410 | 8.0491 | −0.0081 | match |
+| Qwen3.6-27B | iso3    | 8.1838 | 8.7742 | −0.5904 | improvement |
+| Qwen3.6-27B | iso4    | 8.2147 | 8.8099 | −0.5952 | improvement |
+| Qwen3.6-27B | planar3 | 8.2000 | 8.4974 | −0.2974 | improvement |
+| Qwen3.6-27B | planar4 | 8.1031 | 8.5622 | −0.4591 | improvement |
+| Qwen3.6-35B-A3B | f16     | 6.2390 | 6.2362 | +0.0028 | match |
+| Qwen3.6-35B-A3B | iso3    | 6.3199 | 6.3768 | −0.0569 | improvement |
+| Qwen3.6-35B-A3B | iso4    | 6.2893 | 6.3525 | −0.0632 | improvement |
+| Qwen3.6-35B-A3B | planar3 | 6.2843 | 6.4352 | −0.1509 | improvement |
+| Qwen3.6-35B-A3B | planar4 | 6.2489 | 6.3857 | −0.1368 | improvement |
+
+**Result: 0 regressions across all 10 cells.** f16 baselines match within
+±0.008 PPL on both models. Every quantized KV type on both models shows
+the rebased fork producing **lower** PPL than the old fork — by 0.06–0.60.
+Improvements are concentrated on the 27B dense model (avg −0.49 PPL across
+quantized types) versus smaller MoE gains (avg −0.10 PPL) — consistent with
+upstream having landed quantization-kernel improvements in the 399-commit
+mainline drift between merge-base and rebase target.
+
+C4 corpus deferred to a follow-up (dataset not currently local).
+
+Raw results JSON: `docs/sprints/SPRINT-004-L1-results.json`.
