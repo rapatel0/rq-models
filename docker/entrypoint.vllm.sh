@@ -32,17 +32,29 @@ if [[ -n "${MAX_MODEL_LEN:-}" ]]; then
     ARGS+=(--max-model-len "${MAX_MODEL_LEN}")
 fi
 
-# Phase 0: --quantization is left unset (f16 baseline).
-# Phase 1+: when RotorQuantConfig lands in the fork, set
-#   QUANTIZATION=rotorquant
-#   ROTORQUANT_MODE=planar3
+# Phase 0: KV cache dtype unset (vLLM defaults to model dtype, fp16/bf16).
+# Phase 1+: RotorQuant integrates as a NEW value of --kv-cache-dtype, e.g.
+#   --kv-cache-dtype rotorquant_planar3
+# (Architecture corrected after vLLM source review: RotorQuant is KV-cache
+# compression, NOT weight quantization. The plug-in point is the CacheDType
+# Literal in vllm/config/cache.py, not the QuantizationConfig registry.)
+if [[ -n "${ROTORQUANT_MODE:-}" ]]; then
+    case "${ROTORQUANT_MODE}" in
+        planar3|iso3|iso4|planar4)
+            ARGS+=(--kv-cache-dtype "rotorquant_${ROTORQUANT_MODE}")
+            ;;
+        *)
+            echo "ERROR: unsupported ROTORQUANT_MODE='${ROTORQUANT_MODE}'." >&2
+            echo "Valid: planar3 (Sprint 004), iso3 / iso4 / planar4 (Sprint 005+)." >&2
+            exit 2
+            ;;
+    esac
+fi
+# QUANTIZATION (weight quantization, e.g., gptq/awq) is orthogonal to
+# RotorQuant KV; pass it through if the user sets it for a quantized
+# model checkpoint.
 if [[ -n "${QUANTIZATION:-}" ]]; then
     ARGS+=(--quantization "${QUANTIZATION}")
-fi
-if [[ -n "${ROTORQUANT_MODE:-}" ]]; then
-    # Forwarded as-is; the rq-vllm fork must accept this flag in
-    # RotorQuantConfig (Sprint 004 Phase 1).
-    ARGS+=(--rotorquant-mode "${ROTORQUANT_MODE}")
 fi
 
 if [[ -n "${EXTRA_ARGS:-}" ]]; then

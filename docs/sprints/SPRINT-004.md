@@ -83,101 +83,194 @@ and models without re-doing fork-setup work.
 ### Substrate layout
 
 ```
-rapatel0/rq-vllm   (new)         ← fork of upstream vllm-project/vllm
-├── vllm/                         ← upstream tree, periodically rebased
-├── vllm/model_executor/layers/quantization/
-│   └── rotorquant.py             ← NEW: RotorQuantConfig (mirror GPTQConfig pattern)
-├── vllm/model_executor/layers/quantization/kernels/
-│   └── rotorquant/               ← NEW: ported KV-write/read CUDA kernels
-│       ├── planar3.cu            ← Sprint 004 scope: this only
-│       ├── (iso3.cu)             ← Sprint 005
-│       ├── (iso4.cu)             ← Sprint 005
-│       └── (planar4.cu)          ← Sprint 005
-└── tests/quantization/test_rotorquant.py   ← parity tests against llama.cpp
+rapatel0/rq-vllm   (forked + pinned to upstream v0.19.1)
+├── vllm/
+│   ├── config/cache.py                          ← MODIFY: extend CacheDType Literal
+│   │                                              with rotorquant_planar3 (S004),
+│   │                                              + iso3 / iso4 / planar4 (S005)
+│   ├── attention/backends/                      ← MODIFY: dispatch rotorquant in
+│   │                                              KV-write + paged_attention read path
+│   ├── attention/ops/                           ← NEW: paged-block pack/unpack helpers
+│   │   └── rotorquant_kv.py                       in Python; dispatches CUDA kernels
+│   └── csrc/                                    ← upstream vLLM CUDA kernel dir
+│       └── attention/rotorquant/                ← NEW: ported KV pack/unpack kernels
+│           └── planar3_kv.cu                    ← Sprint 004 scope
+├── ROTORQUANT.md                                ← already present (commit 98b61e668)
+└── tests/kv_cache/test_rotorquant_kv.py         ← NEW: parity tests vs llama.cpp
 ```
 
-### Plug-in points
+### Plug-in points (corrected after vLLM source review)
 
-vLLM's quantization architecture (per [vllm.model_executor.layers.quantization](https://github.com/vllm-project/vllm/tree/main/vllm/model_executor/layers/quantization))
-exposes three customization surfaces:
+**Important correction from the original sprint draft**: RotorQuant is
+a **KV cache** compression scheme, not a *weight* quantization scheme.
+Inspecting the `rapatel0/rq-vllm@v0.19.1` source:
 
-1. **`QuantizationConfig`** subclass (e.g., `GPTQConfig`, `AWQConfig`) —
-   describes how a model identifies as RotorQuant-quantized and which
-   layers to transform.
-2. **`QuantizeMethodBase`** subclass — applied per-layer; rewrites
-   `forward` to use the custom kernels.
-3. **KV cache layer registration** — vLLM's KV cache manager already
-   handles paged blocks. We add a custom dtype enum entry and the
-   pack/unpack kernels for our 3 bpe block layout.
+- Weight quantization plugs in via `QuantizationConfig` subclasses in
+  `vllm/model_executor/layers/quantization/` (e.g., `gptq.py`,
+  `awq.py`). **Not the right surface for RotorQuant.**
+- KV cache dtype is registered in `vllm/config/cache.py` as a typed
+  `Literal`:
+
+  ```python
+  CacheDType = Literal[
+      "auto", "float16", "bfloat16",
+      "fp8", "fp8_e4m3", "fp8_e5m2", "fp8_inc", "fp8_ds_mla",
+  ]
+  ```
+
+  CLI flag `--kv-cache-dtype` selects from this enum. The dispatch on
+  the chosen dtype lives in the attention backend (FlashAttention,
+  FlashInfer, Triton attention) where the KV-write kernel converts
+  fp16/bf16 → quantized dtype on store, and the paged-attention read
+  unpacks it.
+
+The right RotorQuant integration is therefore:
+
+1. **Extend `CacheDType`** in `vllm/config/cache.py` with new values:
+   `rotorquant_planar3` (Sprint 004), `rotorquant_iso3`,
+   `rotorquant_iso4`, `rotorquant_planar4` (Sprint 005).
+2. **Add KV-write packer**: a custom kernel that takes fp16/bf16 K and
+   V vectors, applies the planar3 rotation + Lloyd-Max codebook, packs
+   into the 3-bpe paged-block layout. Wire into the attention backend's
+   `kv_cache_factory` / write path.
+3. **Add KV-read unpacker**: dequant from 3-bpe block back to fp16/bf16
+   for the attention compute. Wire into the paged-attention kernel's
+   read path.
+4. **Block-size negotiation**: vLLM's default paged block size is 16
+   tokens. RotorQuant 3-bpe layout assumes a different per-block byte
+   shape than fp16's `block_size * n_kv_heads * head_dim * 2`. Either
+   reuse vLLM's block_size with internal sub-tiles for the 3 bpe
+   packing, or override block_size for rotorquant dtypes (likely the
+   simpler route — 16-token blocks at 3 bpe = 48 bpe per K-head × 16
+   tokens × n_heads × head_dim).
 
 `mitkox/vllm-turboquant`'s patches (4 commits, `c6b2ee9`, `cee479e`,
-`5fc73a3`, `7a8a095`) demonstrate the integration shape for a different
-quant scheme — read them as **reference for where the plug-in points
-are**, not as the merge base. Our fork bases on upstream vLLM directly.
+`5fc73a3`, `7a8a095`) demonstrate **TurboQuant's** integration shape —
+they extend the FlashAttention KV path, not the QuantizationConfig
+registry. **Read them as reference for the FlashAttention integration
+points specifically**, not the QuantizationConfig pattern.
 
 ### KV layout reuse
 
 The current rq-models RotorQuant planar3 kernels (in the
-`johndpope/llama-cpp-turboquant` fork at commit `20efe75`) implement the
-3 bpe planar rotation + Lloyd-Max codebook. The math is identical
-between substrates; only the kernel-launch boilerplate, paged-block
-addressing, and host↔device API change. The CUDA `__device__` functions
-that do the rotation + quantization should port near-1:1.
+`johndpope/llama-cpp-turboquant` fork at commit `20efe75`) implement
+the 3 bpe planar rotation + Lloyd-Max codebook. The math is identical
+between substrates. What changes:
+
+- **Block addressing**: llama.cpp's KV cache is a contiguous tensor
+  per-layer-per-head; vLLM's paged KV is `[num_blocks, block_size,
+  n_kv_heads, head_dim]` with logical-block → physical-block
+  indirection through a per-sequence `block_table`.
+- **Launch boilerplate**: llama.cpp uses GGML kernel-launch helpers;
+  vLLM uses `at::cuda::getCurrentCUDAStream()` and torch C++ API.
+- **Math (`__device__` inline functions for rotation + Lloyd-Max
+  codebook)**: ports near 1:1.
 
 ### vLLM version pinning
 
-Pin to the **latest stable vLLM tag** at sprint kickoff (current as of
-2026-04-25 is `v0.7.x`; check for newer at sprint start). vLLM's
-internal API churn is significant; pinning protects the port from
-upstream breakage during the sprint. Rebasing onto a newer tag is its
-own follow-up sprint.
+Pinned to upstream v0.19.1 (released 2026-04-18). See "Locked
+decisions" at the top of this document.
 
 ## Implementation
 
 ### Phase 0 — Fork setup + bring-up of unmodified vLLM (target: 2-3 days)
 
-1. Fork `vllm-project/vllm` to `rapatel0/rq-vllm`. Pin to latest stable
-   tag.
+1. Fork `vllm-project/vllm` to `rapatel0/rq-vllm`. Pin to v0.19.1.
+   **DONE 2026-04-25** — fork at https://github.com/rapatel0/rq-vllm,
+   tag v0.19.1 pushed, working branch `feature/rotorquant` from that
+   tag, ROTORQUANT.md committed.
 2. Add Docker build target alongside existing `docker/Dockerfile`'s
-   llama.cpp path: `docker/Dockerfile.vllm` builds vLLM with our fork as
-   source.
+   llama.cpp path: `docker/Dockerfile.vllm` builds vLLM with our fork
+   as source. **DONE 2026-04-25** — `docker/Dockerfile.vllm` and
+   `docker/entrypoint.vllm.sh` committed in rq-models commit
+   `0f5116d`.
 3. Bring up Qwen3.6-27B serving on the unmodified fork via `docker
-   compose --profile qwen36-27b-vllm-baseline up` to confirm
-   environment, drivers, model loading work end-to-end before any
-   RotorQuant integration. Sanity: a `/v1/chat/completions` returns
-   sensible tokens.
-4. Run `scripts/eval_perplexity.py` against the unmodified vLLM serving
-   (with f16 KV) on Qwen3.6-27B; record baseline. This is the
-   "no-quantization vLLM" reference number.
+   build -t rq-vllm -f docker/Dockerfile.vllm . && docker run --gpus
+   all -p 8080:8080 -e MODEL=Qwen/Qwen3-27B rq-vllm`. Sanity: a
+   `/v1/chat/completions` returns sensible tokens. **PENDING — must be
+   run on the GPU box**. See "Local validation findings" below for
+   the env-side issue we hit and why it's not in our scope.
+4. Run `scripts/eval_perplexity.py` against the unmodified vLLM
+   serving (with f16 KV) on Qwen3.6-27B; record baseline. **PENDING —
+   GPU-box work**.
+5. Once Phase 0 step 3 succeeds: add the `qwen36-27b-vllm-baseline`
+   profile to `docker-compose.yml` and the `run-qwen36-27b-vllm-baseline`
+   target to `Makefile`. Deferred from initial scaffold commit to
+   avoid landing untested infra.
 
-### Phase 1 — RotorQuantConfig scaffolding (target: 2-3 days)
+#### Local validation findings (2026-04-26)
 
-1. Add `vllm/model_executor/layers/quantization/rotorquant.py`. Define
-   `RotorQuantConfig` and `RotorQuantQuantizeMethod`. Mirror GPTQ config
-   loading from model HF metadata (`quantization_config.quant_method =
-   "rotorquant"`).
-2. Register in `vllm/model_executor/layers/quantization/__init__.py`'s
-   `QUANTIZATION_METHODS` dict.
-3. Wire a no-op kernel path: `RotorQuantQuantizeMethod` initially does
-   passthrough fp16 — i.e., pretends to be quantized but actually runs
-   f16 KV. Goal: verify the registration plumbing without touching
-   kernels yet.
-4. Smoke test: load Qwen3.6-27B with `--quantization rotorquant`, get
-   identical output to `--quantization none` (f16 KV).
+Attempted to validate the substrate via a venv (using `uv venv` →
+`uv pip install vllm==0.19.1`) on the development laptop (RTX 4090,
+not the RTX 5090 target). vLLM imports fine and the CLI's `--help`
+works, but `vllm.entrypoints.openai.api_server` invocations fail
+during the model architecture inspection subprocess with a
+`MemoryError` deep in `email.feedparser.readline()` while
+`importlib.metadata.packages_distributions()` parses installed-package
+PKG-INFO files. Stack-walk shows the MemoryError originates in the
+uv-managed `cpython-3.12.13-linux-x86_64-gnu` build's stdlib email
+parser, NOT in vLLM or torch. `importlib.metadata.packages_distributions()`
+runs cleanly when called directly in the same venv — only fails when
+called from vLLM's subprocess context. Confirms the bug is environmental
+in uv's bundled Python build, not a vLLM regression at v0.19.1.
+
+**Implication for Sprint 004**: don't try to validate via a local venv
+on this laptop. The docker path uses Ubuntu 22.04's apt-installed
+Python 3.12 inside the container, which is the upstream-blessed
+distribution and avoids the uv stdlib quirk. Validation must happen
+from the docker image on the RTX 5090 box.
+
+### Phase 1 — RotorQuant KV-cache dtype registration (target: 2-3 days)
+
+**Corrected scope**: RotorQuant integrates as a KV-cache dtype, not a
+weight quantization method (see Architecture > Plug-in points).
+
+1. Edit `vllm/config/cache.py`:
+   - Extend the `CacheDType = Literal[...]` union with
+     `"rotorquant_planar3"`.
+   - Add a docstring explaining what the new value means and pointing
+     to the rotorquant_kv backend module.
+2. Add `vllm/attention/ops/rotorquant_kv.py` with passthrough
+   pack/unpack stubs (write fp16 K,V → fp16 paged blocks unchanged;
+   read fp16 paged blocks → fp16 K,V unchanged). Goal: ensure that
+   `--kv-cache-dtype rotorquant_planar3` is accepted by the CLI
+   without crashing, even though it doesn't actually compress
+   anything yet.
+3. Wire dispatch into the FlashAttention KV-write hook so that when
+   `cache_dtype == "rotorquant_planar3"` the path calls our pack
+   stubs, and when reading it calls our unpack stubs.
+4. Smoke test (GPU): `docker run ... -e
+   ROTORQUANT_MODE=planar3` (entrypoint translates this to the
+   `--kv-cache-dtype rotorquant_planar3` flag) loads Qwen3.6-27B,
+   produces sensible tokens. Output should be **bit-identical to the
+   `--kv-cache-dtype float16` baseline** since pack/unpack are
+   passthrough.
 
 ### Phase 2 — planar3 kernel port (target: 1 week)
 
-1. Port the planar3 KV-write kernel from `johndpope/llama-cpp-turboquant`
-   commit `20efe75` (file path TBD — locate `planar3` quant-write CUDA
-   sources in that fork) to `vllm/model_executor/layers/quantization/kernels/rotorquant/planar3.cu`.
-2. Port the planar3 KV-read kernel similarly.
-3. Wire into the no-op `RotorQuantQuantizeMethod` from Phase 1; replace
-   passthrough with real planar3 quantization.
-4. Bypass any vLLM mechanisms incompatible with 3-bpe block packing
-   (potentially: paged-block size assumptions). Document each bypass.
-5. Smoke test: load Qwen3.6-27B with `--quantization rotorquant
-   --rotorquant-mode planar3`, generate tokens, verify they're sensible
-   (not random noise — sanity check that quantization isn't catastrophic).
+1. Locate the planar3 KV-write + KV-read CUDA kernels in
+   `johndpope/llama-cpp-turboquant@20efe75`. Likely paths to grep:
+   `ggml/src/ggml-cuda/cpy.cu`, `ggml/src/ggml-cuda/dequantize.cu`,
+   or a planarquant-specific `.cu` file. Identify the rotation +
+   Lloyd-Max codebook helpers and the per-block packing code.
+2. Add `vllm/csrc/attention/rotorquant/planar3_kv.cu` with two CUDA
+   kernels:
+   - `planar3_kv_write`: takes `(K, V, slot_mapping, block_table,
+     ...)` and writes packed 3-bpe blocks.
+   - `planar3_kv_read`: dequantizes packed blocks back to fp16 for
+     the attention matmul.
+3. Hook the new kernels into `setup.py`'s extension build so they
+   compile alongside vLLM's existing CUDA kernels.
+4. Replace the passthrough stubs from Phase 1 with calls to the new
+   kernels. The `_custom_ops` Python wrapper imports them.
+5. Block-size negotiation: if vLLM's default 16-token paged block
+   doesn't divide cleanly with the 3-bpe layout (likely it does — 16 ×
+   3 / 8 = 6 bytes per token-channel), use the default. Otherwise,
+   override `--block-size` for rotorquant dtypes and document.
+6. Smoke test (GPU): `docker run ... -e ROTORQUANT_MODE=planar3`
+   loads Qwen3.6-27B and generates sensible tokens. Output should
+   *not* be bit-identical to fp16 (we now have actual compression),
+   but should be high quality (Δppl validated in Phase 3).
 
 ### Phase 3 — PPL validation gate (target: 2-3 days)
 
@@ -225,11 +318,14 @@ own follow-up sprint.
 - `rapatel0/rq-vllm` (fork of upstream vllm-project/vllm at latest stable
   tag)
 
-**New files in `rapatel0/rq-vllm`**:
-- `vllm/model_executor/layers/quantization/rotorquant.py`
-- `vllm/model_executor/layers/quantization/kernels/rotorquant/planar3.cu`
-- `tests/quantization/test_rotorquant.py`
-- `docs/ROTORQUANT.md` (in-fork documentation)
+**New / modified files in `rapatel0/rq-vllm`** (corrected integration
+shape — KV-cache-dtype, not weight quant):
+- `vllm/config/cache.py` — extend `CacheDType` Literal
+- `vllm/attention/ops/rotorquant_kv.py` — Python pack/unpack dispatch
+- `vllm/csrc/attention/rotorquant/planar3_kv.cu` — CUDA kernels
+- FlashAttention KV-write/read hooks for the new dtype
+- `tests/kv_cache/test_rotorquant_kv.py`
+- `ROTORQUANT.md` — already exists (commit `98b61e668`)
 
 **Files in `rapatel0/rq-models`**:
 - `docs/sprints/SPRINT-004.md` (this doc)
@@ -249,11 +345,14 @@ own follow-up sprint.
       stable tag, recorded in this doc and the in-fork README.
 - [ ] Unmodified vLLM fork serves Qwen3.6-27B successfully (Phase 0
       smoke).
-- [ ] `RotorQuantConfig` + `RotorQuantQuantizeMethod` plumbing registered
-      in vLLM (Phase 1).
-- [ ] planar3 KV-write + KV-read kernels ported (Phase 2).
-- [ ] `--quantization rotorquant --rotorquant-mode planar3` produces
-      sensible tokens for Qwen3.6-27B and Qwen3.5-27B (Phase 2 smoke).
+- [ ] `CacheDType` Literal extended with `rotorquant_planar3`; pack/unpack
+      passthrough stubs in place; FlashAttention KV-write/read dispatch
+      wired (Phase 1).
+- [ ] planar3 KV pack + unpack CUDA kernels ported and replacing the
+      Phase 1 passthrough stubs (Phase 2).
+- [ ] `--kv-cache-dtype rotorquant_planar3` (i.e., `ROTORQUANT_MODE=planar3`
+      env var) produces sensible tokens for Qwen3.6-27B and Qwen3.5-27B
+      (Phase 2 smoke).
 - [ ] **PPL parity gate**: Δppl ≤ 0.05% vs llama.cpp planar3 baseline on
       Qwen3.6-27B and Qwen3.5-27B (Phase 3, hard gate).
 - [ ] **Throughput parity check**: vLLM aggregate tok/s at N=4 ≥
