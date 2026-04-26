@@ -36,10 +36,12 @@ test is the next user-driven action.
 | `docker/Dockerfile.vllm` syntax | ✅ | builds rq-vllm fork; multi-stage CUDA-dev → CUDA-runtime; bakes rq-vllm commit SHA |
 | `docker/entrypoint.vllm.sh` syntax | ✅ | `bash -n` clean; ROTORQUANT_MODE → `--kv-cache-dtype rotorquant_${MODE}` |
 | Integration plug-in points identified in vLLM source | ✅ | `vllm/config/cache.py:14-23` (CacheDType Literal), `vllm/v1/attention/backends/flash_attn.py:65-170, 817` (FlashAttention dispatch sites). See Phase 1 anchor table. |
+| **Phase 1 code shipped** (passthrough wiring) | ✅ | rq-vllm commit `e04001ae3` on `feature/rotorquant`. 4 files / +120 lines: extends `CacheDType`, adds `rotorquant_planar3 → torch.float16` storage map, accepts the dtype in `FlashAttentionBackend`, adds `rotorquant_kv.py` Phase 2 hook module. All 4 files `python3 -m py_compile` clean. |
 | `docker build -t rq-vllm -f docker/Dockerfile.vllm .` succeeds | ⏸ pending | requires GPU box (RTX 5090) — disk pressure on dev laptop. |
 | Phase 0 step 3: `/v1/chat/completions` returns sensible tokens from unmodified vLLM serving Qwen3-27B | ⏸ pending | requires GPU box. |
 | Phase 0 step 4: f16 KV PPL baseline | ⏸ pending | requires GPU box. |
-| Phase 1 / 2 implementation | ⏸ pending Phase 0 | sequential — substrate must work before integrating RotorQuant. |
+| **Phase 1 smoke**: `--kv-cache-dtype rotorquant_planar3` accepted; output bit-identical to `--kv-cache-dtype float16` | ⏸ pending | requires GPU box. See `docs/SPRINT-004-PHASE1-VALIDATION.md` for the explicit checks. |
+| Phase 2 implementation | ⏸ pending Phase 1 smoke | requires Phase 1 wiring confirmed correct first. |
 
 **Validation detour 2026-04-26 (does not block Phase 0):** attempted
 local-venv validation on the dev laptop via `uv pip install
