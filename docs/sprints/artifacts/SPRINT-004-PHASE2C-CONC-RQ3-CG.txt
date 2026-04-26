@@ -1,0 +1,9 @@
+# rq3-cg-conc  url=http://localhost:8080  model=Qwen/Qwen3.5-4B
+
+warm-up ...
+
+   N   wall_s   tokens    agg_tps  per_req_tps
+   1    1.463      128      87.48        87.48
+   4    1.798      512     284.70        71.17
+   8    1.749      944     539.89        67.49
+  16    2.004     1974     985.07        61.57

@@ -1,0 +1,9 @@
+# fp16-cg-conc  url=http://localhost:8080  model=Qwen/Qwen3.5-4B
+
+warm-up ...
+
+   N   wall_s   tokens    agg_tps  per_req_tps
+   1    1.417      128      90.31        90.31
+   4    1.738      512     294.54        73.63
+   8    1.687     1024     606.82        75.85
+  16    1.910     2048    1072.06        67.00

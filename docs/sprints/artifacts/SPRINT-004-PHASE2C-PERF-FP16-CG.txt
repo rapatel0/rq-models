@@ -1,0 +1,12 @@
+# fp16-cudagraph  url=http://localhost:8080  model=Qwen/Qwen3.5-4B
+
+warm-up ...
+
+idx   ttft_s   decode_s     n      tps  prompt
+  0    0.023      1.395   128    91.78  'The capital of France is'
+  1    0.024      1.393   128    91.89  'Two plus two equals'
+  2    0.023      1.394   128    91.85  'Write three sentences about Pa'
+  3    0.023      1.394   128    91.85  'List the first five US preside'
+  4    0.023      1.394   128    91.83  'def fibonacci(n):     if n'
+
+# fp16-cudagraph: median ttft = 23.2 ms, median tps = 91.85 tok/s   (ttft range 23.0–24.1 ms, tps range 91.78–91.89)
