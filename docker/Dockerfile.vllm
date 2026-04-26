@@ -56,9 +56,14 @@ COPY docker/rq_vllm_overlay/v1/attention/backends/flash_attn.py ${VLLM_PATH}/v1/
 COPY docker/rq_vllm_overlay/v1/attention/ops/rotorquant_kv.py ${VLLM_PATH}/v1/attention/ops/rotorquant_kv.py
 
 # Phase 2a CUDA kernels: JIT-compiled by the rotorquant_kv module on first
-# import. The base image already has nvcc + CUDA toolkit at /usr/local/cuda
-# so no apt installs needed. Bake the kernel sources into the image at the
-# location rotorquant_kv.py expects to find them (vllm root + csrc/).
+# import. The base image has nvcc + cudart-dev headers, but is missing
+# libcusparse-dev which torch's <ATen/cuda/CUDAContext.h> transitively
+# includes. Install it so the JIT build links against the right cuSPARSE.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libcusparse-dev-12-9 libcublas-dev-12-9 \
+        libcusolver-dev-12-9 libcurand-dev-12-9 \
+        libcufft-dev-12-9 libnccl-dev \
+    && rm -rf /var/lib/apt/lists/*
 ARG VLLM_ROOT=/usr/local/lib/python3.12/dist-packages
 COPY docker/rq_vllm_overlay/csrc/attention/rotorquant/ ${VLLM_ROOT}/vllm/csrc/attention/rotorquant/
 

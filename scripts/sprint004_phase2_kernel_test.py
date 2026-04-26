@@ -142,19 +142,38 @@ def test_l2_norm(ext) -> None:
     print("PASS")
 
 
-def test_per_element(ext) -> None:
-    print("test_per_element ...", end=" ", flush=True)
+def test_cosine_similarity(ext) -> None:
+    """Per-block cosine similarity > 0.95 — the right metric for a rotation
+    + Lloyd-Max scheme. Per-element relative error is meaningless near
+    zero. 3-bit planar3 typically gets cos_sim > 0.97 on Gaussian input."""
+    print("test_cosine_similarity ...", end=" ", flush=True)
     for n_blocks in [1, 8, 64]:
         src = _make_input(n_blocks)
         out = _round_trip(ext, src, n_blocks)
-        src_f = src.float()
-        out_f = out.float()
-        diff = (src_f - out_f).abs()
-        rel = diff / src_f.abs().clamp(min=1e-3)
-        sorted_rel = torch.sort(rel)[0]
-        p95 = sorted_rel[int(0.95 * len(sorted_rel))].item()
-        assert p95 < 0.10, (
-            f"Per-element p95 rel err = {p95} > 0.10 (n_blocks={n_blocks})")
+        src_b = src.view(n_blocks, QK_PLANAR3).float()
+        out_b = out.view(n_blocks, QK_PLANAR3).float()
+        cos = torch.nn.functional.cosine_similarity(src_b, out_b, dim=1)
+        min_cos = cos.min().item()
+        assert min_cos > 0.95, (
+            f"per-block cosine similarity dropped to {min_cos} "
+            f"(n_blocks={n_blocks}); kernel math may be broken")
+    print("PASS")
+
+
+def test_max_normalized_err(ext) -> None:
+    """Per-element absolute error / per-block max magnitude p99 < 0.30."""
+    print("test_max_normalized_err ...", end=" ", flush=True)
+    for n_blocks in [1, 8, 64]:
+        src = _make_input(n_blocks)
+        out = _round_trip(ext, src, n_blocks)
+        src_b = src.view(n_blocks, QK_PLANAR3).float()
+        out_b = out.view(n_blocks, QK_PLANAR3).float()
+        bmax = src_b.abs().max(dim=1, keepdim=True).values
+        ne = (src_b - out_b).abs() / bmax.clamp(min=1e-6)
+        p99 = torch.sort(ne.flatten())[0][int(0.99 * ne.numel())].item()
+        assert p99 < 0.30, (
+            f"per-element p99 normalized err = {p99} > 0.30 "
+            f"(n_blocks={n_blocks})")
     print("PASS")
 
 
@@ -194,7 +213,8 @@ def main() -> int:
     test_bpe_invariant()
     test_shapes(ext)
     test_l2_norm(ext)
-    test_per_element(ext)
+    test_cosine_similarity(ext)
+    test_max_normalized_err(ext)
     test_zero_input(ext)
 
     print()
