@@ -33,7 +33,7 @@ FROM vllm/vllm-openai:${VLLM_VERSION}
 ARG RQ_VLLM_COMMIT=e04001ae3
 RUN echo "${RQ_VLLM_COMMIT}" > /etc/rq-vllm-commit
 
-# Overlay Phase 1 RotorQuant patches onto the base image's installed vLLM.
+# Overlay Phase 1 + 2c RotorQuant patches onto the base image's installed vLLM.
 # Path is fixed for vllm/vllm-openai:v0.19.1 (Ubuntu 24.04 + Python 3.12).
 # If vLLM is reinstalled at a different path in a future tag, update VLLM_PATH.
 ARG VLLM_PATH=/usr/local/lib/python3.12/dist-packages/vllm
@@ -41,6 +41,13 @@ COPY docker/rq_vllm_overlay/config/cache.py ${VLLM_PATH}/config/cache.py
 COPY docker/rq_vllm_overlay/utils/torch_utils.py ${VLLM_PATH}/utils/torch_utils.py
 COPY docker/rq_vllm_overlay/v1/attention/backends/flash_attn.py ${VLLM_PATH}/v1/attention/backends/flash_attn.py
 COPY docker/rq_vllm_overlay/v1/attention/ops/rotorquant_kv.py ${VLLM_PATH}/v1/attention/ops/rotorquant_kv.py
+
+# Phase 2a CUDA kernels: JIT-compiled by the rotorquant_kv module on first
+# import. The base image already has nvcc + CUDA toolkit at /usr/local/cuda
+# so no apt installs needed. Bake the kernel sources into the image at the
+# location rotorquant_kv.py expects to find them (vllm root + csrc/).
+ARG VLLM_ROOT=/usr/local/lib/python3.12/dist-packages
+COPY docker/rq_vllm_overlay/csrc/attention/rotorquant/ ${VLLM_ROOT}/vllm/csrc/attention/rotorquant/
 
 COPY docker/entrypoint.vllm.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

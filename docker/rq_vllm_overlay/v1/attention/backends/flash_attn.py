@@ -822,16 +822,35 @@ class FlashAttentionImpl(AttentionImpl):
         # and value[:num_actual_tokens] because the reshape_and_cache_flash
         # op uses the slot_mapping's shape to determine the number of
         # actual tokens.
-        reshape_and_cache_flash(
-            key,
-            value,
-            key_cache,
-            value_cache,
-            slot_mapping,
-            self.kv_cache_dtype,
-            layer._k_scale,
-            layer._v_scale,
-        )
+        if self.kv_cache_dtype.startswith("rotorquant_"):
+            # rq-models Sprint 004 Phase 2c: route through the planar3
+            # round-trip (lossy-passthrough). See
+            # vllm/v1/attention/ops/rotorquant_kv.py for the integration
+            # mode. Phase 2.5 will swap this for direct packed storage.
+            from vllm.v1.attention.ops.rotorquant_kv import (
+                rotorquant_kv_write,
+            )
+            rotorquant_kv_write(
+                key,
+                value,
+                key_cache,
+                value_cache,
+                slot_mapping,
+                self.kv_cache_dtype,
+                layer._k_scale,
+                layer._v_scale,
+            )
+        else:
+            reshape_and_cache_flash(
+                key,
+                value,
+                key_cache,
+                value_cache,
+                slot_mapping,
+                self.kv_cache_dtype,
+                layer._k_scale,
+                layer._v_scale,
+            )
 
     def _forward_with_dcp(
         self,
