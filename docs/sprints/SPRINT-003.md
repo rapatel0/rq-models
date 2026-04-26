@@ -1,5 +1,19 @@
 # Sprint 003: SpectralQuant KV Cache Integration
 
+> **Status: CLOSED 2026-04-25 — research call: SpectralQuant unlikely to
+> yield on Qwen architectures.** The K/V spectral-asymmetry assumption
+> (96-97% of K signal in 3-4% of dims) doesn't hold strongly enough on
+> Qwen 3.5/3.6 to make it worth the kernel-implementation cost in
+> Sprint 004. Existing Python prototype work preserved on the
+> [`research/spectral-quant`](https://github.com/rapatel0/rq-models/tree/research/spectral-quant)
+> branch for future revisit if a different model class makes the
+> assumption hold. Sprint 004 pivots to: vLLM fork setup + port of
+> existing iso3/planar3/planar4/iso4 RotorQuant kernels — establishing
+> a serving-grade substrate before any new quant research lands.
+>
+> The original Sprint 003 scope below is preserved verbatim for the
+> historical record.
+
 **Date**: 2026-04-20
 **Hardware**: NVIDIA RTX 5090 (32 GB), GPU may be co-occupied by training
 **Model targets**: Qwen3.5-27B Q4_K_M (primary), Qwen3.5-9B Q4_K_M (dev iteration)
