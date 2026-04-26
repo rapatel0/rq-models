@@ -20,12 +20,14 @@ import sys
 import urllib.request
 
 
-# Five paragraphs of plain English from public-domain sources (US presidents,
-# basic geography, simple math, code commentary). Total ≈ 1500 chars / a
-# few hundred tokens — enough to be representative without taking forever
-# to score. We deliberately avoid model-specific output styles
-# (no "<think>", no system prompts) to make the result comparable to a
-# llama.cpp planar3 run later.
+# Plain English paragraphs covering common topics (history, geography,
+# basic science, math, code commentary, literature, trivia). We deliberately
+# avoid model-specific output styles (no "<think>", no system prompts, no
+# chat template) so the same TEXTS can be re-scored against a llama.cpp
+# planar3 run later for cross-substrate parity. Target: ~1500 scored
+# tokens at 256-token block boundaries (small enough to stay under the
+# 2048-token context window and large enough that per-paragraph noise
+# averages out).
 TEXTS = [
     "George Washington was the first president of the United States. "
     "He was inaugurated in seventeen eighty-nine and served two terms. "
@@ -51,6 +53,55 @@ TEXTS = [
     "eight equals sixteen. Each step doubles the previous value. This "
     "simple sequence illustrates how repeated addition can be used to "
     "express multiplication by powers of two.",
+
+    "Mount Everest is the highest mountain above sea level on Earth, "
+    "rising about eight thousand eight hundred and forty-nine meters. "
+    "It sits on the border between Nepal and the Tibet Autonomous Region "
+    "of China. The first confirmed ascent was in nineteen fifty-three.",
+
+    "A binary search algorithm finds the position of a target value within "
+    "a sorted array. It compares the target to the middle element and "
+    "discards half of the search space at each step. The running time is "
+    "logarithmic in the size of the array, which is much faster than a "
+    "linear scan for large inputs.",
+
+    "Photosynthesis is the process by which green plants convert light "
+    "energy into chemical energy stored in sugars. Carbon dioxide from "
+    "the air and water from the soil are combined inside chloroplasts "
+    "to produce glucose, releasing oxygen as a by-product. This process "
+    "supports nearly all life on Earth.",
+
+    "William Shakespeare was an English playwright and poet, widely "
+    "regarded as the greatest writer in the English language. He was "
+    "born in Stratford-upon-Avon in fifteen sixty-four and produced "
+    "around thirty-nine plays, including Hamlet, Macbeth, and Romeo and "
+    "Juliet, along with one hundred and fifty-four sonnets.",
+
+    "Water boils at one hundred degrees Celsius at standard atmospheric "
+    "pressure, which is equivalent to two hundred and twelve degrees "
+    "Fahrenheit. At higher altitudes, where atmospheric pressure is lower, "
+    "water boils at a lower temperature, which is why cooking times often "
+    "need to be adjusted in mountainous regions.",
+
+    "The speed of light in a vacuum is approximately two hundred and "
+    "ninety-nine million seven hundred and ninety-two thousand four "
+    "hundred and fifty-eight meters per second. This constant, denoted "
+    "by the letter c, plays a fundamental role in modern physics, "
+    "including Einstein's theory of special relativity.",
+
+    "A common pattern in software engineering is the producer-consumer "
+    "queue. One or more producer threads enqueue work items while one or "
+    "more consumer threads dequeue and process them. The queue itself is "
+    "responsible for synchronization, typically using a mutex and a "
+    "condition variable, so the producers and consumers do not need to "
+    "coordinate directly.",
+
+    "The Roman Empire reached its greatest territorial extent under the "
+    "emperor Trajan in the early second century. After his reign, the "
+    "empire gradually lost territory and split into a Western and Eastern "
+    "half. The Western Roman Empire fell in four hundred and seventy-six, "
+    "while the Eastern Roman Empire, also known as the Byzantine Empire, "
+    "endured until fourteen fifty-three.",
 ]
 
 
