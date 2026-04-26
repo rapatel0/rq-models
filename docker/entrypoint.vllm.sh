@@ -67,6 +67,9 @@ echo "rq-vllm starting:"
 echo "  rq-vllm commit: $(cat /etc/rq-vllm-commit 2>/dev/null || echo unknown)"
 echo "  model: ${MODEL}"
 echo "  port: ${PORT}"
-echo "  args: ${ARGS[*]}"
+echo "  args: ${ARGS[*]} $*"
 
-exec python3 -m vllm.entrypoints.openai.api_server "${ARGS[@]}"
+# Pass through any positional args from `docker run rq-vllm <flags>` so users
+# can add ad-hoc CLI flags (e.g., --enforce-eager) without rebuilding the
+# image or threading another env var through.
+exec python3 -m vllm.entrypoints.openai.api_server "${ARGS[@]}" "$@"

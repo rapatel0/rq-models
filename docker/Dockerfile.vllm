@@ -1,83 +1,46 @@
-# rq-models vLLM substrate — Sprint 004 Phase 0 scaffold
+# rq-models vLLM substrate — Sprint 004
 #
-# Builds the rapatel0/rq-vllm fork (pinned to upstream v0.19.1, working
-# branch feature/rotorquant) into a runnable OpenAI-compatible server
-# image. Phase 0 ships this with no RotorQuant kernel changes — used to
-# verify the vLLM serving path before any quant work lands.
+# Overlay strategy: base on the pre-built upstream vLLM v0.19.1 image and
+# patch our Phase 1 RotorQuant changes on top. Phase 1 changes are pure
+# Python (4 modified files + 1 new module), so source-rebuilding vLLM is
+# unnecessary at this phase. When Phase 2 lands real CUDA kernels we'll
+# extend this Dockerfile to build them as a torch extension.
+#
+# Why overlay vs source build: the source-build path hit a python3.12
+# post-install SIGSEGV on this dev box (zfs container interaction), and
+# the upstream-published image works around all of that since vLLM's CI
+# already ran it. Faster build, fewer environment variables.
 #
 # Build:
-#   docker build -t rq-vllm -f docker/Dockerfile.vllm .
+#   docker build -t rq-vllm:phase1 -f docker/Dockerfile.vllm .
 #
-# Build with override branch / commit:
-#   docker build \
-#     --build-arg RQ_VLLM_BRANCH=feature/rotorquant \
-#     --build-arg RQ_VLLM_COMMIT=98b61e668 \
-#     -t rq-vllm -f docker/Dockerfile.vllm .
-#
-# Run (Qwen3-27B f16 baseline on RTX 5090):
+# Run (small model, single 24 GB GPU smoke):
 #   docker run --gpus all -p 8080:8080 \
-#     -e MODEL=Qwen/Qwen3-27B \
+#     -e MODEL=Qwen/Qwen3-4B \
 #     -v ~/.cache/huggingface:/root/.cache/huggingface \
-#     rq-vllm
+#     rq-vllm:phase1
 #
-# Phase 0 success criterion: /v1/chat/completions returns sensible tokens
-# from Qwen3-27B with no RotorQuant config. Establishes that the substrate
-# itself works.
+# Phase 1 success criterion (see docs/SPRINT-004-PHASE1-VALIDATION.md):
+# generation with --kv-cache-dtype rotorquant_planar3 produces
+# bit-identical tokens to --kv-cache-dtype float16 on the same prompt
+# at temperature=0, seed=42.
 
-# ============================================================================
-# Build stage: build vLLM from our fork at the pinned tag/commit
-# ============================================================================
-ARG CUDA_VERSION=12.9.1
-FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu22.04 AS build
+ARG VLLM_VERSION=v0.19.1
+FROM vllm/vllm-openai:${VLLM_VERSION}
 
-ENV DEBIAN_FRONTEND=noninteractive
+# rq-vllm fork commit SHA baked in for traceability. Update when the
+# overlay patches change.
+ARG RQ_VLLM_COMMIT=e04001ae3
+RUN echo "${RQ_VLLM_COMMIT}" > /etc/rq-vllm-commit
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        git curl ca-certificates \
-        python3.12 python3.12-venv python3.12-dev python3-pip \
-        build-essential cmake ninja-build \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN python3.12 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:${PATH}"
-RUN pip install --upgrade pip wheel setuptools
-
-# Pin the rq-vllm fork. RQ_VLLM_COMMIT is optional; if unset, branch HEAD is used.
-ARG RQ_VLLM_BRANCH=feature/rotorquant
-ARG RQ_VLLM_COMMIT=
-
-RUN git clone https://github.com/rapatel0/rq-vllm.git /src \
- && cd /src \
- && git checkout ${RQ_VLLM_BRANCH} \
- && if [ -n "${RQ_VLLM_COMMIT}" ]; then git checkout ${RQ_VLLM_COMMIT}; fi \
- && git rev-parse HEAD > /src/RQ_VLLM_COMMIT_SHA
-
-WORKDIR /src
-
-# Pre-install torch matching vLLM v0.19.1's expectations to avoid pip
-# resolving an incompatible nightly. vLLM v0.19.1 targets torch 2.5.x.
-RUN pip install --no-cache-dir 'torch>=2.5.0,<2.6.0' \
- && pip install --no-cache-dir --no-build-isolation -e .
-
-# ============================================================================
-# Runtime stage
-# ============================================================================
-ARG CUDA_VERSION
-FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu22.04
-
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        python3.12 ca-certificates curl libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY --from=build /opt/venv /opt/venv
-COPY --from=build /src /src
-ENV PATH="/opt/venv/bin:${PATH}"
-
-# Capture the rq-vllm commit hash baked into the image for traceability.
-RUN cp /src/RQ_VLLM_COMMIT_SHA /etc/rq-vllm-commit
-RUN cat /etc/rq-vllm-commit
+# Overlay Phase 1 RotorQuant patches onto the base image's installed vLLM.
+# Path is fixed for vllm/vllm-openai:v0.19.1 (Ubuntu 24.04 + Python 3.12).
+# If vLLM is reinstalled at a different path in a future tag, update VLLM_PATH.
+ARG VLLM_PATH=/usr/local/lib/python3.12/dist-packages/vllm
+COPY docker/rq_vllm_overlay/config/cache.py ${VLLM_PATH}/config/cache.py
+COPY docker/rq_vllm_overlay/utils/torch_utils.py ${VLLM_PATH}/utils/torch_utils.py
+COPY docker/rq_vllm_overlay/v1/attention/backends/flash_attn.py ${VLLM_PATH}/v1/attention/backends/flash_attn.py
+COPY docker/rq_vllm_overlay/v1/attention/ops/rotorquant_kv.py ${VLLM_PATH}/v1/attention/ops/rotorquant_kv.py
 
 COPY docker/entrypoint.vllm.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
