@@ -1,192 +1,134 @@
-#!/usr/bin/env python3
-"""
-Sliding-window perplexity evaluation.
+"""Perplexity eval against a vLLM /v1/completions endpoint.
 
-Measures perplexity of TurboQuant / SpectralQuant KV cache vs baseline.
-Evaluation standard: wikitext-2-raw-v1 test split (industry standard).
+Submits each text in TEXTS with ``echo=True, prompt_logprobs=1,
+max_tokens=1`` and reads the per-token logprobs vLLM returns for the
+prompt. From those we compute the average negative log-likelihood and
+report perplexity = exp(mean_nll).
+
+Phase 3 sprint gate: |ppl_rq3 - ppl_fp16| / ppl_fp16 ≤ 0.05%. Run this
+script once per container and diff the numbers.
 
 Usage:
-    # TurboKVCache (original)
-    python scripts/eval_perplexity.py --model Qwen/Qwen3.5-27B --bits 3.5
-
-    # SpectralKVCache
-    python scripts/eval_perplexity.py \
-        --model Qwen/Qwen3.5-9B-Instruct \
-        --cache spectral \
-        --calibration calibration/calibration-qwen3.5-9b-instruct.safetensors
-
-    # Both caches vs baseline in one run
-    python scripts/eval_perplexity.py --model ... --compare-all
-
-    # Use C4 validation instead of wikitext-2
-    python scripts/eval_perplexity.py --model ... --eval-dataset allenai/c4
+    python3 eval_perplexity.py <url> <model> [<label>]
 """
 
-import argparse
+from __future__ import annotations
+
+import json
 import math
 import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-import torch
-from torch.nn import CrossEntropyLoss
-from transformers import AutoModelForCausalLM, AutoTokenizer
-
-from turboquant import PRESET_2_5BIT, PRESET_3_5BIT, TurboKVCache
-from turboquant.corpus import load_eval_text, EVAL_DATASET, EVAL_CONFIG, EVAL_SPLIT
-
-PRESETS = {"2.5": PRESET_2_5BIT, "3.5": PRESET_3_5BIT, "none": None}
+import urllib.request
 
 
-def compute_perplexity(
-    model, tokenizer, text: str,
-    max_length: int = 2048,
-    stride: int = 512,
-    cache_factory=None,
-) -> float:
-    """
-    Sliding-window perplexity on a string.
-    Matches the standard HuggingFace perplexity evaluation methodology.
+# Five paragraphs of plain English from public-domain sources (US presidents,
+# basic geography, simple math, code commentary). Total ≈ 1500 chars / a
+# few hundred tokens — enough to be representative without taking forever
+# to score. We deliberately avoid model-specific output styles
+# (no "<think>", no system prompts) to make the result comparable to a
+# llama.cpp planar3 run later.
+TEXTS = [
+    "George Washington was the first president of the United States. "
+    "He was inaugurated in seventeen eighty-nine and served two terms. "
+    "John Adams succeeded him in seventeen ninety-seven, followed by "
+    "Thomas Jefferson, James Madison, and James Monroe.",
 
-    Args:
-        model:         HF causal LM
-        tokenizer:     HF tokenizer
-        text:          evaluation text (single concatenated string)
-        max_length:    context window per step
-        stride:        stride between windows
-        cache_factory: callable → past_key_values object, or None for f16 baseline
-    """
-    encodings = tokenizer(text, return_tensors="pt")
-    input_ids = encodings.input_ids.to(model.device)
-    seq_len = input_ids.size(1)
+    "The Pacific Ocean is the largest ocean on Earth, covering about "
+    "one hundred sixty-five million square kilometers. The Atlantic "
+    "Ocean is the second largest, followed by the Indian Ocean. The "
+    "Arctic Ocean is the smallest of the four traditional oceans.",
 
-    nlls = []
-    prev_end_loc = 0
-    loss_fn = CrossEntropyLoss(reduction="sum")
+    "Paris is the capital of France and one of the most visited cities "
+    "in the world. It is famous for the Eiffel Tower, the Louvre Museum, "
+    "and Notre Dame Cathedral. The Seine River runs through the heart "
+    "of the city, dividing it into the Right Bank and the Left Bank.",
 
-    for begin_loc in range(0, seq_len, stride):
-        end_loc = min(begin_loc + max_length, seq_len)
-        trg_len = end_loc - prev_end_loc
-        window_ids = input_ids[:, begin_loc:end_loc]
-        target_ids = window_ids.clone()
-        target_ids[:, :-trg_len] = -100  # mask prefix tokens
+    "A recursive Fibonacci function returns zero when n is zero, returns "
+    "one when n is one, and otherwise returns the sum of the previous two "
+    "Fibonacci numbers. The naive recursive implementation has exponential "
+    "time complexity, so memoization or an iterative loop is preferred.",
 
-        past_kv = cache_factory() if cache_factory is not None else None
-
-        with torch.no_grad():
-            outputs = model(
-                window_ids,
-                past_key_values=past_kv,
-                use_cache=(past_kv is not None),
-            )
-        logits = outputs.logits  # [1, seq, vocab]
-
-        shift_logits = logits[:, :-1, :].contiguous().view(-1, logits.size(-1))
-        shift_labels = target_ids[:, 1:].contiguous().view(-1)
-        nll = loss_fn(shift_logits, shift_labels)
-        nlls.append(nll.item())
-
-        prev_end_loc = end_loc
-        if end_loc == seq_len:
-            break
-
-    ppl = math.exp(sum(nlls) / (seq_len - 1))
-    return ppl
+    "Two plus two equals four. Four plus four equals eight. Eight plus "
+    "eight equals sixteen. Each step doubles the previous value. This "
+    "simple sequence illustrates how repeated addition can be used to "
+    "express multiplication by powers of two.",
+]
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--model", default="Qwen/Qwen3.5-27B")
-    parser.add_argument(
-        "--cache", choices=["turbo", "spectral", "none"], default="turbo",
-        help="KV cache type to evaluate (default: turbo)"
+def score(url: str, model: str, text: str) -> tuple[float, int]:
+    """POST text and read prompt_logprobs. Returns (sum_nll, n_tokens)."""
+    body = json.dumps({
+        "model": model, "prompt": text,
+        "max_tokens": 1, "temperature": 0.0,
+        "echo": True, "prompt_logprobs": 1, "logprobs": 1,
+    }).encode()
+    req = urllib.request.Request(
+        url + "/v1/completions", data=body,
+        headers={"Content-Type": "application/json"},
     )
-    parser.add_argument(
-        "--bits", choices=["2.5", "3.5", "none"], default="3.5",
-        help="TurboKVCache preset (only used when --cache turbo)"
-    )
-    parser.add_argument(
-        "--calibration", default=None,
-        help="Path to SpectralQuant .safetensors calibration file"
-    )
-    parser.add_argument("--max-length", type=int, default=2048)
-    parser.add_argument("--stride", type=int, default=512)
-    parser.add_argument(
-        "--eval-dataset", default=EVAL_DATASET,
-        help=f"Evaluation dataset (default: {EVAL_DATASET} — wikitext-2 test)"
-    )
-    parser.add_argument(
-        "--eval-config", default=EVAL_CONFIG,
-        help=f"Dataset config/subset (default: {EVAL_CONFIG})"
-    )
-    parser.add_argument(
-        "--eval-split", default=EVAL_SPLIT,
-        help=f"Dataset split (default: {EVAL_SPLIT})"
-    )
-    parser.add_argument(
-        "--compare-baseline", action="store_true",
-        help="Also run f16 baseline and print delta"
-    )
-    args = parser.parse_args()
+    with urllib.request.urlopen(req, timeout=120) as r:
+        resp = json.loads(r.read())
+    choice = resp["choices"][0]
+    pl = choice.get("prompt_logprobs")
+    if pl is None:
+        raise RuntimeError(f"server did not return prompt_logprobs; resp keys: {list(choice)}")
+    sum_nll = 0.0
+    n = 0
+    # First entry is null (no logprob for the very first token). Each
+    # entry is a dict {token_id_str: {"logprob": float, "rank": ..., "decoded_token": ...}}
+    # We sum the logprob for the actual chosen token at each position.
+    for entry in pl:
+        if entry is None:
+            continue
+        # entry is a dict, possibly with multiple top candidates; the
+        # actual prompt token is the one with rank 1 (or the only entry).
+        chosen = None
+        for tid, info in entry.items():
+            if isinstance(info, dict) and info.get("rank") == 1:
+                chosen = info
+                break
+        if chosen is None:
+            # Fallback: take first entry.
+            _, info = next(iter(entry.items()))
+            chosen = info if isinstance(info, dict) else {"logprob": info}
+        lp = chosen["logprob"]
+        if lp is None or not math.isfinite(lp):
+            continue
+        sum_nll += -lp
+        n += 1
+    return sum_nll, n
 
-    print(f"Loading model {args.model}...")
-    tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
-    model = AutoModelForCausalLM.from_pretrained(
-        args.model, torch_dtype=torch.bfloat16, device_map="auto", trust_remote_code=True
-    )
-    model.eval()
 
-    print(f"Loading eval corpus: {args.eval_dataset}/{args.eval_config} {args.eval_split}...")
-    text = load_eval_text(
-        dataset=args.eval_dataset,
-        config=args.eval_config,
-        split=args.eval_split,
-    )
+def main() -> int:
+    if len(sys.argv) < 3:
+        sys.exit("usage: eval_perplexity.py <url> <model> [<label>]")
+    url, model = sys.argv[1], sys.argv[2]
+    label = sys.argv[3] if len(sys.argv) > 3 else "(no label)"
 
-    # Build cache factory
-    cache_factory = None
-    cache_label = "f16 baseline"
+    total_nll = 0.0
+    total_n = 0
+    print(f"# {label}  url={url}  model={model}\n")
+    print(f"{'idx':>3}  {'tokens':>6}  {'nll/tok':>8}  {'ppl':>10}  text_preview")
+    for i, t in enumerate(TEXTS):
+        s, n = score(url, model, t)
+        if n == 0:
+            print(f"{i:>3}  {n:>6}  {'-':>8}  {'-':>10}  (no scored tokens)")
+            continue
+        nll = s / n
+        ppl = math.exp(nll)
+        prev = t[:50].replace("\n", " ") + ("..." if len(t) > 50 else "")
+        print(f"{i:>3}  {n:>6}  {nll:>8.4f}  {ppl:>10.4f}  {prev}")
+        total_nll += s
+        total_n += n
 
-    if args.cache == "turbo":
-        config = PRESETS[args.bits]
-        if config is not None:
-            cache_factory = lambda: TurboKVCache(config)
-            cache_label = f"TurboKVCache {args.bits}-bit"
-
-    elif args.cache == "spectral":
-        if not args.calibration:
-            print("ERROR: --calibration required when --cache spectral", file=sys.stderr)
-            sys.exit(1)
-        from turboquant.spectral import SpectralKVCache, load_calibration
-        calibration = load_calibration(args.calibration)
-        cache_factory = lambda: SpectralKVCache(calibration, config=model.config)
-        cache_label = f"SpectralKVCache ({Path(args.calibration).stem})"
-
-    print(f"\nEvaluating {cache_label}...")
-    ppl = compute_perplexity(
-        model, tokenizer, text,
-        max_length=args.max_length,
-        stride=args.stride,
-        cache_factory=cache_factory,
-    )
-    print(f"  Perplexity: {ppl:.4f}")
-
-    if args.compare_baseline and cache_factory is not None:
-        print("\nEvaluating f16 baseline...")
-        ppl_base = compute_perplexity(
-            model, tokenizer, text,
-            max_length=args.max_length,
-            stride=args.stride,
-            cache_factory=None,
-        )
-        print(f"  Perplexity (f16): {ppl_base:.4f}")
-        delta = ppl - ppl_base
-        print(f"  Δppl = {delta:+.4f}")
-        gate = 0.5
-        status = "PASS" if delta <= gate else "FAIL"
-        print(f"  Kill gate (Δ ≤ {gate}): {status}")
+    if total_n == 0:
+        print("\nno tokens scored — does this server return prompt_logprobs?")
+        return 1
+    mean_nll = total_nll / total_n
+    ppl = math.exp(mean_nll)
+    print()
+    print(f"# {label}: tokens={total_n}  mean_nll={mean_nll:.6f}  ppl={ppl:.6f}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
