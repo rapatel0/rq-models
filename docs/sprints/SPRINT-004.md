@@ -6,6 +6,21 @@
 **Current best baseline (llama.cpp substrate)**: planar3 PPL = 8.20 (wikitext-2, ctx=4096)
 **Status**: planned (supersedes Sprint 003 SpectralQuant — see [SPRINT-003.md](SPRINT-003.md) close note)
 
+**Locked decisions** (resolved 2026-04-25 from the Open Questions list):
+- **vLLM pin**: `v0.19.1` (latest stable, released 2026-04-18). v0.20.0 is
+  prerelease as of kickoff and skipped. Rebase onto a newer tag is its
+  own follow-up sprint.
+- **Long-ctx eval**: deferred to Sprint 005. PPL eval in this sprint
+  uses ctx=4096 to maintain parity with existing llama.cpp baselines.
+- **Multi-GPU**: deferred to Sprint 005. Sprint 004 stays on a single
+  RTX 5090; tensor parallelism is a follow-up sprint.
+- **HF transformers `quantization_config` schema**: defined in this
+  sprint as part of Phase 1 (`{"quant_method": "rotorquant",
+  "rotorquant_mode": "planar3"}` minimum). Documented in
+  `rq-vllm/docs/ROTORQUANT.md`.
+- **Upstream tracking cadence**: manual rebase per sprint; no automated
+  CI rebase.
+
 ---
 
 ## Overview
@@ -292,17 +307,8 @@ Ranked by likelihood × impact.
 
 ## Open Questions
 
-1. **vLLM tag pinning**: which exact tag? Confirm at kickoff. (Initial
-   guess: latest `v0.7.x` stable.)
-2. **PPL evaluation context**: keep ctx=4096 for parity with existing
-   llama.cpp baselines, or expand to 8K/16K to test long-ctx kernel
-   correctness? Recommend ctx=4096 for parity, follow-up for long-ctx.
-3. **HF transformers `quantization_config` schema**: minimum viable for
-   `quant_method = "rotorquant"`. Should include rotation type
-   (planar/iso) and bit budget (3/4). Need exact JSON.
-4. **Should the rq-vllm fork track upstream automatically** (e.g., a
-   weekly-rebase CI job), or rebase manually per sprint? Recommend
-   manual per-sprint to keep churn predictable.
-5. **Multi-GPU scope in this sprint**: add to Sprint 004, or defer to
-   Sprint 005? Recommend defer; bring-up + planar3 + parity is already
-   a 2-3 week sprint.
+All open questions from the original draft were resolved at sprint kickoff
+2026-04-25 — see "Locked decisions" at the top of this document. No
+remaining open questions at sprint start; new questions discovered
+during execution land in `SPRINT-004-FOLLOWUPS.md` per the standard
+process.
