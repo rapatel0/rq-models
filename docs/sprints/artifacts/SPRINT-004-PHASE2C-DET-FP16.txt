@@ -1,0 +1,10 @@
+# fp16-determinism  url=http://localhost:8080  model=Qwen/Qwen3.5-4B
+
+idx  match?  hashes (run 0..2)
+  0  PASS    ba1c5adc ba1c5adc ba1c5adc    prompt='The capital of France is'
+  1  PASS    f28320c5 f28320c5 f28320c5    prompt='Two plus two equals'
+  2  PASS    b8c1571f b8c1571f b8c1571f    prompt='def fibonacci(n):\n    if n'
+  3  PASS    fb62e74e fb62e74e fb62e74e    prompt='List the first five US preside'
+  4  PASS    ffed2c62 ffed2c62 ffed2c62    prompt='Photosynthesis is'
+
+# fp16-determinism: 5/5 prompts deterministic across 3 runs each

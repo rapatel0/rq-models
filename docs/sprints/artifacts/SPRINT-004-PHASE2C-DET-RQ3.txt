@@ -1,0 +1,10 @@
+# rq3-determinism  url=http://localhost:8080  model=Qwen/Qwen3.5-4B
+
+idx  match?  hashes (run 0..2)
+  0  PASS    158f9c52 158f9c52 158f9c52    prompt='The capital of France is'
+  1  PASS    377ad3ff 377ad3ff 377ad3ff    prompt='Two plus two equals'
+  2  PASS    4b2eb0ae 4b2eb0ae 4b2eb0ae    prompt='def fibonacci(n):\n    if n'
+  3  PASS    19714447 19714447 19714447    prompt='List the first five US preside'
+  4  PASS    1571c5d9 1571c5d9 1571c5d9    prompt='Photosynthesis is'
+
+# rq3-determinism: 5/5 prompts deterministic across 3 runs each
