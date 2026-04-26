@@ -377,3 +377,19 @@ curl http://localhost:8080/v1/chat/completions \
 | `GPU_LAYERS` | `99` | Layers offloaded to GPU |
 | `CACHE_RAM` | per-profile | Prompt cache in system RAM (MiB) |
 | `HF_TOKEN` | — | HuggingFace token for gated models |
+
+## 10. Speculative Decoding (Sprint 004 work in progress)
+
+- Rebase base SHA (`feature/planarquant-kv-cache` HEAD): `fc3d1b6566fa37be532e1153e11c35ceabc13f84`
+- Rebase target SHA (`upstream/master` HEAD): `78433f606fde4d7934a02dcbfd910438d28beccd`
+- Cherry-pick target SHA (PR `#22105` head): `e344c4a71736e1cdaa25e590a109f694dfb8119f`
+
+- (a) Snapshot architecture (PR `#19493`, `#22227` call-path): checkpointing uses `llama_state_seq_get_size_ext/get_data_ext/set_data_ext` and stores bytes in `std::vector<uint8_t>`; this is an eager byte-copy snapshot of selected state, not append-only/COW metadata.
+- (b) Buffer source: `state_write_data()` for KV and recurrent memory writes backend tensors directly via `io.write_tensor(...)` (`ggml_backend_tensor_get`), preserving on-device stored layouts/types; no decoded/dequantized intermediate view is used.
+- (c) Snapshot residency: checkpoint bytes live in host pageable memory (`std::vector<uint8_t>` in speculative-simple/server). The copy is pulled from backend tensors into host buffers; no persistent checkpoint blob is stored in VRAM.
+- (d) Public integration API: checkpoint save/restore is exposed through C APIs `llama_state_seq_get_size_ext`, `llama_state_seq_get_data_ext`, `llama_state_seq_set_data_ext` (typically with `LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY`), then rollback cleanup uses `llama_memory_seq_rm`. There is no `llama_memory_*::checkpoint_save` symbol.
+- (e) Hybrid handling detail: in `llama_memory_hybrid::state_write/state_read`, `LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY` skips full-attention KV (`mem_attn`) and snapshots recurrent state (`mem_recr`) only; KV rollback is handled separately via `llama_memory_seq_rm`. Storage is therefore split, not a single uniform packed structure for both.
+
+### Sprint 004 Phase 1 spike — checkpoint architecture findings
+
+- Worst-case VRAM math conclusion from (a)+(c): checkpoint save/restore in this path does not duplicate KV in VRAM; incremental checkpoint footprint is host RAM. For non-SWA hybrid partial checkpoints, overhead is recurrent-state bytes only (MB-scale), so checkpoint-induced VRAM increase is effectively `~0 GiB` (not the `+KV_size` full-copy VRAM-doubling case).
