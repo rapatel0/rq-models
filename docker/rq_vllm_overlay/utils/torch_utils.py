@@ -353,6 +353,12 @@ def kv_cache_dtype_str_to_dtype(
     if kv_cache_dtype == "auto":
         # Model config may not be specified for unit tests, default to float16
         return model_config.dtype if model_config else torch.half
+    if kv_cache_dtype.startswith("rotorquant_"):
+        # rq-models RotorQuant Phase 2c: lossy-passthrough storage dtype
+        # follows the model dtype (bf16 → bf16, fp16 → fp16) so the
+        # FlashAttention `query` and `key` dtypes match downstream. Phase 2.5
+        # flips this to torch.uint8 once the packed-storage path is wired.
+        return model_config.dtype if model_config else torch.half
     return STR_DTYPE_TO_TORCH_DTYPE[kv_cache_dtype]
 
 

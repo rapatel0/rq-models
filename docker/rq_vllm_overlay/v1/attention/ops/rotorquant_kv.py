@@ -167,8 +167,15 @@ def _ext():
 def _round_trip_planar3(t: torch.Tensor) -> torch.Tensor:
     """Apply pack-then-unpack to ``t`` via the planar3 CUDA kernels.
 
-    ``t`` must be an fp16 CUDA tensor whose total numel is a multiple of 128
-    (the planar3 block size). Returns a fresh fp16 tensor of the same shape.
+    ``t`` must be a CUDA tensor whose total numel is a multiple of 128 (the
+    planar3 block size). Returns a tensor of the same shape and **dtype** as
+    ``t``. Internally the round-trip happens in fp16 (kernel constraint);
+    bf16 inputs are cast to fp16 on the way in and cast back to bf16 on the
+    way out so the perturbed tensor matches the cache dtype that vLLM
+    allocated (model dtype, per ``kv_cache_dtype_str_to_dtype``'s
+    rotorquant_ branch). The bf16↔fp16 cast adds ~1e-3 relative error which
+    is well below the planar3 quantization error and does not move the
+    Phase 3 PPL gate.
     """
     n = t.numel()
     if n % QK_PLANAR3 != 0:
@@ -176,7 +183,9 @@ def _round_trip_planar3(t: torch.Tensor) -> torch.Tensor:
             f"rotorquant_planar3: tensor numel {n} is not a multiple of "
             f"{QK_PLANAR3}; cannot pack")
     n_blocks = n // QK_PLANAR3
-    flat = t.contiguous().view(-1)
+    orig_dtype = t.dtype
+    src = t if orig_dtype == torch.float16 else t.to(torch.float16)
+    flat = src.contiguous().view(-1)
     packed = torch.empty(
         n_blocks * PACKED_BYTES_PER_BLOCK,
         device=t.device,
@@ -187,7 +196,8 @@ def _round_trip_planar3(t: torch.Tensor) -> torch.Tensor:
     ext = _ext()
     ext.rotorquant_planar3_pack(flat, packed, n_blocks)
     ext.rotorquant_planar3_unpack(packed, out_flat, n_blocks)
-    return out_flat.view(t.shape)
+    out = out_flat.view(t.shape)
+    return out if orig_dtype == torch.float16 else out.to(orig_dtype)
 
 
 # ---------------------------------------------------------------------------
