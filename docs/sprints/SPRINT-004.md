@@ -23,6 +23,38 @@
 
 ---
 
+## Validation Status (2026-04-26)
+
+Sprint kickoff and Phase 0 scaffolding are landed. Phase 0 GPU smoke
+test is the next user-driven action.
+
+| Item | Status | Verified by |
+|---|---|---|
+| `rapatel0/rq-vllm` fork created | ✅ | `gh api repos/rapatel0/rq-vllm` shows `fork: true`, parent `vllm-project/vllm` |
+| Pinned to upstream `v0.19.1` | ✅ | tag pushed to fork; working branch `feature/rotorquant` based on it |
+| `ROTORQUANT.md` in fork | ✅ | commit `98b61e668` on `feature/rotorquant` |
+| `docker/Dockerfile.vllm` syntax | ✅ | builds rq-vllm fork; multi-stage CUDA-dev → CUDA-runtime; bakes rq-vllm commit SHA |
+| `docker/entrypoint.vllm.sh` syntax | ✅ | `bash -n` clean; ROTORQUANT_MODE → `--kv-cache-dtype rotorquant_${MODE}` |
+| Integration plug-in points identified in vLLM source | ✅ | `vllm/config/cache.py:14-23` (CacheDType Literal), `vllm/v1/attention/backends/flash_attn.py:65-170, 817` (FlashAttention dispatch sites). See Phase 1 anchor table. |
+| `docker build -t rq-vllm -f docker/Dockerfile.vllm .` succeeds | ⏸ pending | requires GPU box (RTX 5090) — disk pressure on dev laptop. |
+| Phase 0 step 3: `/v1/chat/completions` returns sensible tokens from unmodified vLLM serving Qwen3-27B | ⏸ pending | requires GPU box. |
+| Phase 0 step 4: f16 KV PPL baseline | ⏸ pending | requires GPU box. |
+| Phase 1 / 2 implementation | ⏸ pending Phase 0 | sequential — substrate must work before integrating RotorQuant. |
+
+**Validation detour 2026-04-26 (does not block Phase 0):** attempted
+local-venv validation on the dev laptop via `uv pip install
+vllm==0.19.1`. vLLM imports cleanly and `--help` runs, but the model
+architecture inspection subprocess fails with `MemoryError` deep in
+`email.feedparser.readline()` while
+`importlib.metadata.packages_distributions()` parses installed-package
+PKG-INFO files. Fully environmental: bug is in uv's bundled
+`cpython-3.12.13-linux-x86_64-gnu` stdlib email parser, NOT in vLLM
+or torch. `packages_distributions()` runs cleanly when invoked
+directly in the same venv — only fails from vLLM's subprocess context.
+The docker path uses Ubuntu 22.04's apt-installed Python 3.12 inside
+the container which avoids the uv stdlib quirk. **Don't attempt local
+venv validation again; go straight to docker on the GPU box.**
+
 ## Overview
 
 rq-models currently runs on a llama.cpp fork (`johndpope/llama-cpp-turboquant`,
@@ -225,6 +257,20 @@ from the docker image on the RTX 5090 box.
 **Corrected scope**: RotorQuant integrates as a KV-cache dtype, not a
 weight quantization method (see Architecture > Plug-in points).
 
+Concrete code anchors verified against `rapatel0/rq-vllm@v0.19.1`
+(2026-04-26):
+
+| Location | What changes |
+|---|---|
+| `vllm/config/cache.py:14-23` | Extend `CacheDType` Literal with `"rotorquant_planar3"` (Sprint 004); add `"rotorquant_iso3"` etc. in Sprint 005. |
+| `vllm/v1/attention/backends/flash_attn.py:65-69` | Append rotorquant dtypes to `FlashAttentionBackend.supported_kv_cache_dtypes`. |
+| `vllm/v1/attention/backends/flash_attn.py:165-170` | Add a branch in `supports_kv_cache_dtype` so rotorquant returns `True`. |
+| `vllm/v1/attention/backends/flash_attn.py:120-130` | `get_kv_cache_shape`: rotorquant dtypes need a packed-bit shape (3 bpe → block stores `block_size * n_kv_heads * head_size * 3 // 8` bytes per K and per V). Diverges from the f16 `(2, num_blocks, block_size, n_kv_heads, head_size)` shape. |
+| `vllm/v1/attention/backends/flash_attn.py:817` (around `reshape_and_cache_flash` call) | Add a branch: if `self.kv_cache_dtype.startswith("rotorquant_")`, call `reshape_and_cache_rotorquant` (new op) instead. |
+| `vllm/model_executor/layers/attention/attention.py:165, 426` | The two existing fp8 kv_cache_dtype string-matches are also where a rotorquant branch goes — read path. |
+
+Steps:
+
 1. Edit `vllm/config/cache.py`:
    - Extend the `CacheDType = Literal[...]` union with
      `"rotorquant_planar3"`.
@@ -236,15 +282,14 @@ weight quantization method (see Architecture > Plug-in points).
    `--kv-cache-dtype rotorquant_planar3` is accepted by the CLI
    without crashing, even though it doesn't actually compress
    anything yet.
-3. Wire dispatch into the FlashAttention KV-write hook so that when
+3. Wire dispatch in `flash_attn.py` per the table above so that when
    `cache_dtype == "rotorquant_planar3"` the path calls our pack
    stubs, and when reading it calls our unpack stubs.
-4. Smoke test (GPU): `docker run ... -e
-   ROTORQUANT_MODE=planar3` (entrypoint translates this to the
-   `--kv-cache-dtype rotorquant_planar3` flag) loads Qwen3.6-27B,
-   produces sensible tokens. Output should be **bit-identical to the
-   `--kv-cache-dtype float16` baseline** since pack/unpack are
-   passthrough.
+4. Smoke test (GPU): `docker run ... -e ROTORQUANT_MODE=planar3`
+   (entrypoint translates this to the `--kv-cache-dtype
+   rotorquant_planar3` flag) loads Qwen3.6-27B, produces sensible
+   tokens. Output should be **bit-identical to the `--kv-cache-dtype
+   float16` baseline** since pack/unpack are passthrough.
 
 ### Phase 2 — planar3 kernel port (target: 1 week)
 
