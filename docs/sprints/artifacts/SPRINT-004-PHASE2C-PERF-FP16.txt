@@ -1,0 +1,12 @@
+# fp16  url=http://localhost:8080  model=Qwen/Qwen3.5-4B
+
+warm-up ...
+
+idx   ttft_s   decode_s     n      tps  prompt
+  0    0.045      1.598   128    80.09  'The capital of France is'
+  1    0.045      1.621   128    78.97  'Two plus two equals'
+  2    0.044      1.590   128    80.50  'Write three sentences about Pa'
+  3    0.146      1.612   128    79.41  'List the first five US preside'
+  4    0.045      1.595   128    80.26  'def fibonacci(n):     if n'
+
+# fp16: median ttft = 44.9 ms, median tps = 80.09 tok/s   (ttft range 43.6–146.1 ms, tps range 78.97–80.50)

@@ -1,0 +1,12 @@
+# rq3  url=http://localhost:8080  model=Qwen/Qwen3.5-4B
+
+warm-up ...
+
+idx   ttft_s   decode_s     n      tps  prompt
+  0    0.046      1.680   128    76.19  'The capital of France is'
+  1    0.046      1.671   128    76.58  'Two plus two equals'
+  2    0.046      1.156    89    76.97  'Write three sentences about Pa'
+  3    0.145      1.675   128    76.40  'List the first five US preside'
+  4    0.046      0.560    43    76.75  'def fibonacci(n):     if n'
+
+# rq3: median ttft = 46.1 ms, median tps = 76.58 tok/s   (ttft range 45.5–145.1 ms, tps range 76.19–76.97)
