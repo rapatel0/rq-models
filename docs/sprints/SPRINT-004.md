@@ -156,25 +156,42 @@ The architecture rests on two hard rules; everything else follows.
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### State accounting on hybrid Qwen3.6 (worst-case full-copy snapshot)
+### State accounting on hybrid Qwen3.6 (resolved by Phase 1 spike, see BENCHMARK-REPORT.md §10)
 
-Per the Phase 1 source-read spike: if upstream's checkpoint takes a full
-copy of all backend state, the worst-case peak VRAM during a verify window:
+Phase 1 source-spike of PRs #19493 + #22227 confirmed (BENCHMARK-REPORT.md
+§10, commit `dad6861`):
 
-| Component | Qwen3.6-35B-A3B (40L, 30 lin + 10 full) | Qwen3.6-27B (64L, 48 lin + 16 full) |
-|-----------|:---------------------------------------:|:-------------------------------------:|
-| Full-attention KV @ 65K iso3 (target) | ~1.3 GB | ~2.1 GB |
-| Recurrent state (target) | ~5 MB | ~8 MB |
-| Draft full-attn KV @ 65K | ~0.4 GB | ~0.4 GB |
-| Draft recurrent state | ~3 MB | ~3 MB |
-| **Snapshot peak (doubled, worst case)** | **+1.7 GB** | **+2.5 GB** |
+- Checkpoint is **eager byte-copy** via `llama_state_seq_get_size_ext` /
+  `get_data_ext` / `set_data_ext`. Bytes come from real backend tensors via
+  `io.write_tensor` → `ggml_backend_tensor_get` — handles our quantized
+  planar/iso layouts as raw bytes with **no decoded/dequantized view**.
+- Snapshot lives in **host pageable RAM** (`std::vector<uint8_t>`), NOT VRAM.
+- For hybrid models, `LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY` snapshots recurrent
+  state only; full-attention KV rollback uses `llama_memory_seq_rm` separately.
 
-At 262K context iso3 the worst-case snapshot peak is ~7 GB (35B MoE) or
-~9 GB (27B). Both fit in 32 GB VRAM with the `qwen` profile's existing 6 GB
-headroom; the `qwen36-27b-dflash` profile at 24 GB tier should default to
-65K context to stay safe. If the Phase 1 spike reveals append-only / COW
-behavior in upstream, these worst-case numbers shrink to the recurrent
-state only (~MB), which is negligible.
+| Component | Qwen3.6-35B-A3B | Qwen3.6-27B |
+|-----------|:----------------:|:------------:|
+| Recurrent state copied to host RAM per checkpoint | ~5 MB | ~8 MB |
+| Draft recurrent state to host RAM | ~3 MB | ~3 MB |
+| **Snapshot VRAM impact** | **~0 GiB** | **~0 GiB** |
+| **Snapshot host RAM impact (per active checkpoint)** | **~8 MB** | **~11 MB** |
+
+Implications:
+- **Risk R3** (snapshot cost too high): defused. Host-RAM memcpy of MB-scale
+  recurrent state is microsecond-scale.
+- **Risk R4** (PCIe roundtrip fatal): defused. The byte-copy uses
+  `ggml_backend_tensor_get` which is the standard tensor-to-host pull;
+  bandwidth is bounded by recurrent-state size (MB), not full KV (GB).
+- **VRAM math irrelevance**: The 24 GB tier no longer needs to drop to 65K
+  ctx for `qwen36-27b-dflash` on snapshot-headroom grounds. Other VRAM
+  pressures (target weights + draft + KV growth) are unchanged.
+- **`seq_rm` is back on the critical path** but only for the trivial case:
+  speculative rejection trims the tail of full-attention KV. Our quantized
+  planar/iso layouts store rows of whole blocks → tail trim is whole-block
+  drop with no partial-block work needed. The Claude v1 draft's proposed
+  `kv_cache_quantized_seq_rm()` block-aware helper remains correctly
+  out-of-scope (deferred item D-005 in SPRINT-004-DEFERRED.md is unchanged
+  for the same reason).
 
 ### Decode loop (annotated for hybrid)
 
@@ -225,25 +242,26 @@ and **the recurrent state**.
 
 ## Implementation
 
-### Phase 0: Branch setup (pre-sprint, ~0% of effort)
+### Phase 0: Branch setup (pre-sprint, ~0% of effort) — COMPLETE
 
 **Goal**: Isolate sprint work from concurrent RotorQuant development on
 other branches. Done before any other phase begins.
 
 **Tasks**:
-- [ ] **Repo-side**: from `main`, `git checkout -b sprint/004-dflash`. All
-      implementation commits in this repo land on this branch. `main` only
-      receives the merge of approved sprint docs and, at sprint completion,
-      a final merge of the implementation branch after user review.
-- [ ] **Fork-side**: on the `johndpope/llama-cpp-turboquant` fork, from
-      `feature/planarquant-kv-cache`, `git checkout -b feature/sprint-004-rebase-dflash`.
-      All fork implementation commits land here. The base branch
-      `feature/planarquant-kv-cache` is preserved unchanged for the duration
-      of the sprint (user has parallel RotorQuant work elsewhere).
-- [ ] Push both branches to their respective remotes; record the starting
-      SHAs in `BENCHMARK-REPORT.md` §10 stub for traceability.
-
-This phase is bookkeeping but it's the literal first thing the sprint does.
+- [x] **Repo-side**: branch `sprint/004-dflash` created off `main` at
+      `077d731`. All implementation commits in this repo land here. `main`
+      stays clean of sprint work until final user-approved merge.
+- [x] **Fork-side**: forked `johndpope/llama-cpp-turboquant` to
+      `rpsdm0/llama-cpp-turboquant`, cloned to
+      `/home/ravi/repos/llama-cpp-turboquant`. Three remotes configured:
+      `origin` (rpsdm0), `upstream-fork` (johndpope), `upstream`
+      (ggml-org/llama.cpp). Branch `feature/sprint-004-rebase-dflash`
+      created off `feature/planarquant-kv-cache` at `fc3d1b656` and pushed
+      to `origin`.
+- [x] Starting SHAs recorded in `BENCHMARK-REPORT.md` §10:
+  - rebase base: `fc3d1b6566fa37be532e1153e11c35ceabc13f84`
+  - rebase target (master): `78433f606fde4d7934a02dcbfd910438d28beccd`
+  - cherry-pick target (PR #22105): `e344c4a71736e1cdaa25e590a109f694dfb8119f`
 
 ### Phase 1: Rebase the fork + checkpoint architecture spike (~25% of effort)
 
@@ -285,13 +303,13 @@ inspection of the upstream checkpoint mechanism.
       4 KV types × 2 corpora (wikitext-2, C4) × 2 models (Qwen3.6-35B-A3B
       Q4_K_XL, Qwen3.6-27B Q4_K_XL). All 16 cells must match
       `BENCHMARK-REPORT.md` §1.5–1.8 within ±0.05 PPL.
-- [ ] **Architecture spike** (HARD GATE): Read upstream PRs #19493 + #22227
-      source. Determine: (a) is the snapshot append-only/COW or full-copy?
-      (b) which buffer pages does it read — backend memory directly or a
-      decoded view? (c) where does the snapshot live — device VRAM, host
-      pinned, host pageable? (d) what symbol/API will our fork integrate
-      against? Output: 1-paragraph summary in `BENCHMARK-REPORT.md` and a
-      Phase 2 design decision.
+- [x] **Architecture spike** (HARD GATE) — COMPLETE: Read upstream PRs
+      #19493 + #22227 source. Findings recorded in `BENCHMARK-REPORT.md` §10
+      (commit `dad6861`). Summary: eager byte-copy via `llama_state_seq_*_ext`,
+      reads real backend tensors (handles our quantized layouts transparently),
+      lives in host pageable RAM, hybrid uses `LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY`
+      to snapshot recurrent state only. Public API integration point:
+      `llama_state_seq_get_size_ext` / `get_data_ext` / `set_data_ext`.
 - [ ] **Hybrid sanity** (HARD GATE): Verify the rebased fork loads both
       Qwen3.6 architectures and that `linear_attention` layers execute
       correctly with RotorQuant K cache enabled. Log expert/SSM-state activity
@@ -330,30 +348,43 @@ that gates DFlash work.
 - [ ] Add runtime guard at speculative-arm: if a speculative call comes in
       while `!prefill_complete || !deferred_drained`, log warning and disable
       speculative for that decode iteration (not error — degrade gracefully).
-- [ ] **Build `tests/test-checkpoint-hybrid-state.cpp`**:
+- [ ] **Build `tests/test-checkpoint-hybrid-state.cpp`**: Note that per
+      Phase 1 spike findings (BENCHMARK-REPORT.md §10), upstream's
+      checkpoint reads backend tensors as raw bytes via
+      `ggml_backend_tensor_get`, which is layout-agnostic. Subtest B is
+      therefore expected to pass without custom integration code — we just
+      verify the round-trip is bit-exact for our packed layouts. The
+      load-bearing tests are C, D, E (recurrent state + cross-layer + TOCTOU).
   - Subtest A: deferred f16 staging save → mutate buffer → restore →
-    bit-equality assertion
+    bit-equality assertion. Use `llama_state_seq_get_data_ext` / `set_data_ext`
+    with full state (no PARTIAL_ONLY).
   - Subtest B: each of `planar3`, `planar4`, `iso3`, `iso4` quantized K
-    layouts: save → mutate → restore → bit-equality
+    layouts: save → mutate → restore → bit-equality. Validates that
+    `ggml_backend_tensor_get` byte-copy preserves our packed format.
   - Subtest C: `linear_attention` SSM/recurrent state on at least one Qwen3.6
-    layer — save → forward 1 token → restore → bit-equality vs original
+    layer — save with `LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY` → forward 1 token
+    → restore → bit-equality vs original. This is the load-bearing hybrid
+    test.
   - Subtest D: cross-layer mixed-batch checkpoint after a real decode of 8
-    tokens through both `linear_attention` and `full_attention` layers — save,
-    decode 8 more tokens (mutating both K and recurrent state), restore, then
-    decode the same 8 tokens again and assert tokens are identical
+    tokens through both `linear_attention` and `full_attention` layers —
+    save (PARTIAL_ONLY for recurrent + `seq_rm` boundary state for full-attn
+    KV), decode 8 more tokens (mutating both K and recurrent state), restore
+    (set_data_ext + seq_rm to restore tail boundary), then decode the same
+    8 tokens again and assert tokens are identical.
   - Subtest E: convert-during-checkpoint TOCTOU — try to take a snapshot mid-
     `convert_deferred_keys()`; assert the runtime guard fires and the snapshot
-    is rejected (not produced in a corrupted state)
+    is rejected (not produced in a corrupted state).
 - [ ] **Build `scripts/bench_snapshot_cost.py`** measuring snapshot save +
       restore wallclock at 8K, 16K, 32K, 65K, 131K, 262K context for both
       Qwen3.6 targets at iso3 (production default) and planar3 default for
       the dense profile.
 - [ ] **Snapshot cost ceiling** (HARD GATE): At 65K context iso3, snapshot+
-      restore round-trip must be ≤5 ms (target value; final number set by
-      Phase 1 spike findings). If exceeded, escalate before Phase 3 — abort
-      DFlash work and either (a) accept the slowdown, (b) propose a Sprint 005
-      upstream contribution to add COW snapshots, or (c) reduce default ctx
-      for `qwen36-27b-dflash` profile to keep snapshot cost under ceiling.
+      restore round-trip must be ≤5 ms. Per Phase 1 spike findings, snapshot
+      is host-RAM byte-copy of MB-scale recurrent state — expected to pass
+      trivially (microsecond range). Measurement is still required to confirm
+      no surprises with our deferred-K integration. If exceeded (unlikely),
+      investigation pivots to deferred-K boundary cost rather than
+      checkpoint architecture.
 - [ ] **Add `LLAMA_SPEC_FORCE_REJECT_AT=N` debug env in `common/speculative.cpp`**:
       when set, force the verify path to reject every Nth draft token. Used by
       Phase 3 and Phase 5 tests to drive forced-rejection coverage. Compile-
@@ -657,8 +688,8 @@ gate; results land in `BENCHMARK-REPORT.md` §10.
 |------|------------|--------|------------|
 | **R1: Recurrent-layer checkpoint silently shallow-copies SSM state on `linear_attention` layers** (highest impact correctness risk) | Medium | **Critical** | Phase 2 subtest C asserts bit-exact restore; subtests F-H assert post-restore recurrent-state bytes match target-only trajectory; runtime guard refuses speculative if convert state is heterogeneous |
 | **R2: `src/llama-context.cpp` rebase conflicts unresolvable in <5 days** | Medium | High | If Phase 1 rebase exceeds 5 days, escalate to user. Fallback: cherry-pick our deferred-K commits + CUDA template instances + FA dispatch onto a fresh fork off latest master (full delta inventory recorded pre-sprint) |
-| **R3: Snapshot cost too high at long context (>5 ms at 65K)** | Medium | High | Phase 2 numeric ceiling gate. If exceeded: (a) reduce `qwen36-*-dflash` default ctx, (b) document slowdown, (c) optionally Sprint 005 upstream COW contribution |
-| **R4: Snapshot lives in host pageable memory, PCIe roundtrip fatal** | Low | High | Phase 1 source spike resolves this before Phase 2. If discovered: same fallback as R3 |
+| **R3: Snapshot cost too high at long context (>5 ms at 65K)** | ~~Medium~~ Low (defused by Phase 1 spike) | High | Phase 1 spike confirmed snapshot is host-RAM MB-scale byte-copy. Phase 2 ceiling measurement now near-trivial; failure would indicate deferred-K integration bug, not checkpoint architecture |
+| **R4: Snapshot lives in host pageable memory, PCIe roundtrip fatal** | ~~Low~~ Defused (Phase 1 spike confirms host RAM, MB-scale) | n/a | Resolved — see BENCHMARK-REPORT.md §10. Bandwidth bounded by recurrent-state bytes, not full KV |
 | **R5: DFlash cherry-pick breaks PPL via subtle KV layout change** | Medium | High | L1 PPL gate runs after every cherry-pick step, not just end-of-sprint. Bisect on first failure |
 | **R6: Pre-built DFlash GGUFs from `lym00`/`spiritbuun` don't match cherry-picked PR #22105 metadata schema** | Medium | High | First Phase 4 task: download both, run `gguf-dump`, verify against PR's `convert_hf_to_gguf.py` output schema. If mismatch, regenerate from source HF safetensors |
 | **R7: Acceptance rate degraded by quantized K perturbations vs DFlash's f16-trained reference** | Medium | Medium | Phase 5 L4 measures acceptance rate vs vanilla llama.cpp DFlash; if >10pp degradation, investigate (quantize draft to f16? raise draft KV to f16? document and accept?) |
@@ -753,8 +784,9 @@ gate; results land in `BENCHMARK-REPORT.md` §10.
 
 These remain after planning; resolution should occur during execution.
 
-1. **Snapshot data residency** — resolved by Phase 1 spike. Until then, all
-   VRAM math assumes worst-case full-copy on device.
+1. ~~**Snapshot data residency**~~ — **RESOLVED** by Phase 1 spike (commit
+   `dad6861`). Host pageable RAM, MB-scale, no VRAM impact. See
+   BENCHMARK-REPORT.md §10.
 
 2. **Whether the verify-batch quantized append path needs a fused kernel** —
    Phase 2 measurement decides. Per-token loop is correctness-correct;
@@ -768,6 +800,6 @@ These remain after planning; resolution should occur during execution.
 4. **Sprint 005 EAGLE3 priority vs other pipeline work** — depends on
    DFlash adoption signal post-sprint.
 
-5. **Whether to upstream a COW snapshot contribution** — only relevant if
-   Phase 1 spike reveals full-copy snapshots and Phase 2 ceiling is missed.
-   In that case, a Sprint 005 upstream PR is a candidate.
+5. ~~**Whether to upstream a COW snapshot contribution**~~ — **RESOLVED:
+   not needed.** Phase 1 spike confirms upstream's eager byte-copy approach
+   is fine for our use case. D-005 (deferred items) marked archived.

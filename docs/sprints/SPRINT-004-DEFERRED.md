@@ -122,29 +122,21 @@ slowdown/speedup story emerges is the input to this investigation.
 
 ---
 
-## D-005: COW / Delta Snapshot Upstream Contribution
+## D-005: COW / Delta Snapshot Upstream Contribution — ARCHIVED
 
-**What**: If Phase 1 of Sprint 004 reveals that upstream's speculative
-checkpointing takes a full-copy snapshot (not append-only or COW), and
-Phase 2 measures that the snapshot cost ceiling is missed (>5 ms at 65K),
-contribute a copy-on-write or delta snapshot path to upstream llama.cpp.
-This would be a substantive PR against `ggml-org/llama.cpp` modifying
-the `llama_memory_*::checkpoint_*` interface.
+**Status**: **Not required.** Sprint 004 Phase 1 spike (commit `dad6861`,
+findings in `BENCHMARK-REPORT.md` §10) confirmed upstream's checkpoint is
+already efficient for our use case — eager byte-copy of recurrent state
+into host pageable RAM (MB-scale), with full-attention KV rolled back via
+`seq_rm` rather than included in the snapshot. No VRAM impact. The Phase 2
+snapshot cost ceiling is expected to pass trivially.
 
-**Why deferred**: Sprint 004 only takes this on as a fallback if measurement
-forces it. Most likely outcome (per the architecture's append-only KV
-behavior): the snapshot is already cheap and this contribution is
-unnecessary. If needed, it's a separate sprint.
+**Original intent (preserved for context)**: If Phase 1 had revealed
+full-copy GB-scale snapshots and Phase 2 had missed the cost ceiling, an
+upstream PR adding COW/delta semantics to `llama_state_seq_*_ext` would
+have been the fallback. Neither precondition was met.
 
-**Target sprint**: Sprint 005 contingent on Sprint 004 Phase 1/2 spike
-results.
-
-**Prerequisites**: Sprint 004 Phase 1 spike concludes "snapshot is full-
-copy" AND Phase 2 measurement misses the ceiling AND user decides
-upstream contribution is the right path (vs accepting reduced ctx).
-
-**Files**: Upstream llama.cpp `src/llama-memory*.cpp`, `src/llama-context.cpp`,
-plus tests.
+**Files**: n/a (item closed).
 
 ---
 
@@ -266,7 +258,7 @@ by Sprint 004).
 | D-002 | Multi-slot speculative | Sprint 006 | Single-slot validated; upstream multi-slot story |
 | D-003 | Non-greedy sampler validation | Sprint 005-006 | Greedy validated; sampler-agreement framework |
 | D-004 | MoE deep-dive profiling | Sprint 006+ | MoE profile shipped (Sprint 004) |
-| D-005 | COW snapshot upstream contribution | Conditional Sprint 005 | Phase 1 spike says full-copy + Phase 2 misses ceiling |
+| D-005 | COW snapshot upstream contribution | **Archived** (not needed; Phase 1 spike resolved) | n/a |
 | D-006 | Streaming `/v1/chat/completions` validation | Sprint 005 | Non-streaming validated |
 | D-007 | 24 GB tier quant-tier downgrade analysis | Sprint 005 | 32 GB benchmarks complete |
 | D-008 | Open WebUI integration (carry from S002) | Sprint 005+ | None technical |
