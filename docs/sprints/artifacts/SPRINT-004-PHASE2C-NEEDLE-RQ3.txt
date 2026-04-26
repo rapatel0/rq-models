@@ -1,0 +1,9 @@
+# rq3-needle-500  url=http://localhost:8080  model=Qwen/Qwen3.5-4B
+
+ target_chars   tokens   needle_pos  hit?  output_preview
+         1000      251         0.50  PASS  '\\n\\n<think>\\nThinking Process:\\n\\n1.  **Analyze the Request:** The user wants me to read a provided passage and extract a specific piece of information: the "secret passphrase" mentioned in the passag'
+         3000      661         0.50  PASS  '\\n\\n<think>\\nThinking Process:\\n\\n1.  **Analyze the Request:**\\n    *   Input: A long passage containing repeated facts and a hidden passphrase.\\n    *   Task: Identify the secret passphrase mentioned'
+         6000     1283         0.25  PASS  '\\n\\n<think>\\nThinking Process:\\n\\n1.  **Analyze the Request:** The user has provided a long passage containing repeated sentences and facts. The task is to identify the "secret passphrase" mentioned w'
+         6000     1283         0.50  PASS  ' PURPLE-OCTOPUS-SEVENTEEN\\n\\n<think>\\nThinking Process:\\n\\n1.  **Analyze the Request:**\\n    *   Input: A long passage containing repeated facts/trivia sentences and a hidden passphrase.\\n    *   Task'
+         6000     1283         0.75  PASS  ' PURPLE-OCTOPUS-SEVENTEEN\\n\\n<think>\\nThinking Process:\\n\\n1.  **Analyze the Request:**\\n    *   Input: A long passage containing repeated facts/trivia sentences and a hidden passphrase.\\n    *   Task'
+        12000     2534         0.50  PASS  '\\n\\n<think>\\nThinking Process:\\n\\n1.  **Analyze the Request:** The user has provided a long passage containing repeated sentences (mostly facts/trivia) and a specific sentence hidden within the repeti'

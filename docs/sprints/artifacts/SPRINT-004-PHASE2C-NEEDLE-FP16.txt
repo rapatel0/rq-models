@@ -1,0 +1,9 @@
+# fp16-needle-500  url=http://localhost:8080  model=Qwen/Qwen3.5-4B
+
+ target_chars   tokens   needle_pos  hit?  output_preview
+         1000      251         0.50  PASS  '\\n\\n<think>\\nThinking Process:\\n\\n1.  **Analyze the Request:**\\n    *   Input: A passage containing various facts and statements.\\n    *   Task: Identify the "secret passphrase" mentioned in the passa'
+         3000      661         0.50  PASS  '\\n\\n<think>\\nThinking Process:\\n\\n1.  **Analyze the Request:**\\n    *   Input: A long passage containing repeated facts/statements and a hidden passphrase.\\n    *   Task: Identify the secret passphras'
+         6000     1283         0.25  PASS  '\\n\\n<think>\\nThinking Process:\\n\\n1.  **Analyze the Request:**\\n    *   Input: A long passage containing repeated facts/statements and a hidden passphrase.\\n    *   Task: Identify the secret passphras'
+         6000     1283         0.50  PASS  '\\n\\n<think>\\nThinking Process:\\n\\n1.  **Analyze the Request:**\\n    *   Input: A long passage containing repeated facts/statements and a hidden passphrase.\\n    *   Task: Identify the secret passphras'
+         6000     1283         0.75  FAIL  '\\n\\n<think>\\nThinking Process:\\n\\n1.  **Analyze the Request:**\\n    *   Input: A long passage containing repeated facts/statements and a hidden passphrase.\\n    *   Task: Identify the secret passphras'
+        12000     2534         0.50  PASS  '\\n\\n<think>\\nThinking Process:\\n\\n1.  **Analyze the Request:**\\n    *   Input: A long passage containing repeated sentences and facts, with a hidden passphrase embedded within.\\n    *   Task: Identify'
