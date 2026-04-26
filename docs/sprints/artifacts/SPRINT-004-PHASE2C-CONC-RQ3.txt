@@ -1,0 +1,9 @@
+# rq3-concurrent  url=http://localhost:8080  model=Qwen/Qwen3.5-4B
+
+warm-up ...
+
+   N   wall_s   tokens    agg_tps  per_req_tps
+   1    1.714      128      74.66        74.66
+   4    2.564      474     184.90        46.23
+   8    1.912      986     515.71        64.46
+  16    2.373     2038     858.98        53.69

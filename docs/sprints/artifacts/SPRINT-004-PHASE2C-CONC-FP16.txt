@@ -1,0 +1,9 @@
+# fp16-concurrent  url=http://localhost:8080  model=Qwen/Qwen3.5-4B
+
+warm-up ...
+
+   N   wall_s   tokens    agg_tps  per_req_tps
+   1    1.671      128      76.62        76.62
+   4    2.828      512     181.05        45.26
+   8    1.853     1024     552.74        69.09
+  16    2.007     2048    1020.38        63.77
