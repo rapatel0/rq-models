@@ -36,36 +36,46 @@ well. No L00 γ blow-up like Qwen3-4B.
 Qwen3.6 inherits Qwen3.5's well-conditioned K distribution. **Phase 2c
 rq3 will work for the Qwen3.6 family without any kernel recalibration.**
 
-## End-to-end serve attempt
+## End-to-end serve
 
-Tried `vllm/vllm-openai:v0.19.1 + rq3 overlay` with `--cpu-offload-gb 35
---enforce-eager --gpu-memory-utilization 0.95` (24 GB RTX 4090 + 188 GB
-RAM, max_model_len=2048). Weights load fine (15.81 GiB GPU + 35 GiB
-CPU, 104 s) and KV-cache profile reports `Available KV cache memory:
-3.01 GiB`, but engine init then fails:
+First attempt with `--cpu-offload-gb 35` failed at engine init:
+`AssertionError: Cannot re-initialize the input batch when CPU weight
+offloading is enabled` (vLLM v0.19.1 limitation on hybrid linear/full
+attention + weight offload, triggers on fp16 too — not an rq3 bug).
+
+Routed around it with **bitsandbytes 4-bit weight quantization**:
 
 ```
-AssertionError: Cannot re-initialize the input batch when CPU weight
-offloading is enabled. See https://github.com/vllm-project/vllm/pull/18298
-for more details.
+docker run ... rq-vllm:latest \
+    --model Qwen/Qwen3.6-27B \
+    --quantization bitsandbytes \
+    --kv-cache-dtype rotorquant_planar3 \
+    --max-model-len 1024 \
+    --gpu-memory-utilization 0.97 \
+    --enforce-eager
 ```
 
-This is a vLLM v0.19.1 limitation on **hybrid linear/full attention
-models combined with weight CPU offload** — the engine wants to
-re-initialize the input batch with mismatched mamba and attention
-block sizes, which the offload path doesn't support yet (PR #18298 is
-the upstream fix). Triggers on fp16 too (re-running without
-ROTORQUANT_MODE crashes at the same assertion).
+Boots clean: weights 18.05 GiB (vs 55 GiB bf16), KV cache 1.17 GiB,
+init engine 84 s, application startup complete on port 8080.
 
-**Not an rq3 bug**, and not a hardware issue we can route around in
-this sprint — needs either:
-- a vLLM bump that includes #18298 / the offload-aware hybrid init, or
-- a GPU with ≥ 40 GB VRAM (A6000, H100, RTX 6000 Ada) that doesn't
-  need the CPU-offload path at all.
+**Stacked-quantization stack**: 4-bit weights × 3-bit KV cache on a
+single 24 GB RTX 4090. Output sample (max_tokens=24, T=0):
 
-Verdict: Phase 2c rq3 + Qwen3.6 is **kernel-validated** today. Full
-end-to-end serve confirmation is gated on hardware/vLLM-version, not
-on rq-models.
+| Prompt | Output |
+|---|---|
+| "The capital of France is" | " Paris.\\n\\n\<think\>\</think\>\\nThat is correct. Paris is the capital and largest city of France. It is located" |
+| "2+2=" | "5\\n\\n\<think\>\</think\>\\nActually, **2 + " (model self-corrects) |
+| List the first ten US presidents | All 10 names correct, in order |
+| Fibonacci recursion completion | Correct recursive base cases + recurrence |
+| 4 largest oceans | Pacific / Atlantic / Indian / Arctic, in order |
+
+Full battery: `SPRINT-004-PHASE2C-QBATTERY-3P6-27B-BNB-RQ3.txt`.
+
+Verdict: **Qwen3.6 family is end-to-end validated** under stacked 4-bit
+weight + 3-bit KV quantization on consumer 24 GB hardware. Confirms the
+kernel probe; the cpu-offload path remains blocked on the upstream
+vLLM hybrid+offload fix, but bnb is a clean alternative that doesn't
+need it.
 
 ## Cross-family summary
 

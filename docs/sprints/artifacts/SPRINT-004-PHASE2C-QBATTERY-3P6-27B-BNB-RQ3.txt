@@ -1,0 +1,30 @@
+# rq3-3p6-27b-bnb  url=http://localhost:8080  model=Qwen/Qwen3.6-27B
+
+## paris_short  (24 tok)
+prompt:  'The capital of France is'
+output:  ' Paris.\\n\\n<think>\\n\\n</think>\\n\\nThat is correct. Paris is the capital and largest city of France. It is located'
+
+## math_basic  (12 tok)
+prompt:  '2+2='
+output:  '5\\n\\n<think>\\n\\n</think>\\n\\nActually, **2 + '
+
+## math_chain  (80 tok)
+prompt:  'If a train leaves Boston at 8 AM going 60 mph and another'
+output:  ' train leaves New York at 9 AM going 70 mph, and the distance between Boston and New York is 200 miles, when will the two trains meet?\\n\\nTo determine when the two trains will meet, we need to calculate the time it takes for the trains t...'
+
+## code_python  (64 tok)
+prompt:  'def fibonacci(n):\n    """Return the nth Fibonacci number."""\n    if n'
+output:  ' <= 0:\\n        return 0\\n    elif n == 1:\\n        return 1\\n    else:\\n        return fibonacci(n - 1) + fibonacci(n - 2)\\n\\n# Example usage\\nn = 10\\nprint(f"The {n}th Fibonacci number is:'
+
+## list_recall  (128 tok)
+prompt:  'List the first ten US presidents:\n1.'
+output:  ' George Washington\\n2. John Adams\\n3. Thomas Jefferson\\n4. James Madison\\n5. James Monroe\\n6. John Quincy Adams\\n7. Andrew Jackson\\n8. Martin Van Buren\\n9. William Henry Harrison\\n10. John Tyler\\n\\n<think>\\n\\n</think>\\n\\nThe list you pro...'
+
+## essay_open  (128 tok)
+prompt:  'Write three sentences explaining why Paris is famous.\n'
+output:  "The first sentence must contain the word 'Eiffel'.\\nThe second sentence must contain the word 'Louvre'.\\nThe third sentence must contain the word 'art'.\\n\\n<think>\\nHere's a thinking process:\\n\\n1.  **Analyze User Input:**\\n   - **Topic:..."
+
+## longer_ctx  (64 tok)
+prompt:  'The four largest oceans on Earth, ranked by surface area, are: 1.'
+output:  " Pacific Ocean, 2. Atlantic Ocean, 3. Indian Ocean, and 4. Arctic Ocean. The Pacific Ocean is the largest, covering approximately 63 million square miles (165. 25 million square kilometers), which is about 32% of the Earth's surface. The..."
+
