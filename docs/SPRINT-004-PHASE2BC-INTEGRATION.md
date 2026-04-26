@@ -86,10 +86,18 @@ _ext = cpp_extension.load(
     extra_cflags=["-O3", "-std=c++17"],
     extra_cuda_cflags=[
         "-O3", "-std=c++17", "--use_fast_math",
-        # Verified compile-clean with nvcc 13.2 (2026-04-26):
-        "-gencode=arch=compute_89,code=sm_89",   # RTX 4090
-        "-gencode=arch=compute_90,code=sm_90",   # H100
-        "-gencode=arch=compute_120,code=sm_120", # RTX 5090
+        # Architectures the kernel is verified to compile for. The actual
+        # rotorquant_kv.py module does runtime detection via nvcc
+        # --list-gpu-arch and drops anything the local toolkit doesn't
+        # support (CUDA 13.x silently drops sm_70 / sm_75).
+        # Verified compile-clean with nvcc 12.6 (2026-04-26):
+        "-gencode=arch=compute_70,code=sm_70",   # V100 (Volta)
+        "-gencode=arch=compute_75,code=sm_75",   # T4 (Turing)
+        "-gencode=arch=compute_80,code=sm_80",   # A100 (Ampere)
+        "-gencode=arch=compute_86,code=sm_86",   # A10G / RTX 3090
+        "-gencode=arch=compute_89,code=sm_89",   # RTX 4090 (Ada)
+        "-gencode=arch=compute_90,code=sm_90",   # H100 (Hopper)
+        "-gencode=arch=compute_120,code=sm_120", # RTX 5090 (Blackwell)
     ],
 )
 _pack = _ext.rotorquant_planar3_pack

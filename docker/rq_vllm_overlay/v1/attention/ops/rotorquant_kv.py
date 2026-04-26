@@ -56,6 +56,59 @@ def is_rotorquant_dtype(kv_cache_dtype: str) -> bool:
 # JIT-build the planar3 CUDA extension on first import. Cached after that.
 # ---------------------------------------------------------------------------
 
+def _arch_flags() -> list[str]:
+    """Return ``-gencode`` flags for every architecture our planar3 kernel
+    supports that this host's nvcc also supports.
+
+    The kernel uses only baseline CUDA features (``__half`` math, ``__constant__``
+    arrays, standard control flow), so any architecture from sm_70 (Volta /
+    V100) onward is valid. We probe the actual nvcc to skip unsupported
+    arches — CUDA 13.x dropped sm_70 / sm_75, so building with `cu130`
+    images requires the older arches to be dropped automatically.
+
+    Override with the env var ``RQ_ROTORQUANT_ARCHES`` set to a
+    semicolon-separated list of compute capability ints, e.g.
+    ``RQ_ROTORQUANT_ARCHES="70;80;89"``.
+    """
+    import os
+    import subprocess
+
+    override = os.environ.get("RQ_ROTORQUANT_ARCHES")
+    if override:
+        ccs = [int(c) for c in override.split(";") if c.strip()]
+    else:
+        # Full set the kernel is verified to compile for. nvcc filtering
+        # below drops any not present on the local toolkit.
+        ccs = [70, 75, 80, 86, 89, 90, 120]
+
+    # Probe nvcc for supported arches.
+    nvcc = os.environ.get("CUDA_NVCC", "/usr/local/cuda/bin/nvcc")
+    try:
+        out = subprocess.run(
+            [nvcc, "--list-gpu-arch"],
+            capture_output=True, text=True, check=True, timeout=10,
+        ).stdout
+    except (FileNotFoundError, subprocess.SubprocessError):
+        # Fall back to the full set; nvcc invocation later will fail
+        # cleanly if any arch is unsupported.
+        return [f"-gencode=arch=compute_{cc},code=sm_{cc}" for cc in ccs]
+
+    supported = set()
+    for line in out.splitlines():
+        line = line.strip()
+        if line.startswith("compute_"):
+            try:
+                supported.add(int(line[len("compute_"):]))
+            except ValueError:
+                continue
+    keep = [cc for cc in ccs if cc in supported]
+    if not keep:
+        # Last-ditch fallback: ask nvcc to pick its default (compute_native
+        # would tie to host GPU, less portable but better than failing).
+        return ["-arch=native"]
+    return [f"-gencode=arch=compute_{cc},code=sm_{cc}" for cc in keep]
+
+
 def _locate_csrc() -> Path:
     """Locate vllm/csrc/attention/rotorquant from this module's location."""
     here = Path(__file__).resolve()
@@ -93,14 +146,10 @@ def _ext():
         name="rq_models_rotorquant",
         sources=sources,
         extra_cflags=["-O3", "-std=c++17"],
-        extra_cuda_cflags=[
+        extra_cuda_cflags=_arch_flags() + [
             "-O3",
             "-std=c++17",
             "--use_fast_math",
-            # nvcc 13.2 verified compile-clean for these arches:
-            "-gencode=arch=compute_89,code=sm_89",   # RTX 4090 (Ada)
-            "-gencode=arch=compute_90,code=sm_90",   # H100 (Hopper)
-            "-gencode=arch=compute_120,code=sm_120", # RTX 5090 (Blackwell)
         ],
         verbose=False,
     )

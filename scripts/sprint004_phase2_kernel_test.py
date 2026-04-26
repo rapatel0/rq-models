@@ -40,6 +40,32 @@ import torch
 from torch.utils import cpp_extension
 
 
+def _arch_flags() -> list[str]:
+    """Probe nvcc for supported compute capabilities and emit -gencode flags.
+    Includes V100 (sm_70), T4 (sm_75), A100 (sm_80), A10G (sm_86), RTX 4090
+    (sm_89), H100 (sm_90), RTX 5090 (sm_120). CUDA 13.x will drop sm_70/75
+    automatically; CUDA 12.x keeps them. Override via env var
+    ``RQ_ROTORQUANT_ARCHES="70;80;89"``.
+    """
+    import subprocess
+    override = os.environ.get("RQ_ROTORQUANT_ARCHES")
+    ccs = ([int(c) for c in override.split(";") if c.strip()] if override
+           else [70, 75, 80, 86, 89, 90, 120])
+    nvcc = os.environ.get("CUDA_NVCC", "/usr/local/cuda/bin/nvcc")
+    try:
+        out = subprocess.run(
+            [nvcc, "--list-gpu-arch"],
+            capture_output=True, text=True, check=True, timeout=10,
+        ).stdout
+    except (FileNotFoundError, subprocess.SubprocessError):
+        return [f"-gencode=arch=compute_{cc},code=sm_{cc}" for cc in ccs]
+    supported = {int(l.strip()[8:]) for l in out.splitlines()
+                 if l.strip().startswith("compute_") and l.strip()[8:].isdigit()}
+    keep = [cc for cc in ccs if cc in supported]
+    return ([f"-gencode=arch=compute_{cc},code=sm_{cc}" for cc in keep]
+            if keep else ["-arch=native"])
+
+
 def build_extension(rq_vllm_dir: Path) -> object:
     """JIT-build the rq-models RotorQuant planar3 extension."""
     csrc = rq_vllm_dir / "csrc" / "attention" / "rotorquant"
@@ -56,16 +82,10 @@ def build_extension(rq_vllm_dir: Path) -> object:
         name="rq_models_rotorquant",
         sources=sources,
         extra_cflags=["-O3", "-std=c++17"],
-        extra_cuda_cflags=[
+        extra_cuda_cflags=_arch_flags() + [
             "-O3",
             "-std=c++17",
             "--use_fast_math",
-            # Build for RTX 4090 (Ada, sm_89), Hopper (sm_90), and RTX 5090
-            # (Blackwell, sm_120). Verified compile-clean with nvcc 13.2 on
-            # 2026-04-26. Add sm_80 / sm_86 if A100 / A10G are targets.
-            "-gencode=arch=compute_89,code=sm_89",
-            "-gencode=arch=compute_90,code=sm_90",
-            "-gencode=arch=compute_120,code=sm_120",
         ],
         verbose=True,
     )
