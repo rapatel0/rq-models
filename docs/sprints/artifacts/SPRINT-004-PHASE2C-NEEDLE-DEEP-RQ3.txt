@@ -1,0 +1,11 @@
+# rq3-needle-deep  url=http://localhost:8080  model=Qwen/Qwen3.5-4B
+
+ target_chars   tokens   needle_pos  hit?  output_preview
+        12000     2534         0.25  PASS  '\\n\\n<think>\\nThinking Process:\\n\\n1.  **Analyze the Request:** The user has provided a long passage containing repeated sentences and facts. The task is to identify a specific "secret passphrase" ment'
+        12000     2534         0.75  PASS  '\\n\\n<think>\\nThinking Process:\\n\\n1.  **Analyze the Request:** The user has provided a long passage containing repeated sentences (factual trivia) and a specific instruction. The instruction is to ide'
+        30000     6271         0.25  PASS  '\\n\\n<think>\\nThinking Process:\\n\\n1.  **Analyze the Request:**\\n    *   Input: A long passage containing repeated sentences (factual trivia) and one specific sentence that looks like a hidden instruct'
+        30000     6271         0.50  PASS  '\\n\\n<think>\\nThinking Process:\\n\\n1.  **Analyze the Request:** The user has provided a long passage containing repeated sentences (a list of trivia facts) and asked a specific question: "What is the s'
+        30000     6271         0.75  FAIL  '\\n\\n<think>\\nThinking Process:\\n\\n1.  **Analyze the Request:** The user has provided a long passage containing repeated sentences (a loop of trivia facts) and asked a specific question: "What is the s'
+        60000    12493         0.25  PASS  ' PURPLE-OCTOPUS-SEVENTEEN\\n\\n<think>\\nThinking Process:\\n\\n1.  **Analyze the Request:**\\n    *   Input: A long passage containing repeated sentences (mostly facts/trivia) and one specific sentence hid'
+        60000    12493         0.50  PASS  ' PURPLE-OCTOPUS-SEVENTEEN\\n\\n<think>\\nThinking Process:\\n\\n1.  **Analyze the Request:**\\n    *   Input: A long passage containing repeated sentences (mostly facts/trivia) and one specific sentence hid'
+        60000    12493         0.75  PASS  '\\n\\n<think>\\n\\n</think>\\n\\nPURPLE-OCTOPUS-SEVENTEEN'
