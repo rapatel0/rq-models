@@ -1,0 +1,34 @@
+# rq3-longctx  url=http://localhost:8080  model=Qwen/Qwen3.5-4B
+
+## test1 — long-prompt summary (≈700-tok input → 256-tok output)
+
+<think>
+Thinking Process:
+
+1.  **Analyze the Request:**
+    *   Input: 13 short facts.
+    *   Task: Answer in exactly five complete English sentences.
+    *   Content Requirements:
+        1.  Identify two facts about science (physics or biology).
+        2.  Identify two facts about history.
+        3.  State the capital of France.
+    *   Constraint: The answer must be exactly five complete sentences.
+
+2.  **Analyze the Facts:**
+    *   1. George Washington was the first president of the United States. (History)
+    *   2. The Pacific Ocean is the largest ocean on Earth. (Science/Geography - usually considered natural science)
+    *   3. Paris is the capital of France. (History/Geography - but the prompt asks for the capital specifically)
+    *   4. A recursive Fibonacci function returns zero when n is zero. (Computer Science)
+    *   5. Two plus two equals four. (Math)
+    *   6. Mount Everest is the highest mountain above sea level on Earth. (Science/Geography)
+
+
+## test2 — short prompt → 512-tok generation (depth-of-decode)
+
+FIRST 240 chars:
+"<think>\nThinking Process:\n\n1.  **Analyze the Request:**\n    *   **Topic:** A short story about a software engineer named Mira.\n    *   **Plot:** She discovers an unexpected bug in the company's billing system on her first day.\n    *   **Len"
+
+LAST 240 chars:
+' loop that charges the same user every minute. Let\'s go with the "ghost" loop.\n\n    *Word Count Check:* I need to be careful not to go too short or too long. 500 words is roughly 4-5 paragraphs of dense prose.\n\n4.  **Drafting - Attempt 1 (M'
+
+TOTAL LENGTH: 2005 chars

@@ -1,0 +1,36 @@
+# fp16-longctx  url=http://localhost:8080  model=Qwen/Qwen3.5-4B
+
+## test1 — long-prompt summary (≈700-tok input → 256-tok output)
+
+<think>
+Thinking Process:
+
+1.  **Analyze the Request:**
+    *   Input: 13 short facts.
+    *   Task: Answer in exactly five complete English sentences.
+    *   Specific Questions to Answer:
+        1.  Which two facts are about science (physics or biology)?
+        2.  Which two facts are about history?
+        3.  What is the capital of France?
+
+2.  **Analyze the Facts:**
+    *   1. George Washington... (History)
+    *   2. Pacific Ocean... (Geography/Science - but usually considered general knowledge, let's look for explicit physics/biology)
+    *   3. Paris is the capital of France. (Geography/History - but the question asks for the capital specifically)
+    *   4. Recursive Fibonacci... (Computer Science/Math)
+    *   5. Two plus two... (Math)
+    *   6. Mount Everest... (Geography)
+    *   7. Binary search... (Computer Science)
+    *   8. Photosynthesis... (Biology)
+    *   9. William Shakespeare
+
+
+## test2 — short prompt → 512-tok generation (depth-of-decode)
+
+FIRST 240 chars:
+"<think>\nThinking Process:\n\n1.  **Analyze the Request:**\n    *   **Topic:** A software engineer named Mira discovers an unexpected bug in the company's billing system on her first day.\n    *   **Length:** Approximately 500 words.\n    *   **S"
+
+LAST 240 chars:
+"s for the wrong amount. She paused. She looked at the code. It was a variable named 'tax' that was set to zero but the logic was adding it. No, wait, it was adding it twice. She felt a thrill. She typed a comment. She sent a message.\n\n    *"
+
+TOTAL LENGTH: 2067 chars
