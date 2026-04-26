@@ -86,8 +86,10 @@ _ext = cpp_extension.load(
     extra_cflags=["-O3", "-std=c++17"],
     extra_cuda_cflags=[
         "-O3", "-std=c++17", "--use_fast_math",
-        "-gencode=arch=compute_89,code=sm_89",
-        "-gencode=arch=compute_90,code=sm_90",
+        # Verified compile-clean with nvcc 13.2 (2026-04-26):
+        "-gencode=arch=compute_89,code=sm_89",   # RTX 4090
+        "-gencode=arch=compute_90,code=sm_90",   # H100
+        "-gencode=arch=compute_120,code=sm_120", # RTX 5090
     ],
 )
 _pack = _ext.rotorquant_planar3_pack

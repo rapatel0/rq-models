@@ -60,9 +60,12 @@ def build_extension(rq_vllm_dir: Path) -> object:
             "-O3",
             "-std=c++17",
             "--use_fast_math",
-            # Ada (RTX 4090 / 5090). Add 80, 86, 90 if targeting other arches.
+            # Build for RTX 4090 (Ada, sm_89), Hopper (sm_90), and RTX 5090
+            # (Blackwell, sm_120). Verified compile-clean with nvcc 13.2 on
+            # 2026-04-26. Add sm_80 / sm_86 if A100 / A10G are targets.
             "-gencode=arch=compute_89,code=sm_89",
             "-gencode=arch=compute_90,code=sm_90",
+            "-gencode=arch=compute_120,code=sm_120",
         ],
         verbose=True,
     )
