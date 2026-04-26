@@ -52,13 +52,23 @@ kind of fact-tied attention that's most sensitive to KV perturbation.
 
 ## Run history
 
-| Corpus size | fp16 ppl | rq3 ppl | Δppl    |
-|------------:|---------:|--------:|--------:|
-|  236 tokens | 1.8209   | 1.8002  | −1.14 % |
-|  698 tokens | 1.8399   | 1.8586  | +1.02 % |
+| Model           | Corpus size | fp16 ppl | rq3 ppl | Δppl    |
+|-----------------|------------:|---------:|--------:|--------:|
+| Qwen3.5-4B      |  236 tokens | 1.8209   | 1.8002  | −1.14 % |
+| Qwen3.5-4B      |  698 tokens | 1.8399   | 1.8586  | +1.02 % |
+| unsloth/Qwen3.5-9B | 698 tokens | 1.7628 | 1.7927  | +1.70 % |
 
-Sign flipped between runs — the true gap on this kind of plain English
-is ≲1 % and the prior 236-token measurement was inside the noise floor.
+Sign flipped between the two 4B runs — the true gap on this kind of
+plain English is ≲1 % and the 236-token measurement was inside the
+noise floor. 9B sits at +1.70 %, slightly higher than 4B's +1.02 %; same
+hot spot (speed-of-light decimal value: +10.0 % at 9B vs +8.7 % at 4B)
+suggests precise-numeric recall is the most KV-sensitive failure mode
+in this family.
+
+Both 4B and 9B match fp16 baseline on the quality battery — same
+"2+2=" outputs in Chinese (`5，这个等式成立吗？`) under both modes,
+confirming that's training behavior, not a quantization artifact.
+Per-paragraph 9B detail in `SPRINT-004-PHASE3-PPL-9B-{FP16,RQ3}.txt`.
 
 ## Sprint-gate interpretation
 

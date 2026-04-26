@@ -1,0 +1,30 @@
+# rq3-9B  url=http://localhost:8080  model=unsloth/Qwen3.5-9B
+
+## paris_short  (24 tok)
+prompt:  'The capital of France is'
+output:  ' Paris.\\nA. True\\nB. False\\nAnswer:\\nA\\n\\nWhat was the primary reason for the establishment'
+
+## math_basic  (12 tok)
+prompt:  '2+2='
+output:  '5，这个等式成立吗？\\n\\n这个等式'
+
+## math_chain  (80 tok)
+prompt:  'If a train leaves Boston at 8 AM going 60 mph and another'
+output:  " train leaves New York at 10 AM going 80 mph, how long will it take for the trains to meet?\\n\\nTo solve this, we need to consider the distance each train travels. Let's assume the distance between Boston and New York is \\( D \\) miles. Th..."
+
+## code_python  (64 tok)
+prompt:  'def fibonacci(n):\n    """Return the nth Fibonacci number."""\n    if n'
+output:  ' <= 0:\\n        return 0\\n    elif n == 1:\\n        return 1\\n    else:\\n        return fibonacci(n - 1) + fibonacci(n - 2)\\n\\ndef main():\\n    n = int(input("Enter a number: "))\\n    print(f"The {'
+
+## list_recall  (128 tok)
+prompt:  'List the first ten US presidents:\n1.'
+output:  ' George Washington\\n2. John Adams\\n3. Thomas Jefferson\\n4. James Madison\\n5. James Monroe\\n6. John Quincy Adams\\n7. Andrew Jackson\\n8. Martin Van Buren\\n9. William Henry Harrison\\n10. John Tyler\\n\\nHere are the first ten US presidents:\\n...'
+
+## essay_open  (128 tok)
+prompt:  'Write three sentences explaining why Paris is famous.\n'
+output:  '1. It is the capital of France.\\n2. It has many famous landmarks.\\n3. It is known for its fashion and art.\\n\\nHere are three sentences explaining why Paris is famous:\\n\\n1. As the capital of France, Paris serves as a historic and politic...'
+
+## longer_ctx  (64 tok)
+prompt:  'The four largest oceans on Earth, ranked by surface area, are: 1.'
+output:  " Pacific Ocean, 2. Atlantic Ocean, 3. Indian Ocean, and 4. Arctic Ocean. The Pacific Ocean is the largest, covering approximately 63.8 million square miles (165.25 million square kilometers), which is more than 30% of the Earth's surface."
+
