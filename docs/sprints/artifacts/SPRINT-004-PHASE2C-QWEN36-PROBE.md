@@ -77,6 +77,56 @@ kernel probe; the cpu-offload path remains blocked on the upstream
 vLLM hybrid+offload fix, but bnb is a clean alternative that doesn't
 need it.
 
+## Qwen3.6-35B-A3B (MoE variant)
+
+Downloaded `Qwen/Qwen3.6-35B-A3B` (71.9 GB bf16, 40 layers, 10
+full-attn, 256 experts × 8 active, hidden 2048, head_dim=256;
+architecture `Qwen3_5MoeForConditionalGeneration`).
+
+**Kernel probe** (HF transformers, device_map="auto", layers L03 / L23 /
+L39):
+
+| Layer (full_attn idx) | k_proj cos-sim mean | k_norm cos-sim mean | k_norm σ |
+|----------------------:|--------------------:|--------------------:|---------:|
+|              L03 / 10 |              0.9599 |          **0.9606** |    1.376 |
+|              L23 / 10 |              0.9350 |          **0.9359** |    1.581 |
+|              L39 / 10 |              0.9648 |          **0.9530** |    1.448 |
+
+Same Qwen3.5 family signature — post-k_norm σ in the 1.4–1.6 range,
+cos-sim 0.93–0.96. The MoE FFN does not perturb the K distribution
+(expected — MoE is in the FFN, the attention block is unchanged from
+the dense Qwen3_5 architecture).
+
+**End-to-end vLLM serve attempt**: blocked by an upstream vLLM bnb +
+MoE weight-loader bug:
+
+```
+RuntimeError: output with shape [512, 1] doesn't match the broadcast
+shape [512, 2048]
+  File "/usr/local/lib/python3.12/dist-packages/vllm/model_executor/
+        layers/fused_moe/layer.py", line 917, in _load_w13
+    expert_data.copy_(loaded_weight)
+```
+
+bnb collapses certain expert weight tensors to a single column at
+load time, but the fused MoE layer expects the full unflattened
+shape. **Not an rq3 bug** — reproduces on plain fp16 / no-rq3 with
+`--quantization bitsandbytes`.
+
+Workarounds that would require additional setup (out of sprint scope):
+
+- Wait for the upstream bnb-MoE expert-loader fix to land in vLLM.
+- Run the natively-quantized `Qwen/Qwen3.6-35B-A3B-FP8` (35 GB on disk)
+  on a ≥ 40 GB GPU.
+- Use a GPU big enough for full bf16 MoE so we don't need bnb / offload
+  at all (RTX 6000 Ada / H100 / A100 80 GB).
+
+Verdict: **Qwen3.6-35B-A3B is kernel-validated** for Phase 2c rq3.
+End-to-end serve confirmation is gated on an upstream vLLM bnb-MoE
+weight-loader fix or larger hardware, not on rq-models. The dense
+27B variant covers the same model class with full end-to-end
+validation.
+
 ## Cross-family summary
 
 | Model           | L00-ish cos-sim | mid-layer cos-sim | last-layer cos-sim | K σ range | Phase 2c verdict |
