@@ -9,33 +9,42 @@ on the original deferred list but emerged as the sprint actually ran.
 
 ## F-001: Source-converted DFlash drafts
 
-**Status**: open (load-bearing for L2/L3/L4 measurement gates)
+**Status**: 35B-A3B resolved · 27B blocked on access approval
 
-**What**: The two community DFlash drafts pinned in
-`docker/entrypoint.sh:60-62` (`spiritbuun/Qwen3.6-27B-DFlash-GGUF` and
-`lym00/Qwen3.6-35B-A3B-DFlash-GGUF-Test`) use a non-canonical GGUF schema
-relative to PR `#22105`'s `convert_hf_to_gguf.py`: arch-string and metadata
-key-prefix mismatch (worked around in fork commit `bd7a7aabb` via an LLM_KV
-arch-name override) plus a tensor-name mismatch (missing `fc.weight`, etc.)
-that has no fork-side fix yet.
+**What**: The two community DFlash drafts originally pinned in
+`docker/entrypoint.sh` used a non-canonical GGUF schema relative to PR
+`#22105`. Resolved by source-converting from z-lab safetensors via
+`scripts/convert_dflash_drafts.sh` + a fork-side tokenizer-hash mapping
+(Qwen3.6 BPE → reuses `qwen35` pre-tokenizer, since the regex is
+identical and only the vocab IDs differ).
 
-**Impact**: Every Phase 5 end-to-end gate is blocked behind this single
-issue: L2 greedy equivalence + forced-rejection, L3 z-lab pytorch parity,
-L4 speedup median ≥1.3× on Qwen3.6-27B, plus actual runs of
-`tests/test_dflash_e2e.py` and `scripts/validate_dflash.py`. Profiles boot
-through llama-server start; draft load is what fails.
+**35B-A3B**: Done. `Qwen3.6-35B-A3B-DFlash-bf16.gguf` (959 MB) loads
+clean, end-to-end speculative on RTX 5090 produced **128.9 tok/s decode
+with 100% acceptance** on a 16-token "capital of France is" probe
+(target Q4_K_XL + draft bf16, ngl=99/99, ctx=2048, greedy). DFlash
+auto-setup correctly extracted target layers `[2, 11, 20, 29, 38]`
+matching the draft's `dflash_config.target_layer_ids`.
 
-**Suggested next action**: Either (a) gain access to z-lab's gated
-safetensors and run the cherry-picked PR's `convert_hf_to_gguf.py` to
-emit canonical GGUFs locally, or (b) wait for a community draft that
-matches PR `#22105`'s schema. Option (a) is the controllable path; option
-(b) is a pure scheduling dependency. Once a working draft drops, the L2
-and L3 commands in BENCHMARK-REPORT.md §10 become one-shot and L4 is
-three sequential profile-up/stop cycles.
+**27B**: `z-lab/Qwen3.6-27B-DFlash` is gated (`gated: auto` in the API
+search response is misleading — actual GET returns 403 *"restricted, not
+in authorized list, ask for access"*). Operator must visit
+`https://huggingface.co/z-lab/Qwen3.6-27B-DFlash` while logged in as the
+HF account whose token sits in `~/.cache/huggingface/token` and click
+"Request access". Once approved, `make convert-drafts` re-runs idempotent
+and the 27B pair lands in the volume the same way.
 
-**Files**: `docker/entrypoint.sh:57-63` (draft registry — bump pinned
-SHA when a working draft is identified); BENCHMARK-REPORT.md §10 TBD
-tables.
+**Impact**: 35B-A3B side: L2/L3/L4 gates are now runnable on the
+`qwen36-dflash` profile (still EXPERIMENTAL=1 per Sprint 004 spec).
+27B side: gates remain blocked until access lands.
+
+**Suggested next action**: (1) operator requests access at the URL
+above; (2) re-run `make convert-drafts`; (3) execute Phase 5 L2/L3/L4
+harness against the converted pairs.
+
+**Files**: `scripts/convert_dflash_drafts.sh` (host-side converter);
+fork `convert_hf_to_gguf.py` (one-line tokenizer-hash mapping for
+Qwen3.6); `docker/entrypoint.sh:57-72` (registry now points at local
+GGUFs, with `local/...` short-circuit in `download_model_if_missing()`).
 
 ---
 
@@ -235,7 +244,7 @@ BENCHMARK-REPORT.md §10's acceptance-rate notes paragraph.
 
 | Item | Title | Status | Suggested next action |
 |------|-------|--------|------------------------|
-| F-001 | Source-converted DFlash drafts | open | Get z-lab safetensors access or wait for canonical-format community draft |
+| F-001 | Source-converted DFlash drafts | partially-mitigated (35B done, 27B awaiting access) | Operator requests access to z-lab/Qwen3.6-27B-DFlash; rerun `make convert-drafts` |
 | F-002 | `LLAMA_SPEC_FORCE_REJECT_AT` env in fork | open | Add to fork's `common/speculative.cpp`; flip `xfail` to xpass-strict |
 | F-003 | Formal C++ checkpoint test file | partially-mitigated | Author `tests/test-checkpoint-hybrid-state.cpp` (subtest C already inline) |
 | F-004 | Runtime guard `prefill_complete`/`deferred_drained` | partially-mitigated | Defensive only; land alongside F-003 |

@@ -137,6 +137,32 @@ runs deferred to follow-up F-001 (blocked on source-converted draft GGUFs)
   Phase 3); not rewritten. Both result JSONs are already in
   `docs/sprints/`.
 
+### 2026-04-27 — F-001 (partial): 35B-A3B DFlash draft source-converted
+
+- z-lab safetensors are public for the 35B-A3B (`gated: False`); the
+  earlier "gated" claim was wrong. Downloaded `z-lab/Qwen3.6-35B-A3B-DFlash`
+  (948 MB) + target tokenizer-only files for `Qwen/Qwen3.6-35B-A3B`.
+- Discovered Qwen3.6's BPE chkhsh
+  (`1444df51289cfa8063b96f0e62b1125440111bc79a52003ea14b6eac7016fd5f`) was
+  not in the fork's `convert_hf_to_gguf.py` registry. Pre-tokenizer regex
+  is identical to Qwen3.5's, only the 248k vocab differs — registered the
+  hash to reuse the existing `qwen35` pre-tokenizer dispatch in
+  `src/llama-vocab.cpp` (no C++ change). Fork commit `1c9b77fdd`.
+- Conversion produced `Qwen3.6-35B-A3B-DFlash-bf16.gguf` (959 MB) and
+  copied into `llm-models:/models/`. Smoke test on RTX 5090: target Q4_K_XL
+  + draft bf16 with `--dflash`, ngl=99/99, ctx=2048, greedy on
+  "The capital of France is" → **128.9 tok/s decode, 100% acceptance
+  (15/15 drafted tokens), coherent generation**. DFlash auto-extracted
+  target layers `[2, 11, 20, 29, 38]` matching the draft's
+  `dflash_config.target_layer_ids`.
+- 27B side: `z-lab/Qwen3.6-27B-DFlash` is gated (returns 403 / "ask for
+  access"). Pending operator approval at the HF web UI; the `make
+  convert-drafts` target re-runs idempotently once granted.
+- `docker/entrypoint.sh` registry now points at the local-converted GGUFs
+  (repo prefix `local/...` short-circuits the hf download path).
+  `docker/Dockerfile` ROTORQUANT_COMMIT bumped to `1c9b77fdd`. Convert
+  script lands at `scripts/convert_dflash_drafts.sh` + `make convert-drafts`.
+
 ### 2026-04-27 — Phase 4 execution
 
 - **Phase 4**: Repo-side changes only — actual `docker build` and per-profile

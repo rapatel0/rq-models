@@ -55,19 +55,24 @@ declare -A MODELS=(
   [gemma4-26b-q3]="unsloth/gemma-4-26B-A4B-it-GGUF|gemma-4-26B-A4B-it-UD-Q3_K_M.gguf|40960|--samplers top_p,top_k,temperature --temp 1.0 --top-p 0.95 --top-k 64"
 
   # ── DFlash draft GGUFs (Sprint 004) ──────────────────────────────────
-  # Pinned 2026-04-27. Format mismatch known: community drafts emit non-canonical
-  # tensor names — see SPRINT-004.md Phase 3 / BENCHMARK-REPORT.md §10. Pin so
-  # the hf cache is deterministic; smoke runs once source-converted drafts land.
-  [qwen3.6-27b-dflash]="spiritbuun/Qwen3.6-27B-DFlash-GGUF|dflash-draft-3.6-q4_k_m.gguf|131072|"
-  [qwen3.6-35b-dflash]="lym00/Qwen3.6-35B-A3B-DFlash-GGUF-Test|Qwen3.6-35B-A3B-DFlash-q8_0.gguf|65536|"
+  # Source-converted from z-lab safetensors via `scripts/convert_dflash_drafts.sh`
+  # (resolves F-001). Repo strings are LOCAL placeholders — these GGUFs are
+  # produced locally and loaded from /models directly; hf download is skipped
+  # when the file already exists, which the convert script ensures. Re-running
+  # the convert script idempotently re-publishes if absent.
+  [qwen3.6-27b-dflash]="local/qwen3.6-27b-dflash|Qwen3.6-27B-DFlash-bf16.gguf|131072|"
+  [qwen3.6-35b-dflash]="local/qwen3.6-35b-a3b-dflash|Qwen3.6-35B-A3B-DFlash-bf16.gguf|65536|"
 )
 
-# Repo SHAs pinned at Phase-4 entry (2026-04-27). Informational — `hf download`
-# resolves to whatever the repo's main currently points at; bumping this dict
-# is the canonical record of what we last verified.
+# Repo SHAs / source pins. For local-converted drafts these track the source
+# safetensors revision used by `scripts/convert_dflash_drafts.sh` so a
+# re-conversion is reproducible.
 declare -A MODELS_HASH=(
-  [qwen3.6-27b-dflash]=5e4442a299deb9282b3dfe179de6e8330b19d9de
-  [qwen3.6-35b-dflash]=3813f31a9fa837b79dce98e6ec49ddeaa4082772
+  # z-lab/Qwen3.6-27B-DFlash @ pinned safetensors SHA — gated repo, requires
+  # one-time access approval from z-lab.
+  [qwen3.6-27b-dflash]=0919688658996800f86b895034249700e9481106
+  # z-lab/Qwen3.6-35B-A3B-DFlash @ pinned safetensors SHA — public.
+  [qwen3.6-35b-dflash]=42d3b34d588423cdae7ba8f53a8cf7789346a719
 )
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
@@ -87,6 +92,14 @@ download_model_if_missing() {
     echo "Model present: $path ($(du -h "$path" | cut -f1))" >&2
     echo "$path"
     return 0
+  fi
+  # `local/...` repos are produced by scripts/convert_dflash_drafts.sh on the
+  # host and copied into the llm-models named volume — there is no hf download
+  # path. Surface a clear error pointing the operator to the converter.
+  if [[ "$repo" == local/* ]]; then
+    echo "ERROR: $key requires local-converted GGUF '$file' which is not in /models." >&2
+    echo "       Run on host: bash scripts/convert_dflash_drafts.sh" >&2
+    return 1
   fi
   {
     echo ""

@@ -126,6 +126,14 @@ bench-dflash-leg:
 smoke:
 	bash docker/test.sh
 
+# ── Sprint 004 F-001: source-convert DFlash draft GGUFs ──────────────
+# Downloads z-lab safetensors + target tokenizer, runs the cherry-picked
+# convert_hf_to_gguf.py, and publishes the result into the llm-models
+# named volume. Idempotent. The 27B-DFlash repo is gated — request access
+# at https://huggingface.co/z-lab/Qwen3.6-27B-DFlash before running.
+convert-drafts:
+	bash scripts/convert_dflash_drafts.sh
+
 # ── Clean ────────────────────────────────────────────────────────────
 clean:
 	docker compose \
