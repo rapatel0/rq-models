@@ -88,6 +88,10 @@ our integration only ever touches the CUDA-path math.
 
 ## Why models fail: the calibration assumption
 
+For the long-form treatment of how the rotation tables and codebook
+are calibrated (and why "calibrated" is generous for the rotations
+specifically), see `docs/design/PLANAR3_ROTATION_CALIBRATION.md`.
+
 The planar3 kernel applies a fixed sequence of 64 Givens rotations to
 each 128-element K block, then maps each rotated element through a
 3-bit Lloyd-Max codebook tuned for unit-variance Gaussian inputs.
