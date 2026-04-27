@@ -527,10 +527,24 @@ the shadow buffer — negligible against the 32 GB RTX 5090 budget.
    those estimates rise to ~1.6–1.8× (35B) and ~2.2–2.5× (27B) since
    snapshot no longer eats verify-cycle time. Final L4 measurement
    remains the gate.
-4. Bit-exactness of save→mutate→restore is not yet validated; that
-   becomes Subtest B/C of `tests/test-checkpoint-hybrid-state.cpp` in a
-   later session. The current measurement only verifies the round-trip
-   completes and copies the right number of bytes.
+4. **Bit-exactness validated.** `llama-checkpoint-bench` includes a
+   correctness check that:
+   - dumps the host-RAM PARTIAL_ONLY byte stream as a reference (`pre`),
+   - saves tensor data via `vram_seq_checkpoint::save()`,
+   - decodes 16 additional tokens to mutate the recurrent state
+     (sanity-checking that mutation actually diverges the state),
+   - restores via `vram_seq_checkpoint::restore()` plus
+     `llama_memory_seq_rm()` to roll the cell metadata back,
+   - re-dumps the host-RAM byte stream (`after`) and compares.
+
+   Result on both production targets (Qwen3.6-27B iso3 and Qwen3.6-35B-A3B
+   iso3): `mutated_state_diverged: true` (mutation took effect),
+   `after_restore_tail_match: true` (tensor bytes byte-equal to pre).
+   The full-stream `after_restore_full_match` is false because the
+   ~1 KB metadata header differs (snapshot recorded `head=2048`,
+   post-mutation+seq_rm reports a different head); that's expected and
+   handled by callers via `seq_rm` as in upstream's speculative path.
 
 Tool: `llama-checkpoint-bench` reports both `partial` (host-RAM upstream
-path) and `vram_partial` (this optimization) on every run.
+path), `vram_partial` (this optimization), and `vram_correctness`
+(bit-exactness verdict) on every run.
