@@ -26,3 +26,6 @@ include = ["turboquant*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v"
+markers = [
+    "docker: requires docker daemon + working DFlash draft GGUF (set DFLASH_E2E=1 to run)",
+]

@@ -1,4 +1,4 @@
-.PHONY: build run-qwen run-qwen36-27b run-qwen36-27b-dflash run-qwen36-dflash run-reasoning run-gemma stop logs test bench clean
+.PHONY: build run-qwen run-qwen36-27b run-qwen36-27b-dflash run-qwen36-dflash run-reasoning run-gemma stop logs test bench bench-dflash bench-dflash-leg smoke clean
 
 # ── Build ────────────────────────────────────────────────────────────
 build:
@@ -106,6 +106,22 @@ test:
 
 bench:
 	python scripts/battery_test.py
+
+# ── Sprint 004 L4: 3-way decode tok/s benchmark ──────────────────────
+# Reproducibility entrypoint per Phase 6 spec. Operator brings up each
+# leg's profile in sequence; the script appends to a single results JSON.
+# Usage:
+#   make run-qwen36-27b-bg                        ; make bench-dflash-leg LEG=target-only       ; make stop
+#   SPECULATIVE_MODE=autoregressive DRAFT_MODEL_NAME=qwen3.6-27b-dflash \
+#     docker compose --profile qwen36-27b up -d   ; make bench-dflash-leg LEG=autoregressive    ; make stop
+#   make run-qwen36-27b-dflash-bg                 ; make bench-dflash-leg LEG=dflash            ; make stop
+#   make bench-dflash
+bench-dflash:
+	python3 scripts/bench_speculative.py --finalize
+
+bench-dflash-leg:
+	@test -n "$(LEG)" || (echo "ERROR: LEG=target-only|autoregressive|dflash required" && exit 1)
+	python3 scripts/bench_speculative.py --leg $(LEG)
 
 smoke:
 	bash docker/test.sh

@@ -19,7 +19,7 @@
 | 2 — Snapshot cost + VRAM shadow | ✅ done | `vram_seq_checkpoint` class delivers **31–40× speedup** on save+restore (host-RAM 9–22 ms → VRAM-shadow 0.3–0.5 ms); bit-exactness validated |
 | 3 — DFlash cherry-pick | ✅ done (smoke deferred) | PR #22105 squash-merged at HEAD `67cb0d507`; zero conflicts; L1 PPL + vram correctness re-verified post-pick. Smoke test blocked on community draft GGUF format mismatch |
 | 4 — Docker profiles + entrypoint refactor | ✅ done (host-side runs deferred) | Added `qwen36-27b-dflash` + `qwen36-dflash` (EXPERIMENTAL-gated) compose profiles; entrypoint refactored with `SPECULATIVE_MODE` / `DRAFT_MODEL_NAME` / `DRAFT_KV_CACHE_TYPE` / `DRAFT_N_MAX` / `EXPERIMENTAL` env contract; Dockerfile pinned to fork SHA `bd7a7aabb`; `docker/test.sh` extended with cache-preservation gate; Makefile run-targets added |
-| 5 — Validation harness | pending | z-lab pytorch parity, L4 5-prompt median speedup gate; needs source-converted draft GGUFs (community drafts have format mismatch) |
+| 5 — Validation harness | ✅ harness ready (gate runs blocked on source-converted drafts) | `validate_dflash.py` (L2 + L3), `bench_speculative.py` (L4), `tests/test_speculative.py`, `tests/test_dflash_e2e.py`; `make bench-dflash` reproducibility entrypoint. Measurement runs blocked on community-draft tensor-name mismatch (Phase 3 issue) |
 | 6 — Docs + ship gates | pending | README/QUANTIZATION-GUIDE/BENCHMARK-REPORT updates |
 
 ---
@@ -36,6 +36,57 @@
 - Codex agent executed Phase 0 (fork creation, branch setup) and Phase 1
   source-spike on PRs #19493 + #22227. Findings documented in
   `BENCHMARK-REPORT.md` §10.
+
+### 2026-04-27 — Phase 5 execution
+
+- **Phase 5**: Validation harness shipped; actual L2/L3/L4 measurement
+  runs deferred. The community DFlash draft GGUFs
+  (`spiritbuun/Qwen3.6-27B-DFlash-GGUF`,
+  `lym00/Qwen3.6-35B-A3B-DFlash-GGUF-Test`) fail to load against PR
+  #22105's canonical schema (tensor-name mismatch — see Phase 3 §
+  above and BENCHMARK-REPORT.md §10), and source-converted GGUFs
+  require gated z-lab safetensors access we don't have. Every
+  end-to-end gate is therefore parked behind that one blocker; the
+  scaffolding lands so the runs are one command each once a working
+  draft drops.
+- `scripts/validate_dflash.py` — NEW. Covers L2 (greedy equivalence +
+  forced-rejection) and L3 (z-lab pytorch differential) against an
+  already-running `llama-server` on `${BASE_URL:-http://localhost:8080}`.
+  Args: `--target` / `--draft` / `--target-path` / `--draft-path` (all
+  informational, since the server already has the model loaded);
+  `--prompts` (defaults to the 5-prompt set in the L4 spec); `--temp 0
+  --top-k 1 --seed 42 --tokens 256`; `--reference {none,zlab}`;
+  `--force-reject-at N` for the `LLAMA_SPEC_FORCE_REJECT_AT` env
+  (Phase-2-deferred — script sets it but tolerates it being a no-op).
+  Emits `docs/sprints/SPRINT-004-L{2,3}-results.json` matching the L1
+  schema.
+- `scripts/bench_speculative.py` — NEW. L4 3-way decode tok/s
+  (target-only / target+autoregressive-draft / target+DFlash) on the
+  fixed 5-prompt set (copied verbatim from §L4 below). Operator brings
+  up each leg's compose profile in turn; the script appends to a
+  single results JSON. `--finalize` computes ratios and emits a
+  markdown summary. Pulls `timings.predicted_per_second` from
+  llama-server, falls back to wallclock + completion_tokens.
+- `tests/test_speculative.py` — NEW. (a) GGUF metadata validation via
+  `gguf-py` (skips if not installed or no draft on disk); (b) sampler
+  determinism (two requests at `temp=0,seed=42` → identical token
+  IDs); (c) `LLAMA_SPEC_FORCE_REJECT_AT` honor test, `xfail` until the
+  env hook lands in fork's `common/speculative.cpp`. Live-server tests
+  skip if `${BASE_URL}/health` doesn't respond in 2s.
+- `tests/test_dflash_e2e.py` — NEW. `@pytest.mark.docker` integration
+  test. Brings up `qwen36-27b-dflash` profile, polls `/health`,
+  submits one greedy completion, asserts equality with target-only
+  output on the same prompt, tears down. Skipped unless
+  `DFLASH_E2E=1` and `docker` is on PATH (because actually running it
+  needs the working draft GGUF, which is blocked).
+- `Makefile`: `bench-dflash` (calls `--finalize`) and
+  `bench-dflash-leg LEG=...` (per-leg runner). Per Phase 6 spec, an
+  outside reader can reproduce the headline numbers via these targets.
+- `pyproject.toml`: registered the `docker` pytest marker.
+- L1 (KV regression) gate spec is already met by the existing
+  `scripts/ppl_sweep.py` (used in Phase 1 + post-cherry-pick in
+  Phase 3); not rewritten. Both result JSONs are already in
+  `docs/sprints/`.
 
 ### 2026-04-27 — Phase 4 execution
 
@@ -641,28 +692,41 @@ gate; results land in `BENCHMARK-REPORT.md` §10.
 - `tests/test_dflash_e2e.py` — NEW pytest integration via Docker
 
 **Tasks**:
-- [ ] **L1 (KV regression)**: `scripts/ppl_sweep.py` writes
-      `BENCHMARK-REPORT.md`-comparable JSON. Pre-rebase + post-rebase runs
-      compared by table. Gate at ±0.05 PPL.
-- [ ] **L2 (greedy equivalence + forced-rejection)**:
-      `scripts/validate_dflash.py --target qwen3.6-27b --draft qwen3.6-27b-dflash
-      --prompts P1..P5 --temp 0 --top-k 1 --seed 42 --tokens 256` runs target-
-      only and target+DFlash via Docker exec. Diffs token sequences. Pass:
-      256/256 on all 5 prompts. ALSO with `LLAMA_SPEC_FORCE_REJECT_AT=8`
-      env: still 256/256 because checkpoint+replay must be transparent. ALSO
-      with curated low-acceptance prompts (random text, unusual code, etc.)
-      to assert organic rejections occurred (acceptance rate < 90%).
-- [ ] **L3 (z-lab differential — HARD GATE)**:
-      `scripts/validate_dflash.py --reference zlab` clones
-      `https://github.com/z-lab/dflash` at pinned commit, sets up venv with
-      `torch>=2.4 transformers>=4.45`, runs `dflash/model.py` reference on
-      our prompt/seed set. Pass: ≥64 of first 64 tokens match on 3 of 5
-      prompts; acceptance rate within ±5 percentage points of z-lab on those
-      same prompts.
-- [ ] **L4 (speedup median ≥1.3× — HARD GATE)**:
-      `scripts/bench_speculative.py` measures decode tok/s for target-only,
-      target+autoregressive-draft, target+DFlash on Qwen3.6-27B planar3 +
-      Qwen3.6-35B-A3B iso3, on a fixed 5-prompt set:
+- [x] **L1 (KV regression)**: `scripts/ppl_sweep.py` already meets the
+      gate spec — paired-mode (rebased fork vs old fork via docker)
+      writes `BENCHMARK-REPORT.md`-comparable JSON; ran in Phase 1 and
+      again post-cherry-pick in Phase 3 with **0/10 regressions** both
+      times. Results in
+      `docs/sprints/SPRINT-004-L1-results.json` and
+      `docs/sprints/SPRINT-004-L1-results-postcherrypick.json`. No
+      changes needed.
+- [partial] **L2 (greedy equivalence + forced-rejection)**: harness
+      shipped as `scripts/validate_dflash.py`. CLI matches the brief
+      (`--target` / `--draft` / `--prompts` / `--temp 0 --top-k 1 --seed
+      42 --tokens 256` / `--force-reject-at N`). Hits the OpenAI-compat
+      endpoint of an already-running `llama-server`, diffs token IDs,
+      writes `docs/sprints/SPRINT-004-L2-results.json`. Measurement run
+      deferred — needs a working DFlash draft GGUF (community drafts
+      have a tensor-name mismatch with PR #22105's canonical schema;
+      source-converted drafts need gated z-lab safetensors access).
+      `LLAMA_SPEC_FORCE_REJECT_AT` env hook is itself deferred from
+      Phase 2; the script sets it but tolerates it being a no-op.
+- [partial] **L3 (z-lab differential — HARD GATE)**: harness shipped
+      as `scripts/validate_dflash.py --reference zlab`. Clones
+      `https://github.com/z-lab/dflash`, sets up a venv, runs the
+      reference, asserts ≥64/64 on ≥3 of 5 prompts plus acceptance-rate
+      parity within ±5pp. Pinned commit is `HEAD` in source — pin on
+      first run. Measurement run deferred (same blocker as L2 plus an
+      sm_120 wheel question — see Risks R10).
+- [partial] **L4 (speedup median ≥1.3× — HARD GATE)**: harness shipped
+      as `scripts/bench_speculative.py`. 3-way decode tok/s
+      (target-only / target+autoregressive-draft / target+DFlash) on
+      the fixed 5-prompt set; 3 trials per prompt; median per prompt;
+      `--finalize` writes both JSON and a markdown summary. Pulls
+      `timings.predicted_per_second` from llama-server's `usage`,
+      falls back to wallclock. Measurement run deferred — needs a
+      working DFlash draft GGUF (same Phase 3 blocker as L2/L3). The
+      fixed 5-prompt set is:
   1. "Write a quicksort algorithm in Python. Write code only." (coding,
      low-thinking)
   2. "Explain the Pythagorean theorem." (technical prose)
@@ -675,11 +739,20 @@ gate; results land in `BENCHMARK-REPORT.md` §10.
   3 trials each, median per-prompt. Pass: median tok/s across 5 prompts is
   ≥1.3× target-only on Qwen3.6-27B; HEADLINE (not gate): quicksort prompt
   ≥1.5× on Qwen3.6-27B. MoE has no speedup gate (correctness only).
-- [ ] `tests/test_speculative.py`: GGUF metadata validation; sampler
-      determinism; `LLAMA_SPEC_FORCE_REJECT_AT` debug env honors itself.
-- [ ] `tests/test_dflash_e2e.py` (`@pytest.mark.docker`): bring up
-      `qwen36-27b-dflash` profile; submit greedy `/v1/chat/completions`;
-      assert response equal to target-only response on same prompt; tear down.
+- [partial] `tests/test_speculative.py`: shipped. GGUF metadata
+      validation (skips without `gguf-py` or a draft on disk); sampler
+      determinism (skips without a live server at `BASE_URL`);
+      `LLAMA_SPEC_FORCE_REJECT_AT` honor test marked `@pytest.mark.xfail`
+      because the env hook is itself Phase-2-deferred.
+- [partial] `tests/test_dflash_e2e.py` (`@pytest.mark.docker`):
+      shipped. Brings up `qwen36-27b-dflash` profile, submits greedy
+      `/v1/chat/completions`, asserts equality with target-only on the
+      same prompt, tears down. Skipped unless `DFLASH_E2E=1` and
+      `docker` is on PATH — actually running it needs the working
+      draft GGUF (Phase 3 blocker).
+- [x] **Reproducibility entrypoint** (Phase 6 spec, ahead of time):
+      `make bench-dflash` runs `bench_speculative.py --finalize`;
+      `make bench-dflash-leg LEG=...` runs a single leg.
 
 ### Phase 6: Documentation + ship gates (~10% of effort)
 
