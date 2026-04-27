@@ -493,3 +493,44 @@ acceptance rate 0.5):
 These are analytical estimates; actual L4 measurements happen in Phase 5.
 
 Tool: `/home/ravi/repos/llama-cpp-turboquant/build/bin/llama-checkpoint-bench`.
+
+### Sprint 004 Phase 2 — VRAM-resident shadow snapshot (Option A)
+
+The host-RAM path measured above is bounded by PCIe (~14 GB/s pageable host
+memory). Replacing it with a VRAM-resident shadow buffer that uses
+`cudaMemcpyDeviceToDevice` runs at HBM bandwidth instead. Implementation
+in `src/llama-vram-checkpoint.{h,cpp}`: a fork-internal class
+`vram_seq_checkpoint` allocates one `cudaMalloc` shadow buffer per
+recurrent state tensor (R and S per linear_attention layer) and copies
+between the live tensor and the shadow on save/restore. No changes to
+upstream's `llama_state_seq_*_ext` API — this is an additive optimization
+path that the speculative code can opt into.
+
+| Model | KV (K/V) | Path | Total bytes | save+restore | Speedup |
+|-------|:---------:|------|------------:|:------------:|--------:|
+| Qwen3.6-27B | iso3 | host RAM (`PARTIAL_ONLY`) | 156.9 MB | 21.28 ms | 1× |
+| Qwen3.6-27B | iso3 | **VRAM shadow (D→D)** | 156.9 MB | **0.53 ms** | **40×** |
+| Qwen3.6-35B-A3B | iso3 | host RAM (`PARTIAL_ONLY`) | 65.9 MB | 9.00 ms | 1× |
+| Qwen3.6-35B-A3B | iso3 | **VRAM shadow (D→D)** | 65.9 MB | **0.29 ms** | **31×** |
+
+VRAM cost: +66 MB (35B) or +157 MB (27B) of additional device memory for
+the shadow buffer — negligible against the 32 GB RTX 5090 budget.
+
+**Implications:**
+1. Snapshot cost is now a non-factor in speculative decoding cycle time.
+   At 0.5 ms (27B) or 0.3 ms (35B) per save+restore, snapshot is ≤2% of
+   even the fastest verify cycle.
+2. The Phase 2 hard gate of ≤25 ms is exceeded by ~50–100×; the original
+   ≤5 ms gate would also pass comfortably.
+3. The earlier analytical speedup estimates (1.4–1.6× for 35B, ~2.0× for
+   27B) were limited by the 9–22 ms snapshot cost. With VRAM shadow,
+   those estimates rise to ~1.6–1.8× (35B) and ~2.2–2.5× (27B) since
+   snapshot no longer eats verify-cycle time. Final L4 measurement
+   remains the gate.
+4. Bit-exactness of save→mutate→restore is not yet validated; that
+   becomes Subtest B/C of `tests/test-checkpoint-hybrid-state.cpp` in a
+   later session. The current measurement only verifies the round-trip
+   completes and copies the right number of bytes.
+
+Tool: `llama-checkpoint-bench` reports both `partial` (host-RAM upstream
+path) and `vram_partial` (this optimization) on every run.
