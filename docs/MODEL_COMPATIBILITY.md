@@ -60,6 +60,32 @@ docker run --rm --gpus all \
 and append a row above with the model id, worst-layer cos-sim, and the
 serve-time outcome.
 
+## Cross-substrate bit-parity (port correctness)
+
+Empirically verified 2026-04-27 via `scripts/cross_substrate_parity.py`
++ `scripts/cross_substrate_ref/rq_planar3_ref.c` (a self-contained C
+emulator of upstream `johndpope/llama-cpp-turboquant`'s CUDA-path
+planar3 round-trip):
+
+| Input                                  | Bit-identical | Max ULP diff |
+|----------------------------------------|--------------:|-------------:|
+| Synthetic Gaussian (32 768 elements)   |    99.9969 %  |          1   |
+| Qwen3-4B L0 k_norm K (5 120 elements, σ=13.4) |   100.0000 %  |          0   |
+
+The pathological-distribution diff being a perfect 0-ULP match is the
+strongest possible "no-bug" signal: our CUDA port produces the same
+broken output as the C reference when the codebook itself is the
+limit. Everything below is calibration discussion, **not bug
+discussion**.
+
+⚠ Note: upstream `johndpope/llama-cpp-turboquant @ feature/planarquant-kv-cache`
+ships *two different rotation tables* between `ggml-planar-quant.c`
+(CPU path) and `ggml-cuda/planar-iso-constants.cuh` (CUDA path). Our
+kernel matches the CUDA-path table byte-for-byte. KV produced on the
+upstream CPU path won't round-trip through the upstream CUDA path
+either — that's an upstream consistency issue we don't inherit since
+our integration only ever touches the CUDA-path math.
+
 ## Why models fail: the calibration assumption
 
 The planar3 kernel applies a fixed sequence of 64 Givens rotations to
