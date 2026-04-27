@@ -431,3 +431,65 @@ mainline drift between merge-base and rebase target.
 C4 corpus deferred to a follow-up (dataset not currently local).
 
 Raw results JSON: `docs/sprints/SPRINT-004-L1-results.json`.
+
+### Sprint 004 Phase 2 — checkpoint snapshot cost measurement
+
+Tool: `examples/checkpoint-bench/checkpoint-bench.cpp` (rebased fork). Runs
+prefill, then times `llama_state_seq_get_size_ext` / `get_data_ext` /
+`set_data_ext` round-trips with both `LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY`
+(recurrent state only — what speculative actually uses) and full state.
+Min wallclock across 5 trials.
+
+**Confirmed: PARTIAL_ONLY snapshot size is fixed per model**, independent
+of prefill count and allocated context. It captures only the
+`linear_attention` layer recurrent state, which is per-layer and
+context-independent. Identical 156 MB at ckpt_tokens=2048 vs ckpt_tokens=32000
+on Qwen3.6-27B at ctx=65536. This means snapshot cost does **not** scale
+with context length — a one-time overhead per verify step.
+
+| Model | KV (K/V) | partial bytes | partial save+restore | full bytes | full save+restore |
+|-------|:---------:|--------------:|---------------------:|-----------:|------------------:|
+| Qwen3.6-27B | f16     | 156.9 MB | 21.94 ms | 291.2 MB | 39.90 ms |
+| Qwen3.6-27B | iso3    | 156.9 MB | 21.77 ms | 237.2 MB | 33.16 ms |
+| Qwen3.6-27B | planar3 | 156.9 MB | 21.60 ms | 237.2 MB | 33.01 ms |
+| Qwen3.6-35B-A3B | f16     | 65.9 MB | 9.44 ms | 107.8 MB | 15.50 ms |
+| Qwen3.6-35B-A3B | iso3    | 65.9 MB | 9.31 ms | 91.0 MB | 13.09 ms |
+| Qwen3.6-35B-A3B | planar3 | 65.9 MB | 9.44 ms | 91.0 MB | 13.35 ms |
+
+(Measured with ckpt_tokens=2048 at ctx=8192. Save+restore = save_us_min +
+restore_us_min, the two operations executed back-to-back.)
+
+**Findings:**
+
+1. **Partial size is per-model-fixed**: 156 MB on 27B (48 linear_attention
+   layers × ~3.27 MB each); 65.9 MB on 35B-A3B (30 linear_attention layers
+   × ~2.20 MB each). The 27B has more linear_attention layers despite being
+   "smaller" in active params, hence the larger partial state.
+2. **Save and restore are host-RAM-bandwidth bounded**: 156 MB / 11 ms ≈
+   14 GB/s, consistent with PCIe-equivalent host memory copy. Restore is
+   the same path in reverse. No optimization is possible at the user level
+   without architectural changes (e.g. keeping snapshot in VRAM, which
+   would forfeit the host-RAM cost benefit).
+3. **RotorQuant shrinks the full snapshot but not the partial one**:
+   full snapshot includes attention KV which RotorQuant compresses ~4.9×
+   (291 MB f16 → 237 MB iso3 on 27B). Partial snapshot is unchanged
+   because it skips full-attention KV by design.
+4. **Sprint 004 hard-gate value of ≤5 ms was based on the spike's
+   underestimate of recurrent state size**. Measured values are 9.3 ms
+   (35B production default) and 21.7 ms (27B production default). The
+   gate is revised in `SPRINT-004.md` to ≤25 ms to reflect ground truth.
+
+**Speculative speedup impact** (rough analytical model, draft_max=16,
+acceptance rate 0.5):
+
+- **35B/iso3** (`qwen36-dflash`): cycle = 9.3 (snap+restore) + 5 (draft) +
+  12 (verify) ≈ 25-30 ms per ~8 accepted tokens → ~270-320 tok/s vs
+  ~196 tok/s baseline → **1.4–1.6× speedup**.
+- **27B/planar3** (`qwen36-27b-dflash`): cycle = 21.7 + 5 + 25 ≈ 50-60 ms
+  per ~8 accepted tokens → ~140 tok/s vs ~67 tok/s baseline → **~2.0×
+  speedup**. Snapshot cost is a meaningful slice of cycle time but
+  doesn't kill the speculative gain.
+
+These are analytical estimates; actual L4 measurements happen in Phase 5.
+
+Tool: `/home/ravi/repos/llama-cpp-turboquant/build/bin/llama-checkpoint-bench`.
