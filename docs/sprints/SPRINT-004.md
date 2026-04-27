@@ -1,7 +1,8 @@
 # Sprint 004: Rebase Fork + DFlash Block-Diffusion Speculative Decoding on Hybrid Qwen3.6
 
 **Created**: 2026-04-26
-**Status**: In progress (~70% complete) — Phases 0-3 done, Phases 4-6 pending
+**Status**: complete-with-followups — all 6 phases shipped; L2/L3/L4 measurement
+runs deferred to follow-up F-001 (blocked on source-converted draft GGUFs)
 **Last updated**: 2026-04-27
 **Depends on**: Sprint 002 (Docker), RotorQuant fork at `johndpope/llama-cpp-turboquant`
 **Target hardware**: RTX 5090 (32 GB), 123 GB system RAM
@@ -20,7 +21,7 @@
 | 3 — DFlash cherry-pick | ✅ done (smoke deferred) | PR #22105 squash-merged at HEAD `67cb0d507`; zero conflicts; L1 PPL + vram correctness re-verified post-pick. Smoke test blocked on community draft GGUF format mismatch |
 | 4 — Docker profiles + entrypoint refactor | ✅ done (host-side runs deferred) | Added `qwen36-27b-dflash` + `qwen36-dflash` (EXPERIMENTAL-gated) compose profiles; entrypoint refactored with `SPECULATIVE_MODE` / `DRAFT_MODEL_NAME` / `DRAFT_KV_CACHE_TYPE` / `DRAFT_N_MAX` / `EXPERIMENTAL` env contract; Dockerfile pinned to fork SHA `bd7a7aabb`; `docker/test.sh` extended with cache-preservation gate; Makefile run-targets added |
 | 5 — Validation harness | ✅ harness ready (gate runs blocked on source-converted drafts) | `validate_dflash.py` (L2 + L3), `bench_speculative.py` (L4), `tests/test_speculative.py`, `tests/test_dflash_e2e.py`; `make bench-dflash` reproducibility entrypoint. Measurement runs blocked on community-draft tensor-name mismatch (Phase 3 issue) |
-| 6 — Docs + ship gates | pending | README/QUANTIZATION-GUIDE/BENCHMARK-REPORT updates |
+| 6 — Docs + ship gates | ✅ done | README "Speculative Decoding (Experimental)" subsection; BENCHMARK-REPORT.md §10 extended (hybrid explainer, checkpoint summary, L4/z-lab/snapshot-grid TBD tables, acceptance-rate notes); QUANTIZATION-GUIDE.md "Draft model VRAM cost"; SPRINT-004-FOLLOWUPS.md created (9 items, F-001 is the load-bearing blocker for empirical numbers) |
 
 ---
 
@@ -36,6 +37,54 @@
 - Codex agent executed Phase 0 (fork creation, branch setup) and Phase 1
   source-spike on PRs #19493 + #22227. Findings documented in
   `BENCHMARK-REPORT.md` §10.
+
+### 2026-04-27 — Phase 6 execution
+
+- **Phase 6**: Documentation + ship gates only — no code changes. Sprint
+  marked `complete-with-followups`: every phase deliverable is in place,
+  but the empirical L2/L3/L4 numbers remain `TBD` pending a
+  source-converted DFlash draft GGUF (tracked under F-001 in the new
+  `SPRINT-004-FOLLOWUPS.md`). The scaffolding lands so once a working
+  draft drops, each gate is one command.
+- `README.md`: added "Speculative Decoding (Experimental)" subsection
+  under Performance. Documents both compose profiles
+  (`qwen36-27b-dflash` dense, `qwen36-dflash` MoE), the `EXPERIMENTAL=1`
+  opt-in for MoE, the `SPECULATIVE_MODE` / `DRAFT_MODEL_NAME` /
+  `DRAFT_KV_CACHE_TYPE` / `DRAFT_N_MAX` env contract,
+  entrypoint-enforced single-slot, greedy-only validation scope,
+  `LLAMA_SPEC_NO_THINK=1` and its 60–80pp acceptance-rate impact
+  citation (PR #22105), and the F-001 draft-GGUF blocker. Links to
+  `BENCHMARK-REPORT.md` §10 for numbers.
+- `docs/BENCHMARK-REPORT.md` §10: extended with five new subsections
+  appended after the existing Phase 3 cherry-pick paragraph — hybrid
+  architecture explainer (75% recurrent, `seq_rm` returns false on
+  partial-with-final, both upstream PRs landed via rebase, `config.json`
+  layer counts cited); checkpoint mechanism summary referencing the
+  existing (a)–(e) bullets; L4 5-prompt result table (all `TBD`,
+  reproduction commands inline); z-lab parity table (all `TBD`);
+  snapshot wallclock at 6 contexts (8K row preserved from Phase 2 on
+  both production-default cells, 16K/32K/65K/131K/262K rows `TBD`);
+  acceptance-rate notes paragraph on `LLAMA_SPEC_NO_THINK=1`.
+- `docs/QUANTIZATION-GUIDE.md`: added "Draft Model VRAM Cost (Sprint 004
+  — DFlash speculative)" section after the 40 GB tier. Lists draft GGUF
+  sizes (27B q4_k_m draft = 0.96 GB; 35B q8_0 draft = 0.48 GB, both
+  verified via HF API at the pinned SHAs in entrypoint), draft KV at
+  typical contexts (recurrent state per-model-fixed; full-attention KV
+  cells `TBD`), restates Phase 1 finding that snapshot is host-RAM not
+  VRAM, per-profile RTX 5090 (32 GB) accounting table.
+- `docs/sprints/SPRINT-004-FOLLOWUPS.md`: NEW. 9 items (F-001
+  through F-009), matching the SPRINT-001-FOLLOWUPS.md format. F-001
+  (source-converted drafts) is the load-bearing blocker — gates L2/L3/L4
+  measurement plus `tests/test_dflash_e2e.py` actual run plus
+  `validate_dflash.py` actual run. F-002 (`LLAMA_SPEC_FORCE_REJECT_AT`
+  env) tracks the test_speculative.py xfail flip. F-003/F-004 carry
+  forward the formal C++ checkpoint test + runtime guard from Phase 2's
+  partial completion. F-005 tracks the `docker/test.sh`
+  cache-preservation gate first run. F-006 pins z-lab SHA on first L3.
+  F-007 proposes `make bench-dflash-all`. F-008 notes Sprint 005 EAGLE3
+  scope shrunk because the full graph already came along in the Phase 3
+  squash. F-009 closes the `LLAMA_SPEC_NO_THINK=1` doc item.
+- Sprint outcome paragraph appended at end of doc.
 
 ### 2026-04-27 — Phase 5 execution
 
@@ -768,18 +817,35 @@ gate; results land in `BENCHMARK-REPORT.md` §10.
   follow-ups (TBD)
 
 **Tasks**:
-- [ ] Add §10 "Speculative Decoding" with: hybrid architecture explainer,
-      checkpoint mechanism summary (from Phase 1 spike), 3-way tok/s tables
-      for both Qwen3.6 targets, acceptance rates per-prompt, snapshot
-      wallclock at 8K/16K/32K/65K/131K/262K, z-lab parity numbers.
-- [ ] Document the `LLAMA_SPEC_NO_THINK=1` env var; warn that thinking-on
-      drops acceptance rate by 60–80 percentage points.
-- [ ] **Reproducibility task**: an outside reader should be able to run
-      `make bench-dflash` in a fresh clone and reproduce the headline
-      numbers without consulting sprint authors.
-- [ ] Document the `EXPERIMENTAL=1` opt-in for `qwen36-dflash` profile.
-- [ ] Document explicitly: "this sprint validates greedy (`--temp 0
-      --top-k 1`) only; sampling-mode behavior is unverified."
+- [partial] Add §10 "Speculative Decoding" with: hybrid architecture
+      explainer, checkpoint mechanism summary (from Phase 1 spike), 3-way
+      tok/s tables for both Qwen3.6 targets, acceptance rates per-prompt,
+      snapshot wallclock at 8K/16K/32K/65K/131K/262K, z-lab parity
+      numbers. Hybrid explainer + checkpoint summary done. Tables present
+      with structure but cells `TBD` — empirical numbers blocked behind
+      F-001 (source-converted draft GGUF). Phase 2 already filled the 8K
+      snapshot row.
+- [x] Document the `LLAMA_SPEC_NO_THINK=1` env var; warn that thinking-on
+      drops acceptance rate by 60–80 percentage points. README +
+      BENCHMARK-REPORT.md §10 acceptance-rate notes paragraph; cites
+      `examples/speculative-simple/speculative-simple.cpp:134` and
+      `scripts/bench_speculative.py:265`.
+- [partial] **Reproducibility task**: an outside reader should be able to
+      run `make bench-dflash` in a fresh clone and reproduce the headline
+      numbers without consulting sprint authors. Reproduction commands
+      are in BENCHMARK-REPORT.md §10 (L4 leg sequence) and
+      `validate_dflash.py --reference zlab` (L3). Headline numbers
+      themselves remain `TBD` until F-001 unblocks measurement;
+      reproducibility-from-instructions test deferred to that run.
+- [x] Document the `EXPERIMENTAL=1` opt-in for `qwen36-dflash` profile.
+      README "Speculative Decoding (Experimental)" subsection profile
+      table + `EXPERIMENTAL=1 make run-qwen36-dflash` quickstart; cites
+      PR #22105's gpt-oss-20B numbers (0.61–1.27×) as the rationale for
+      no speedup gate on MoE.
+- [x] Document explicitly: "this sprint validates greedy (`--temp 0
+      --top-k 1`) only; sampling-mode behavior is unverified." README
+      "Validation scope" sub-paragraph; cross-references SPRINT-004-
+      DEFERRED.md D-003 (sampling) and D-006 (streaming).
 
 ---
 
@@ -1019,3 +1085,35 @@ These remain after planning; resolution should occur during execution.
 5. ~~**Whether to upstream a COW snapshot contribution**~~ — **RESOLVED:
    not needed.** Phase 1 spike confirms upstream's eager byte-copy approach
    is fine for our use case. D-005 (deferred items) marked archived.
+
+---
+
+## Sprint outcome
+
+All six phases shipped: rebased fork onto current master with **0 PPL
+regressions** across 10 cells (8 quantized cells improved by 0.06–0.60
+PPL); landed `vram_seq_checkpoint` for **31–40× speedup** on snapshot
+save+restore with bit-exactness validated; cherry-picked PR #22105
+(DFlash + the EAGLE3 graph that came along for the ride) with zero
+conflicts and no quality regression; added two opt-in compose profiles
+(`qwen36-27b-dflash` dense, `qwen36-dflash` MoE behind `EXPERIMENTAL=1`)
+with a single-builder entrypoint covering `target-only`/
+`autoregressive`/`dflash` modes; shipped the L2/L3/L4 validation
+harnesses (`scripts/validate_dflash.py`, `scripts/bench_speculative.py`,
+`tests/test_speculative.py`, `tests/test_dflash_e2e.py`) plus a
+`make bench-dflash` reproducibility entrypoint; documented all of it in
+README + QUANTIZATION-GUIDE + BENCHMARK-REPORT.md §10.
+
+The empirical end-to-end numbers (L2 greedy equivalence, L3 z-lab
+parity, L4 ≥1.3× speedup gate) are blocked behind a single issue:
+community DFlash drafts have a tensor-name format mismatch with PR
+#22105's canonical schema, and source-converted drafts require gated
+z-lab safetensors access. Profiles boot through llama-server start;
+draft load is what fails. Tracked under
+[`SPRINT-004-FOLLOWUPS.md`](SPRINT-004-FOLLOWUPS.md) F-001 — that doc is
+the entry point for resuming work and lists 9 follow-ups in total
+(F-001 load-bearing for measurement; F-002 forced-rejection env in
+fork; F-003/F-004 formal C++ test + runtime guard from Phase 2;
+F-005 cache-preservation gate first run; F-006 z-lab SHA pin;
+F-007 `bench-dflash-all` orchestration target; F-008 Sprint 005 EAGLE3
+scope shrunk; F-009 closed). Sprint marked `complete-with-followups`.

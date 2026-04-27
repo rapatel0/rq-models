@@ -206,6 +206,79 @@ Benchmarked on RTX 5090 (32 GB). Full results in [docs/BENCHMARK-REPORT.md](docs
 
 > `planar3` wins on all dense models: same compression as iso3 (4.9×) but lower PPL.
 
+### Speculative Decoding (Experimental)
+
+DFlash block-diffusion speculative decoding lands behind two opt-in compose
+profiles. Both are single-slot, greedy-validated only; sampling-mode behavior
+is unverified. End-to-end measurement is **currently blocked** on a draft-GGUF
+format mismatch (see below) — the profiles boot, but draft load fails until
+source-converted GGUFs land. See [BENCHMARK-REPORT.md §10](docs/BENCHMARK-REPORT.md#10-speculative-decoding-sprint-004-work-in-progress)
+for architecture findings, snapshot-cost numbers, and the placeholder result tables.
+
+| Profile | Target | Draft | KV | Ctx | Speedup gate | Opt-in |
+|---------|--------|-------|:--:|----:|:-------------|:------:|
+| `qwen36-27b-dflash` | Qwen3.6-27B (dense, 27B) | `spiritbuun/Qwen3.6-27B-DFlash-GGUF` | planar3 | 131K | median ≥1.3× / quicksort ≥1.5× | — |
+| `qwen36-dflash` | Qwen3.6-35B-A3B (MoE) | `lym00/Qwen3.6-35B-A3B-DFlash-GGUF-Test` | iso3 | 65K | correctness only (no speedup gate) | `EXPERIMENTAL=1` |
+
+The MoE profile is gated behind `EXPERIMENTAL=1` because PR #22105's reference
+gpt-oss-20B numbers (0.61–1.27×) suggest MoE speedup is workload-dependent and
+may go negative; we ship correctness-validated only. The dense 27B owns the
+hard speedup gate.
+
+```bash
+# Dense 27B — single-slot DFlash on planar3 KV
+make run-qwen36-27b-dflash
+
+# MoE 35B — experimental opt-in (correctness only)
+EXPERIMENTAL=1 make run-qwen36-dflash
+```
+
+#### Env var contract
+
+Set on the compose service or via `docker run -e` (full table in
+[docker/entrypoint.sh:18-23](docker/entrypoint.sh#L18-L23)):
+
+| Variable | Values | Default | Notes |
+|----------|--------|---------|-------|
+| `SPECULATIVE_MODE` | `target-only` / `autoregressive` / `dflash` | `target-only` | Selects the verify path |
+| `DRAFT_MODEL_NAME` | model key from `MODELS` registry | — | Required if mode != target-only |
+| `DRAFT_KV_CACHE_TYPE` | same options as `KV_CACHE_TYPE` | inherits target | Independent draft KV quantization |
+| `DRAFT_N_MAX` | int | `16` | Max draft tokens per verify round |
+| `EXPERIMENTAL` | `0` / `1` | `0` | Required `=1` to enable `qwen36-dflash` |
+
+The entrypoint forces `N_PARALLEL=1` whenever `SPECULATIVE_MODE != target-only`
+([docker/entrypoint.sh:174-179](docker/entrypoint.sh#L174-L179)); multi-slot
+speculative is upstream-uncharted and explicitly out of scope (see
+SPRINT-004-DEFERRED.md D-002).
+
+#### Acceptance-rate tuning
+
+Setting `LLAMA_SPEC_NO_THINK=1` (read in `examples/speculative-simple/speculative-simple.cpp`,
+came in via PR #22105) suppresses Qwen3.x thinking-mode tokens for the
+draft-aligned chat template. Per the upstream PR, leaving thinking on **drops
+acceptance rate by 60–80 percentage points**, so Sprint 004's 5-prompt benchmark
+suite runs with this flag set by default
+([scripts/bench_speculative.py:265](scripts/bench_speculative.py#L265)).
+
+#### Validation scope
+
+This sprint validates greedy decoding only: `--temp 0 --top-k 1 --seed 42`.
+Sampling-mode (temp > 0) speculative behavior is unverified — token sequences
+diverge by design under sampling, so equivalence requires distribution-level
+metrics that are out of scope (see SPRINT-004-DEFERRED.md D-003). Streaming
+(`stream: true`) is similarly deferred (D-006).
+
+#### Blocked: draft-GGUF format mismatch
+
+The two community drafts above use a non-canonical GGUF schema that doesn't
+match PR #22105's `convert_hf_to_gguf.py` output: `general.architecture`
+disagrees, the metadata key prefix is 3-segment instead of 2, and several
+DFlash-specific tensors (e.g. `fc.weight`) are missing. The fork's LLM_KV
+arch-name override (commit `bd7a7aabb`) handles the first two; the tensor-name
+mismatch needs either source-side reconversion against z-lab's gated safetensors
+or fork-side aliasing. Profiles boot; draft load fails until canonical GGUFs
+drop. Tracking under `docs/sprints/SPRINT-004-FOLLOWUPS.md` F-001.
+
 ## Project Structure
 
 ```

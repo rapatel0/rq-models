@@ -118,3 +118,57 @@ behavior:**
 |----------|-------|-------|----------:|:--:|--------:|
 | **Recommended** | **Qwen3.6-35B-A3B** | **UD-Q4_K_XL** | **6.13** | **iso3** | **~400K** |
 | Dense alt | Qwen3.6-27B | UD-Q4_K_XL | 7.09 | planar3 | ~375K |
+
+---
+
+## Draft Model VRAM Cost (Sprint 004 — DFlash speculative)
+
+The two new DFlash profiles add a draft model alongside the target. VRAM
+accounting therefore picks up two new line items: draft weights and draft
+KV cache. The Phase 1 source-spike confirmed (BENCHMARK-REPORT.md §10) that
+**checkpoint snapshots live in host pageable RAM, not VRAM** — the per-verify
+recurrent-state byte-copy goes to `std::vector<uint8_t>`, never to a device
+buffer. Draft VRAM is therefore exactly draft weights + draft KV with no
+snapshot term. The fork's optional `vram_seq_checkpoint` shadow buffer adds
+~157 MB (27B) or ~66 MB (35B) of device memory if enabled, but that is a
+one-time allocation, not a per-checkpoint cost.
+
+### Draft GGUF sizes (pinned in `docker/entrypoint.sh:60-62`)
+
+| Profile draft key | HF repo | File | Size |
+|---|---|---|---:|
+| `qwen3.6-27b-dflash` | `spiritbuun/Qwen3.6-27B-DFlash-GGUF` @ `5e4442a` | `dflash-draft-3.6-q4_k_m.gguf` | 0.96 GB |
+| `qwen3.6-35b-dflash` | `lym00/Qwen3.6-35B-A3B-DFlash-GGUF-Test` @ `3813f31` | `Qwen3.6-35B-A3B-DFlash-q8_0.gguf` | 0.48 GB |
+
+Sizes from the HF API at the pinned SHAs. Both drafts are small relative to
+their targets — 4–6% of target weight size — so draft weight VRAM is not
+the binding constraint.
+
+### Draft KV at typical contexts
+
+The DFlash draft is itself a hybrid Qwen3.6 model and inherits per-layer
+recurrent-state size from the target (see BENCHMARK-REPORT.md §10 Phase 2
+table — partial state is per-model-fixed, context-independent). Full-attention
+KV scales with context and is RotorQuant-quantized at the same factor as the
+target.
+
+| Profile | Draft KV type | Recurrent (fixed) | Full-attn KV @ 65K | Full-attn KV @ 131K |
+|---------|:-------------:|------------------:|-------------------:|--------------------:|
+| `qwen36-27b-dflash` | planar3 | ~157 MB | TBD | TBD |
+| `qwen36-dflash` | iso3 | ~66 MB | TBD (gate is 65K) | n/a (capped at 65K) |
+
+Full-attention KV cells are TBD pending an actual profile boot with a working
+draft GGUF — measurement blocked on the same Phase 3 / Phase 5 issue as the
+L2/L3/L4 gates.
+
+### Per-profile RTX 5090 (32 GB) accounting
+
+| Profile | Target weights | Draft weights | Target KV | Draft KV | Snapshot (host RAM, off-VRAM) | VRAM headroom (32 GB) |
+|---------|---------------:|--------------:|----------:|---------:|------------------------------:|---------------------:|
+| `qwen36-27b-dflash` (planar3, 131K) | 16.4 GB | 0.96 GB | TBD | TBD | ~157 MB (host) | TBD |
+| `qwen36-dflash` (iso3, 65K) | 20.8 GB | 0.48 GB | TBD | TBD | ~66 MB (host) | TBD |
+
+The 65K context cap on `qwen36-dflash` is conservative pending Phase 5
+measurement; Phase 1's spike originally suggested no VRAM headroom impact
+from snapshots, which Phase 2 confirmed. Production cap may rise once draft
+KV at 131K is measured.

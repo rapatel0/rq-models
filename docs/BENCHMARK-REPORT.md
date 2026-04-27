@@ -586,3 +586,145 @@ Validation gates:
 Phase 3 cherry-pick is mergeable, builds clean, doesn't regress quality
 or correctness. The end-to-end DFlash run requires source-converted
 draft GGUFs.
+
+### Sprint 004 — Hybrid architecture explainer
+
+Both production targets are 75% recurrent-layer hybrids. From the released
+`config.json`s: Qwen3.6-35B-A3B has 30 of 40 layers as `linear_attention`
+(Gated Delta Net / SSM); Qwen3.6-27B dense has 48 of 64. Naive speculative
+decoding is structurally broken on these models because
+`llama_memory_recurrent::seq_rm()` returns `false` for any partial removal
+that includes the final position — so a rejected speculative tail cannot be
+trimmed with the same primitive used on full-attention KV. The upstream fix
+is speculative checkpointing: snapshot the recurrent state before verify,
+restore + replay the accepted prefix on rejection. Both pieces (PR `#19493`
+recurrent-state checkpointing, PR `#22227` speculative-simple integration)
+are merged in mainline master and came in for free via Phase 1's rebase.
+DFlash itself (PR `#22105`) added the block-draft + verify orchestration on
+top.
+
+### Sprint 004 — Checkpoint mechanism summary
+
+See bullets (a)–(e) above and the Phase 1 spike findings paragraph for the
+load-bearing details. Recap:
+
+- Eager byte-copy via the public C API `llama_state_seq_get_size_ext` /
+  `get_data_ext` / `set_data_ext`; no `llama_memory_*::checkpoint_save`
+  symbol.
+- Snapshot bytes live in host pageable RAM (`std::vector<uint8_t>`), not
+  VRAM. The Phase 2 measurement table above is host-RAM-bandwidth bound.
+- `io.write_tensor` → `ggml_backend_tensor_get` reads the real backend
+  tensor. RotorQuant's quantized planar/iso K layouts go through unchanged
+  as raw bytes — no decoded/dequantized intermediate view, no double-VRAM
+  during the snapshot window.
+- For hybrid models, `LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY` snapshots
+  recurrent state only; full-attention KV rollback is handled separately
+  via `llama_memory_seq_rm()`. Quantized planar/iso layouts store rows of
+  whole blocks, so tail-trim is whole-block drop with no partial-block
+  work needed — `seq_rm` is correct on the trim path.
+- The fork-internal `vram_seq_checkpoint` (commit `9b191cd87`) is an
+  additive optimization: shadow buffers in VRAM, `cudaMemcpyDeviceToDevice`
+  saves and restores. 31–40× speedup measured on production targets;
+  bit-exact round-trip validated. Snapshot is no longer a meaningful slice
+  of cycle time.
+
+### Sprint 004 Phase 5 — Speculative L4 results (TBD)
+
+5-prompt benchmark, 3 trials per prompt, median per prompt. All runs
+`--temp 0 --top-k 1 --seed 42 --tokens 256`, `LLAMA_SPEC_NO_THINK=1`.
+Pulls `timings.predicted_per_second` from llama-server, falls back to
+wallclock + completion_tokens. Headline gate: median ≥1.3× target-only on
+Qwen3.6-27B. Quicksort-only headline (not gated): ≥1.5×.
+
+| # | Prompt | target-only tok/s | target+autoregressive tok/s | target+DFlash tok/s | accept rate | DFlash speedup |
+|:-:|--------|------------------:|----------------------------:|--------------------:|------------:|---------------:|
+| 1 | Write a quicksort algorithm in Python. Write code only. | TBD | TBD | TBD | TBD | TBD |
+| 2 | Explain the Pythagorean theorem. | TBD | TBD | TBD | TBD | TBD |
+| 3 | Plan a 1 day trip to DC. | TBD | TBD | TBD | TBD | TBD |
+| 4 | Summarize the plot of Hamlet in 3 paragraphs. | TBD | TBD | TBD | TBD | TBD |
+| 5 | Write a SQL query to find the top 5 customers by revenue. | TBD | TBD | TBD | TBD | TBD |
+
+**Status: blocked** on source-converted draft GGUFs (see Phase 3 §; Phase 5
+deferred the measurement run until a draft GGUF passes draft-load). Tracking
+under `docs/sprints/SPRINT-004-FOLLOWUPS.md` F-001.
+
+Reproduction (operator runs each leg sequentially, then finalizes):
+
+```
+make run-qwen36-27b-bg
+make bench-dflash-leg LEG=target-only
+make stop
+
+SPECULATIVE_MODE=autoregressive DRAFT_MODEL_NAME=qwen3.6-27b-dflash \
+    docker compose --profile qwen36-27b up -d
+make bench-dflash-leg LEG=autoregressive
+make stop
+
+make run-qwen36-27b-dflash-bg
+make bench-dflash-leg LEG=dflash
+make stop
+
+make bench-dflash
+```
+
+### Sprint 004 Phase 5 — z-lab pytorch parity (TBD)
+
+L3 differential gate. `validate_dflash.py --reference zlab` clones the
+pinned z-lab repo, sets up a venv, runs the reference on the same
+prompt/seed, and asserts ≥64 of first 64 tokens match on ≥3 of 5 prompts
+plus acceptance-rate parity within ±5pp.
+
+| # | Prompt | first-64 token match | accept rate (fork) | accept rate (z-lab) | Δ accept |
+|:-:|--------|---------------------:|-------------------:|--------------------:|---------:|
+| 1 | quicksort | TBD | TBD | TBD | TBD |
+| 2 | Pythagorean | TBD | TBD | TBD | TBD |
+| 3 | DC trip | TBD | TBD | TBD | TBD |
+| 4 | Hamlet | TBD | TBD | TBD | TBD |
+| 5 | SQL top-5 | TBD | TBD | TBD | TBD |
+
+**Status: blocked** on the same draft GGUF issue plus the open question of
+whether z-lab's pytorch reference runs on RTX 5090 sm_120 (Risk R10).
+
+Reproduction:
+
+```
+python3 /home/ravi/repos/turbo/scripts/validate_dflash.py \
+    --target qwen3.6-27b --draft qwen3.6-27b-dflash \
+    --reference zlab --base-url http://localhost:8080
+```
+
+`scripts/validate_dflash.py:51` currently pins `ZLAB_COMMIT = "HEAD"`;
+F-006 in the followups doc tracks the real-SHA pin on first invocation.
+
+### Sprint 004 Phase 5 — Snapshot wallclock at 6 contexts (TBD)
+
+Phase 2's measurements above used `ckpt_tokens=2048` at `ctx=8192`. Partial
+snapshot size is per-model-fixed; the per-context table here covers full
+snapshot scaling (relevant only if a future caller drops PARTIAL_ONLY) and
+records VRAM-shadow numbers across the same context grid.
+
+| Context | 35B/iso3 host RAM | 35B/iso3 VRAM shadow | 27B/planar3 host RAM | 27B/planar3 VRAM shadow |
+|--------:|------------------:|---------------------:|---------------------:|------------------------:|
+|     8K  | 9.31 ms (Phase 2) | 0.29 ms (Phase 2)    | 21.77 ms (Phase 2)   | 0.53 ms (Phase 2)       |
+|    16K  | TBD               | TBD                  | TBD                  | TBD                     |
+|    32K  | TBD               | TBD                  | TBD                  | TBD                     |
+|    65K  | TBD               | TBD                  | TBD                  | TBD                     |
+|   131K  | n/a (cap 65K)     | n/a (cap 65K)        | TBD                  | TBD                     |
+|   262K  | n/a (cap 65K)     | n/a (cap 65K)        | n/a (cap 131K)       | n/a (cap 131K)          |
+
+Phase 2 already filled the 8K row from Phase 2's `ckpt_tokens=2048 ctx=8192`
+run on both production-default (target, KV-type) pairs. The remaining cells
+are TBD pending a full snapshot-cost sweep.
+
+### Sprint 004 — Acceptance-rate notes
+
+`LLAMA_SPEC_NO_THINK=1` (read in `examples/speculative-simple/speculative-simple.cpp:134`,
+came in via PR `#22105`) suppresses Qwen3.x thinking-mode tokens for the
+draft-aligned chat template (`enable_thinking = false`,
+`reasoning_effort = "low"` for gpt-oss). Per the upstream PR, leaving thinking
+on **drops acceptance rate by 60–80 percentage points** on Qwen3.x targets,
+because the thinking-mode token distribution diverges from what the small
+draft was distilled to predict. Sprint 004's L4 benchmark sets this flag
+unconditionally (`scripts/bench_speculative.py:265`); the L2 differential
+harness inherits it from the running server. Sampling-mode behavior under
+either thinking setting is not validated this sprint.
