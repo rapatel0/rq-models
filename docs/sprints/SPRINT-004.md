@@ -4,7 +4,7 @@
 **Hardware**: NVIDIA RTX 5090 (32 GB), with Qwen3.6-27B Q4_K_M as primary target
 **Model targets**: Qwen3.6-27B (primary, dense, planar3 default), Qwen3.5-27B (parity check), Qwen3.6-35B-A3B (future MoE in Sprint 005+)
 **Current best baseline (llama.cpp substrate)**: planar3 PPL = 8.20 (wikitext-2, ctx=4096)
-**Status**: planned (supersedes Sprint 003 SpectralQuant — see [SPRINT-003.md](SPRINT-003.md) close note)
+**Status**: **closed 2026-04-27** — Phase 2c lossy-passthrough integration and Qwen3.5/3.6 family validation complete. Phase 2.5 packed-storage wire-in carries over to Sprint 005 as the primary deliverable. See [SPRINT-005.md](SPRINT-005.md) for the next plan.
 
 **Locked decisions** (resolved 2026-04-25 from the Open Questions list):
 - **vLLM pin**: `v0.19.1` (latest stable, released 2026-04-18). v0.20.0 is
