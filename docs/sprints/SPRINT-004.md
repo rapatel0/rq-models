@@ -18,7 +18,7 @@
 | 1 — Rebase + L1 PPL gate | ✅ done | 150 fork commits squash-merged onto master `78433f606`; **0 PPL regressions across 10 cells**; 8/10 cells *improved* by 0.06–0.60 PPL vs old fork |
 | 2 — Snapshot cost + VRAM shadow | ✅ done | `vram_seq_checkpoint` class delivers **31–40× speedup** on save+restore (host-RAM 9–22 ms → VRAM-shadow 0.3–0.5 ms); bit-exactness validated |
 | 3 — DFlash cherry-pick | ✅ done (smoke deferred) | PR #22105 squash-merged at HEAD `67cb0d507`; zero conflicts; L1 PPL + vram correctness re-verified post-pick. Smoke test blocked on community draft GGUF format mismatch |
-| 4 — Docker profiles + entrypoint refactor | pending | Add `qwen36-dflash`, `qwen36-27b-dflash` profiles; `SPECULATIVE_MODE` / `DRAFT_MODEL_NAME` env in entrypoint.sh |
+| 4 — Docker profiles + entrypoint refactor | ✅ done (host-side runs deferred) | Added `qwen36-27b-dflash` + `qwen36-dflash` (EXPERIMENTAL-gated) compose profiles; entrypoint refactored with `SPECULATIVE_MODE` / `DRAFT_MODEL_NAME` / `DRAFT_KV_CACHE_TYPE` / `DRAFT_N_MAX` / `EXPERIMENTAL` env contract; Dockerfile pinned to fork SHA `bd7a7aabb`; `docker/test.sh` extended with cache-preservation gate; Makefile run-targets added |
 | 5 — Validation harness | pending | z-lab pytorch parity, L4 5-prompt median speedup gate; needs source-converted draft GGUFs (community drafts have format mismatch) |
 | 6 — Docs + ship gates | pending | README/QUANTIZATION-GUIDE/BENCHMARK-REPORT updates |
 
@@ -36,6 +36,41 @@
 - Codex agent executed Phase 0 (fork creation, branch setup) and Phase 1
   source-spike on PRs #19493 + #22227. Findings documented in
   `BENCHMARK-REPORT.md` §10.
+
+### 2026-04-27 — Phase 4 execution
+
+- **Phase 4**: Repo-side changes only — actual `docker build` and per-profile
+  boot validation deferred to a host that has the rebased fork's binaries
+  built and the existing model cache populated (the gate runs in
+  `docker/test.sh`).
+- `docker/Dockerfile`: bumped `ROTORQUANT_REPO`/`ROTORQUANT_BRANCH`/
+  `ROTORQUANT_COMMIT` to `rapatel0/llama-cpp-turboquant#feature/sprint-004-rebase-dflash @ bd7a7aabb`.
+  Added `llama-speculative-simple`, `llama-checkpoint-bench`, `llama-cli`,
+  `llama-bench` to runtime stage so DFlash + Phase 5 harness work in-container.
+- `docker/entrypoint.sh`: registered `qwen3.6-27b-dflash` and
+  `qwen3.6-35b-dflash` draft entries with pinned repo SHAs in `MODELS_HASH`
+  (5e4442a / 3813f31a). Added env contract for `SPECULATIVE_MODE` (target-only
+  / autoregressive / dflash), `DRAFT_MODEL_NAME`, `DRAFT_KV_CACHE_TYPE`,
+  `DRAFT_N_MAX`, and `EXPERIMENTAL` (gates qwen3.6-35b-dflash). Refactored to
+  a single command builder using `--model-draft` / `--draft-max` /
+  `--cache-type-{k,v}-draft` / `--dflash` flags (verified present in fork's
+  `common/arg.cpp`). Speculative modes force `N_PARALLEL=1`. Helper
+  `download_model_if_missing()` consolidates target+draft download logic.
+- `docker-compose.yml`: added two profiles. `qwen36-27b-dflash` (dense 27B,
+  planar3 KV, 131K ctx, single-slot, dflash). `qwen36-dflash` (35B MoE,
+  iso3 KV, 65K ctx for snapshot headroom, gated by host `EXPERIMENTAL=1`).
+  Both inherit speculative defaults from `x-llm-base`.
+- `Makefile`: added `run-qwen36-27b-dflash[-bg]`, `run-qwen36-dflash[-bg]`
+  targets; included new profiles in `stop` / `logs` / `clean` aggregate
+  targets.
+- `docker/test.sh`: rewrote as 4-stage smoke (build → cache snapshot →
+  per-profile boot → cache diff). Iterates all 8 existing profiles + the new
+  `qwen36-27b-dflash`; skips a profile when its model isn't pre-cached in
+  the `llm-models` volume; final mtime diff is the cache-preservation hard
+  gate. `qwen36-dflash` (MoE) excluded from the new-profile loop because
+  its draft GGUF format mismatch (Phase 3) means boot will fail at draft
+  load — exercise that profile manually with `EXPERIMENTAL=1` once a
+  source-converted draft GGUF lands.
 
 ### 2026-04-27 — Phases 1–3 execution
 - **Phase 1**: rebase via `git merge --squash` (linear rebase abandoned
@@ -553,33 +588,43 @@ without breaking the 8 existing profiles.
 - `docker/test.sh` — add DFlash smoke test step
 
 **Tasks**:
-- [ ] Extend `MODELS` associative array with two draft entries:
-      ```
-      [qwen3.6-27b-dflash]="spiritbuun/Qwen3.6-27B-DFlash-GGUF|<filename>|131072|"
-      [qwen3.6-35b-dflash]="lym00/Qwen3.6-35B-A3B-DFlash-GGUF-Test|<filename>|65536|"
-      ```
-      First action of Phase 4: `hf list` both repos and pin filenames + repo
-      SHAs into the registry as `_HASH` annotations.
-- [ ] Add env var contract to `entrypoint.sh`: `SPECULATIVE_MODE` ∈
+- [x] Extend `MODELS` associative array with two draft entries:
+      `[qwen3.6-27b-dflash]="spiritbuun/Qwen3.6-27B-DFlash-GGUF|dflash-draft-3.6-q4_k_m.gguf|131072|"`
+      and
+      `[qwen3.6-35b-dflash]="lym00/Qwen3.6-35B-A3B-DFlash-GGUF-Test|Qwen3.6-35B-A3B-DFlash-q8_0.gguf|65536|"`.
+      Repo SHAs pinned in a parallel `MODELS_HASH` map: 27B-draft @
+      `5e4442a299deb9282b3dfe179de6e8330b19d9de`, 35B-draft @
+      `3813f31a9fa837b79dce98e6ec49ddeaa4082772`. (Pinned via HF API; `hf list`
+      isn't a current `huggingface-hub` subcommand on 1.11.x.)
+- [x] Env var contract added to `entrypoint.sh`: `SPECULATIVE_MODE` ∈
       {target-only, autoregressive, dflash}; `DRAFT_MODEL_NAME`;
       `DRAFT_KV_CACHE_TYPE` (default `${KV_CACHE_TYPE}`); `DRAFT_N_MAX`
-      (default 16); `EXPERIMENTAL` (gates `qwen36-dflash`).
-- [ ] Sub-task — entrypoint refactor preservation: write `docker/test.sh`
-      cases that exercise all 8 existing profiles with `--profile X up -d
-      --no-deps` and verify the served binary still responds correctly. This
-      is the hard gate that the entrypoint refactor doesn't break existing
-      users.
-- [ ] `qwen36-27b-dflash` service: `MODEL_NAME: qwen3.6-27b`,
+      (default 16); `EXPERIMENTAL` (gates `qwen3.6-35b*` + dflash).
+      Speculative modes force `N_PARALLEL=1`. Single command builder uses
+      verified flags from fork's `common/arg.cpp`: `-md`/`--model-draft`,
+      `--draft-max`, `-ctkd`/`-ctvd`, `--dflash`.
+- [x] Sub-task — entrypoint refactor preservation: `docker/test.sh`
+      rewritten to (a) snapshot mtimes of all files in the `llm-models`
+      named volume, (b) iterate every existing profile + `qwen36-27b-dflash`
+      and assert each boots + serves a one-shot completion when its model
+      is pre-cached, (c) re-snapshot and diff. Profiles whose models aren't
+      pre-cached are SKIPped, not failed — preservation is the gate, not
+      on-demand download. Actual host-side run deferred to a machine with
+      pre-warmed `llm-models` volume.
+- [x] `qwen36-27b-dflash` service: `MODEL_NAME: qwen3.6-27b`,
       `DRAFT_MODEL_NAME: qwen3.6-27b-dflash`, `KV_CACHE_TYPE: planar3`,
-      `N_PARALLEL: 1` (single-slot enforced).
-- [ ] `qwen36-dflash` service: same shape, `MODEL_NAME: qwen3.6-35b`,
+      `N_PARALLEL: 1` (entrypoint also enforces).
+- [x] `qwen36-dflash` service: `MODEL_NAME: qwen3.6-35b`,
       `DRAFT_MODEL_NAME: qwen3.6-35b-dflash`, `KV_CACHE_TYPE: iso3`,
-      `CTX_SIZE: 65536` (worst-case checkpoint headroom safety; can extend
-      to 262K if Phase 1 spike says snapshot is COW), gated by
-      `--profile qwen36-dflash` AND `EXPERIMENTAL=1` env.
-- [ ] **Cache preservation gate** (HARD): no model in the existing
-      `llm-models` named volume gets re-downloaded when the Dockerfile pin
-      bumps. Verified by file-level `mtime` comparison.
+      `CTX_SIZE: 65536`, gated by host `EXPERIMENTAL=1`. (Snapshot is host-RAM
+      MB-scale, not COW — see Phase 2 — so the 65K cap is not strictly
+      required for headroom; kept as the experimental default until Phase 5
+      VRAM accounting confirms 262K viability.)
+- [partial] **Cache preservation gate** (HARD): logic implemented in
+      `docker/test.sh` (`volume_mtime_snapshot` pre/post + `diff -q`).
+      Verification deferred — must run on a host with the existing model
+      cache and the rebuilt rotorquant image. Phase 5 should run this as
+      the first step before any benchmark work.
 
 ### Phase 5: Validation harness + benchmarks (~15% of effort)
 

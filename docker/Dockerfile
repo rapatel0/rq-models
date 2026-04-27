@@ -15,11 +15,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git cmake build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-ARG ROTORQUANT_COMMIT=20efe75cf1127268cb2ad73accd5ccb6f33064ff
-ARG ROTORQUANT_BRANCH=feature/planarquant-kv-cache
+# Sprint 004 (rebase + DFlash cherry-pick) — pinned to rapatel0 fork.
+# Rebases 150-commit RotorQuant fork onto upstream master 78433f606 and
+# squash-merges PR #22105 (DFlash) at upstream pinned-head 67cb0d507.
+ARG ROTORQUANT_REPO=https://github.com/rapatel0/llama-cpp-turboquant.git
+ARG ROTORQUANT_BRANCH=feature/sprint-004-rebase-dflash
+ARG ROTORQUANT_COMMIT=bd7a7aabbfd247ae3bdc7a61c04194eae0c9e1be
 
 RUN git clone --depth 100 -b ${ROTORQUANT_BRANCH} \
-    https://github.com/johndpope/llama-cpp-turboquant.git /src \
+    ${ROTORQUANT_REPO} /src \
     && cd /src && git checkout ${ROTORQUANT_COMMIT}
 
 WORKDIR /src
@@ -49,9 +53,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Non-root user for runtime
 RUN useradd -m -u 1001 -s /bin/bash llm
 
-# Copy binaries and shared libraries from build stage
+# Copy binaries and shared libraries from build stage.
+# Sprint 004: speculative-simple, checkpoint-bench, cli, bench added for DFlash
+# smoke + Phase 5 benchmark harness.
 COPY --from=build /src/build/bin/llama-server /app/bin/llama-server
 COPY --from=build /src/build/bin/llama-perplexity /app/bin/llama-perplexity
+COPY --from=build /src/build/bin/llama-cli /app/bin/llama-cli
+COPY --from=build /src/build/bin/llama-bench /app/bin/llama-bench
+COPY --from=build /src/build/bin/llama-checkpoint-bench /app/bin/llama-checkpoint-bench
+COPY --from=build /src/build/bin/llama-speculative-simple /app/bin/llama-speculative-simple
 COPY --from=build /src/build/bin/lib*.so* /app/lib/
 
 # Copy entrypoint and benchmark script

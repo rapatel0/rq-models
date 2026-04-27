@@ -1,4 +1,4 @@
-.PHONY: build run-qwen run-qwen36-27b run-reasoning run-gemma stop logs test bench clean
+.PHONY: build run-qwen run-qwen36-27b run-qwen36-27b-dflash run-qwen36-dflash run-reasoning run-gemma stop logs test bench clean
 
 # ── Build ────────────────────────────────────────────────────────────
 build:
@@ -10,6 +10,14 @@ run-qwen:
 
 run-qwen36-27b:
 	docker compose --profile qwen36-27b up
+
+# ── Sprint 004: DFlash speculative decoding ───────────────────────────
+run-qwen36-27b-dflash:
+	docker compose --profile qwen36-27b-dflash up
+
+# qwen36-dflash (35B MoE) is experimental — must opt in.
+run-qwen36-dflash:
+	EXPERIMENTAL=1 docker compose --profile qwen36-dflash up
 
 run-reasoning:
 	docker compose --profile reasoning up
@@ -30,6 +38,22 @@ run-qwen36-27b-bg:
 	docker compose --profile qwen36-27b up -d
 	@echo "Waiting for server..." && \
 	for i in $$(seq 1 150); do \
+		curl -sf http://localhost:$${PORT:-8080}/health >/dev/null 2>&1 && echo "Ready on port $${PORT:-8080}" && break; \
+		sleep 1; \
+	done
+
+run-qwen36-27b-dflash-bg:
+	docker compose --profile qwen36-27b-dflash up -d
+	@echo "Waiting for server..." && \
+	for i in $$(seq 1 240); do \
+		curl -sf http://localhost:$${PORT:-8080}/health >/dev/null 2>&1 && echo "Ready on port $${PORT:-8080}" && break; \
+		sleep 1; \
+	done
+
+run-qwen36-dflash-bg:
+	EXPERIMENTAL=1 docker compose --profile qwen36-dflash up -d
+	@echo "Waiting for server..." && \
+	for i in $$(seq 1 240); do \
 		curl -sf http://localhost:$${PORT:-8080}/health >/dev/null 2>&1 && echo "Ready on port $${PORT:-8080}" && break; \
 		sleep 1; \
 	done
@@ -57,6 +81,7 @@ logs:
 	docker compose \
 	  --profile qwen --profile qwen36-q3 --profile qwen36-iq3 \
 	  --profile qwen36-27b --profile qwen36-27b-q3 --profile qwen36-27b-iq3 \
+	  --profile qwen36-27b-dflash --profile qwen36-dflash \
 	  --profile qwen36-throughput \
 	  --profile reasoning --profile gemma \
 	  --profile qwen-q3 --profile qwen-q3-xxs --profile qwen-iq4 --profile gemma-q3 \
@@ -68,6 +93,7 @@ stop:
 	docker compose \
 	  --profile qwen --profile qwen36-q3 --profile qwen36-iq3 \
 	  --profile qwen36-27b --profile qwen36-27b-q3 --profile qwen36-27b-iq3 \
+	  --profile qwen36-27b-dflash --profile qwen36-dflash \
 	  --profile qwen36-throughput \
 	  --profile reasoning --profile gemma \
 	  --profile qwen-q3 --profile qwen-q3-xxs --profile qwen-iq4 --profile gemma-q3 \
@@ -89,6 +115,7 @@ clean:
 	docker compose \
 	  --profile qwen --profile qwen36-q3 --profile qwen36-iq3 \
 	  --profile qwen36-27b --profile qwen36-27b-q3 --profile qwen36-27b-iq3 \
+	  --profile qwen36-27b-dflash --profile qwen36-dflash \
 	  --profile reasoning --profile gemma \
 	  down --volumes
 	docker rmi rotorquant 2>/dev/null || true
