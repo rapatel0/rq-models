@@ -548,3 +548,41 @@ the shadow buffer — negligible against the 32 GB RTX 5090 budget.
 Tool: `llama-checkpoint-bench` reports both `partial` (host-RAM upstream
 path), `vram_partial` (this optimization), and `vram_correctness`
 (bit-exactness verdict) on every run.
+
+### Sprint 004 Phase 3 — DFlash + EAGLE3 cherry-pick from PR #22105
+
+PR #22105 cherry-picked at HEAD `67cb0d507080e42cc012ac0bdb8f09622f64455b`
+(2026-04-27, "dflash: enable llama-cli & llama-server with np=1") via
+`git merge --squash pr-22105`. Zero conflicts: all 5 files in the
+intersection (`common/arg.cpp`, `common/speculative.cpp`,
+`src/llama-context.cpp`, `src/llama-graph.cpp`,
+`tools/server/server-context.cpp`) auto-merged via 3-way merge. Total:
+28 files, +1,890 / −52 lines, including new model graphs
+`src/models/dflash.cpp` (+161) and `src/models/eagle3.cpp` (+186).
+
+Validation gates:
+- **Compile**: clean. All 6 binaries built (`llama-perplexity`,
+  `llama-server`, `llama-cli`, `llama-bench`, `llama-checkpoint-bench`,
+  `llama-speculative-simple`).
+- **L1 PPL regression** (re-ran post-cherry-pick): identical to Phase 1.
+  10 cells, 0 regressions, 8 quantized cells improved 0.06–0.60 PPL vs
+  old fork. See `docs/sprints/SPRINT-004-L1-results-postcherrypick.json`.
+- **vram_seq_checkpoint correctness**: re-verified post-cherry-pick.
+  27B/iso3 `tail_match: true`, save+restore = 0.53 ms (unchanged from
+  Phase 2).
+- **DFlash smoke test**: deferred. Community-built drafts on HuggingFace
+  (spiritbuun/Qwen3.6-27B-DFlash-GGUF, lym00/Qwen3.6-35B-A3B-DFlash-GGUF-Test)
+  use a non-canonical GGUF format that doesn't match the PR's
+  `convert_hf_to_gguf.py` output:
+  - `general.architecture = "dflash-draft"` (vs canonical `"dflash"`)
+  - 3-segment key prefix `<arch>.dflash.<key>` (vs canonical `<arch>.<key>`)
+  - Tensor names differ: missing `fc.weight` and other expected tensors
+  Fork commit `bd7a7aabb` adds an LLM_KV arch_name override that fixes
+  the first two issues; the tensor-name mismatch requires either
+  re-converting from z-lab's gated source safetensors via our PR's
+  `convert_hf_to_gguf.py` or fork-side tensor aliasing. Defers to
+  Phase 5 validation harness.
+
+Phase 3 cherry-pick is mergeable, builds clean, doesn't regress quality
+or correctness. The end-to-end DFlash run requires source-converted
+draft GGUFs.

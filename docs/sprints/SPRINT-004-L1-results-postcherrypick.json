@@ -1,0 +1,125 @@
+{
+  "meta": {
+    "timestamp": 1777309882.9573286,
+    "ctx": 2048,
+    "tolerance": 0.05,
+    "mode": "pair"
+  },
+  "cells": [
+    {
+      "model": "qwen3.6-27b",
+      "corpus": "wikitext-2",
+      "kv_type": "f16",
+      "ppl_new": 8.041,
+      "info_new": "elapsed=90s",
+      "ppl_old": 8.0491,
+      "info_old": "elapsed=110s",
+      "delta": -0.008099999999998886,
+      "pass": true
+    },
+    {
+      "model": "qwen3.6-27b",
+      "corpus": "wikitext-2",
+      "kv_type": "iso3",
+      "ppl_new": 8.1838,
+      "info_new": "elapsed=138s",
+      "ppl_old": 8.7742,
+      "info_old": "elapsed=137s",
+      "delta": -0.5904000000000007,
+      "pass": true
+    },
+    {
+      "model": "qwen3.6-27b",
+      "corpus": "wikitext-2",
+      "kv_type": "iso4",
+      "ppl_new": 8.2147,
+      "info_new": "elapsed=149s",
+      "ppl_old": 8.8099,
+      "info_old": "elapsed=149s",
+      "delta": -0.5952000000000002,
+      "pass": true
+    },
+    {
+      "model": "qwen3.6-27b",
+      "corpus": "wikitext-2",
+      "kv_type": "planar3",
+      "ppl_new": 8.2,
+      "info_new": "elapsed=132s",
+      "ppl_old": 8.4974,
+      "info_old": "elapsed=122s",
+      "delta": -0.29740000000000144,
+      "pass": true
+    },
+    {
+      "model": "qwen3.6-27b",
+      "corpus": "wikitext-2",
+      "kv_type": "planar4",
+      "ppl_new": 8.1031,
+      "info_new": "elapsed=136s",
+      "ppl_old": 8.5622,
+      "info_old": "elapsed=133s",
+      "delta": -0.4591000000000012,
+      "pass": true
+    },
+    {
+      "model": "qwen3.6-35b",
+      "corpus": "wikitext-2",
+      "kv_type": "f16",
+      "ppl_new": 6.239,
+      "info_new": "elapsed=44s",
+      "ppl_old": 6.2362,
+      "info_old": "elapsed=76s",
+      "delta": 0.0027999999999996916,
+      "pass": true
+    },
+    {
+      "model": "qwen3.6-35b",
+      "corpus": "wikitext-2",
+      "kv_type": "iso3",
+      "ppl_new": 6.3199,
+      "info_new": "elapsed=102s",
+      "ppl_old": 6.3768,
+      "info_old": "elapsed=81s",
+      "delta": -0.05690000000000062,
+      "pass": true
+    },
+    {
+      "model": "qwen3.6-35b",
+      "corpus": "wikitext-2",
+      "kv_type": "iso4",
+      "ppl_new": 6.2893,
+      "info_new": "elapsed=82s",
+      "ppl_old": 6.3525,
+      "info_old": "elapsed=89s",
+      "delta": -0.06320000000000014,
+      "pass": true
+    },
+    {
+      "model": "qwen3.6-35b",
+      "corpus": "wikitext-2",
+      "kv_type": "planar3",
+      "ppl_new": 6.2843,
+      "info_new": "elapsed=67s",
+      "ppl_old": 6.4352,
+      "info_old": "elapsed=67s",
+      "delta": -0.15090000000000003,
+      "pass": true
+    },
+    {
+      "model": "qwen3.6-35b",
+      "corpus": "wikitext-2",
+      "kv_type": "planar4",
+      "ppl_new": 6.2489,
+      "info_new": "elapsed=63s",
+      "ppl_old": 6.3857,
+      "info_old": "elapsed=69s",
+      "delta": -0.13680000000000003,
+      "pass": true
+    }
+  ],
+  "summary": {
+    "pass": 10,
+    "fail": 0,
+    "total": 10
+  }
+}
