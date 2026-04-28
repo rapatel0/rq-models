@@ -136,8 +136,68 @@ same session; `make build` now reachable.
 
 ---
 
+## F-014: Prompt-3 ("Plan a 1 day trip to DC") transport-errors on speculative legs
+
+**Severity**: Important (drops one of five gate-prompt cells; doesn't
+block the sprint but means the median DFlash× is computed over 4 of 5
+prompts).
+
+**What**: After the F-011 fix, the qwen Phase 1 L4 sweep collected
+target-only fine on all 5 prompts, but prompt 3 ("Plan a 1 day trip
+to DC.") failed on **both** speculative legs (autoregressive AND
+DFlash) with the bench harness's "transport error / connection
+reset" pattern, exhausting all 9 retries (3 trials × 3 attempts). The
+other 4 prompts each completed 3 trials cleanly.
+
+```
+[autoregressive][3/5][trial 0..2] retry after transport error (attempt 1..3/3)
+[dflash][3/5][trial 0..2] retry after transport error (attempt 1..3/3)
+```
+
+100% draft acceptance on the prompts that did complete (P1,2,4,5),
+so this isn't an acceptance/correctness regression — the speculative
+path can't sustain a request on this specific prompt content.
+
+**Why interesting**: target-only finishes prompt 3 fine, so it isn't
+an OOM or model-load issue. The repro is the *same draft* + *same
+target* + *one specific prompt* failing reproducibly across two
+distinct speculative modes. Suggests a content-specific sequence in
+P3 trips a state in the draft graph that legacy autoregressive and
+DFlash both share.
+
+**Why discovered**: Phase 1 L4 sweep on `qwen` (Qwen3.6-27B + DFlash),
+2026-04-28. Logged in `/tmp/sprint005-bench-qwen.log`.
+
+**Suggested sprint**: Sprint 006-dflash or whenever DFlash performance
+work happens — no immediate need to block on it; the 4 remaining
+prompts gave a clear gate verdict (FAIL ≥1.3×) so P3 wouldn't have
+flipped the outcome.
+
+**Investigation pointers**:
+- Repro: `make run-qwen-bg && curl ... -d '...Plan a 1 day trip to
+  DC...' --max-time 60`. Compare to `--max-time 60` against
+  qwen-target-only.
+- Check `docker logs rotorquant-qwen` immediately after the failure
+  for any speculative-path warnings or `LOG_ERR` lines (DFlash
+  draft / encoder failures log on lines 805, 829 of
+  `common/speculative.cpp`).
+- The harness's retry waits + restarts the request; if the server
+  hangs (vs crashes), the bench exhausts retries while the server is
+  fine. That suggests a deadlock or infinite-loop in the draft path
+  rather than a crash.
+
+**Files**:
+- fork: `common/speculative.cpp` (DFlash draft path, autoregressive
+  draft path)
+- repo: `scripts/bench_speculative.py` (retry harness — the existing
+  retry hardening did its job here, surfacing the failure cleanly
+  rather than masking it)
+
+---
+
 | Item | Severity | Suggested Sprint | Files |
 |------|----------|------------------|-------|
 | F-011 | resolved | — | fork commit `40856a1d2`; rotorquant image rebuilt at the new pin; smoke verified 3 sequential requests stable |
 | F-012 | Important | Immediate | `docs/sprints/SPRINT-005-experiments.json`, `scripts/sweep_dflash.py` |
 | F-013 | resolved | — | fork commit `afec3622...` pushed; `docker/Dockerfile` pin landed |
+| F-014 | Important | Sprint 006-dflash or DFlash perf work | fork `common/speculative.cpp` draft paths; repo `scripts/bench_speculative.py` (harness handled correctly) |
