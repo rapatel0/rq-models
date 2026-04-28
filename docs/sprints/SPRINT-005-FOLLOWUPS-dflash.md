@@ -202,6 +202,8 @@ flipped the outcome.
 | F-013 | resolved | — | fork commit `afec3622...` pushed; `docker/Dockerfile` pin landed |
 | F-014 | Important | Sprint 006-dflash or DFlash perf work | fork `common/speculative.cpp` draft paths; repo `scripts/bench_speculative.py` (harness handled correctly) |
 | F-015 | Important | Sprint 006-dflash | redesign `tests/test_speculative.py::TestForceReject` to actually exercise the env hook (the monkeypatch.setenv approach can't reach the dockerized server) |
+| F-016 | Critical (correctness of bench reporting) | Sprint 006-dflash | fork `tools/server/server-context.cpp` — `timings.draft_n` reports post-verify accepted count, not total drafts generated; observed acceptance metric reads 100% even when real rate is ~37% |
+| F-017 | Critical (interpretation) | Sprint 006-dflash | `qwen` with thinking-on dropped to ~37% real acceptance (predicted by Sprint 005 risk row #1); the apparent "DFlash slow" is mostly thinking-on regime cost, not implementation defect; bench should publish both regimes |
 
 ---
 
@@ -246,3 +248,109 @@ runtime (more invasive on fork side).
 - potentially `tests/conftest.py` (param fixture)
 - fork: nothing additional needed — the C++ ctest already covers
   this properly
+
+---
+
+## F-016: `timings.draft_n` reports post-verify count, not raw drafts generated
+
+**Severity**: Critical (the bench's "100% acceptance" headline is
+misleading — actual rate is ~37% on thinking-on prompts).
+
+**What**: llama-server's response includes `timings.draft_n` and
+`timings.draft_n_accepted`. The bench harness computes
+`acceptance_rate = draft_n_accepted / draft_n` and got 100% on every
+non-erroring leg of Sprint 005's Phase 1 sweep. **That's a metric
+artifact, not reality**.
+
+The server's own internal log line tells the truth:
+
+```
+draft acceptance rate = 1.00000 (  107 accepted /   107 generated)   <-- API metric
+statistics unknown: #calls(b,g,a) = 1 19 19, #gen drafts = 19,
+                    #acc drafts = 19, #gen tokens = 285,
+                    #acc tokens = 107                                <-- real picture
+```
+
+Two different counters:
+- API path (`timings.draft_n`): 107 / 107 = 100% — counts only the
+  draft tokens that survived verify and got committed to output.
+- Internal stats: 285 generated / 107 accepted = 37.5% — the real
+  draft acceptance rate on this prompt with thinking-on.
+
+So 178 of 285 generated draft tokens were rejected by verify and
+discarded. The wasted draft compute is a meaningful chunk of the
+end-to-end speculative cost, and explains why Sprint 005's Phase 1
+results showed sub-1× DFlash× even at "100% acceptance".
+
+**Why discovered**: 2026-04-28, while diagnosing why the qwen36 MoE
+showed median DFlash× = 0.52 despite a tiny ~480M draft and ~100%
+reported acceptance. Per-request timing showed 19 rounds × ~15 drafts
+generating 285 tokens to produce 128 output tokens, while the
+acceptance metric still read 100%.
+
+**Suggested fix**: surface the real `#gen drafts` and `#acc drafts`
+counts via the OpenAI-compat response (probably extending
+`timings` with `draft_n_generated` separate from
+`draft_n_accepted`). Bench harness then uses the new field. May also
+warrant deprecating the existing `draft_n` semantics (or renaming to
+`draft_n_committed`).
+
+**Files**:
+- fork: `tools/server/server-context.cpp` (response build path that
+  fills `timings.*`)
+- repo: `scripts/bench_speculative.py` (harness reads new field once
+  fork ships it; falls back gracefully on older fork pins)
+- repo: regenerate Sprint 005 summary docs once F-016 + F-017 land
+  with corrected acceptance numbers
+
+---
+
+## F-017: Sprint 005 results need a thinking-off comparison row
+
+**Severity**: Critical (interpretation of Sprint 005's gate verdict).
+
+**What**: Sprint 005 chose thinking-on as the validation regime
+because that's what production ships. Sprint 005 Phase 1 measured
+median DFlash× = 0.80 on qwen / 0.52 on qwen36 and reported FAIL on
+Hard Gate #3. Per-request timing analysis on 2026-04-28 (qwen36
+Pythagorean) revealed the real draft acceptance rate is ~37%, not
+the 100% the metric reports. **This matches Sprint 005 risk row #1's
+prediction exactly**:
+
+> "L4 ≥1.3× median fails on qwen (27B + DFlash) with thinking-on |
+> Medium | Medium | Document the gap honestly. Sprint 004 chose
+> thinking-on as the validation regime; PR's 60–80pp acceptance loss
+> with thinking-on is a known deployment cost."
+
+So the FAIL verdict is honest, but the **root cause is thinking-on
+acceptance penalty**, not "DFlash draft graph cost > target verify
+cost" as my BENCHMARK-REPORT discussion section claimed. With ~37%
+acceptance instead of 100%, ~60% of draft compute is wasted, and even
+a tiny 480M draft can't compensate.
+
+To make the verdict useful for operators, Sprint 005's measurement
+should be re-run with thinking-off (`LLAMA_SPEC_NO_THINK=1` per the
+PR's original benchmark regime) and both regimes published side by
+side. PR #22105's published numbers were thinking-off — comparing
+them apples-to-oranges with our thinking-on numbers makes DFlash look
+worse than it is on the regime it was designed for.
+
+**Why discovered**: same 2026-04-28 diagnostic session as F-016. The
+"why is DFlash so slow" question only resolves once you read the
+internal server stats and realize the acceptance number was
+misreported.
+
+**Suggested action**: Sprint 006-dflash should re-run Phase 1 with
+both `LLAMA_SPEC_NO_THINK=1` (PR baseline regime) and thinking-on
+(deployed regime) and publish both rows. The thinking-off numbers
+should land closer to PR's published 1.5–2× speedup, validating that
+the implementation isn't broken — it's just penalized hard by
+thinking-on.
+
+**Files**:
+- repo: `scripts/bench_speculative.py` — add `--no-think` flag (or
+  parameterize the regime in `bench-dflash-all`)
+- repo: `Makefile` — add `bench-dflash-all-nothink PROFILE=...`
+- repo: `docs/BENCHMARK-REPORT.md` — re-publish with both regimes
+- repo: `README.md` — update the headline summary block to caveat
+  the thinking-on penalty

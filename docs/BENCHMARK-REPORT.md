@@ -684,42 +684,67 @@ tok/s flat), so per-token target cost is small and the DFlash draft
 graph (encoder + decoder + block sampling) costs more than 3B-active
 verifies save.
 
-#### Why does DFlash lose with 100% acceptance?
+#### Why does DFlash lose? (revised 2026-04-28 — the headline 100% acceptance was a metric artifact)
 
-Every speculative leg ran at 100% draft acceptance (every draft token
-was correct vs. target). Yet DFlash is net-slower than target-only on
-4 of 5 qwen prompts and 5 of 5 qwen36 prompts. Mechanism: DFlash
-draft cost per produced token > target-only verify cost per token.
-Concretely each draft step runs an encoder on accumulated target
-features, a decoder on the noise block, and per-position sampling
-across `block_size` positions; the per-block cost compares
-unfavorably with `block_size` target-only verifies, especially on
-fast targets (MoE active-3B, dense 27B Q4_K_XL on a 5090).
+Initial diagnosis (and the table's "accept rate" column) reported
+100% draft acceptance, suggesting DFlash draft cost dominated. **That
+acceptance number is a metric reporting bug** (F-016): the
+OpenAI-compat response's `timings.draft_n` counts only post-verify
+accepted tokens both as numerator and denominator, hiding the real
+rejection rate. The server's own internal log tells a different story:
 
-The win condition for DFlash is *expensive* targets — older or
-heavily-quantized models where target verify dominates and DFlash
-draft amortizes. The current Qwen3.6 + RTX 5090 + Q4_K_XL stack
-doesn't hit that regime.
+```
+slot print_timing: ...
+draft acceptance rate = 1.00000 ( 107 accepted / 107 generated)   <-- API metric
+statistics unknown: ... #gen drafts = 19, #acc drafts = 19,
+                       #gen tokens = 285, #acc tokens = 107       <-- real picture
+```
 
-Quicksort is the lone qwen prompt where DFlash wins (1.10×); it has
-the most repetitive token structure (boilerplate `def`, `if`,
-`return`, `else`), which both the autoregressive and DFlash drafts
-predict efficiently. The other prompts produce more entropic
-content, increasing per-draft-step cost relative to target's flat
-verify cost.
+Real acceptance rate on qwen36 Pythagorean: **107/285 = 37.5%**, not
+100%. 178 of 285 generated draft tokens were rejected by verify and
+discarded. **This matches Sprint 005's risk row #1 prediction
+exactly** — the Sprint 004 plan documented that "PR's 60–80pp
+acceptance loss with thinking-on is a known deployment cost" and
+chose thinking-on as the validation regime anyway. Sprint 005
+measured the cost.
+
+So the FAIL verdict is honest, but the root cause is **thinking-on
+acceptance penalty**, not DFlash draft graph overhead. With 37%
+acceptance on a tiny 480M draft, ~60% of draft compute is wasted on
+rejected tokens and the verify path can't amortize.
+
+PR #22105's published numbers were thinking-**off**
+(`LLAMA_SPEC_NO_THINK=1`). Comparing them apples-to-oranges with
+Sprint 005's thinking-on numbers makes DFlash look worse than it is
+on the regime it was designed for. Filed as F-017: Sprint 006-dflash
+should re-publish with both regimes side by side so operators can
+read the regime-appropriate number.
+
+Quicksort is the lone qwen prompt where DFlash wins (1.10×) because
+its content is highly predictable (boilerplate `def`, `if`,
+`return`, `else`) and the draft acceptance stays high even with
+thinking-on. The other prompts produce more entropic content where
+thinking-mode tokens pull the draft off-distribution and acceptance
+collapses.
 
 #### Hard Gate verdict
 
-Hard Gate #3 (≥1.3× median DFlash× on `qwen`): **FAIL** at 0.80×.
-The 27B + DFlash stack does not deliver a measurable speedup at the
-deployed thinking-on regime on the 5-prompt set with Q4_K_XL on a
-5090. Sprint 005 documents this honestly rather than claiming a win.
+Hard Gate #3 (≥1.3× median DFlash× on `qwen`): **FAIL** at 0.80× on
+the **thinking-on** regime. The fork's DFlash implementation may well
+hit ≥1.3× on thinking-off — Sprint 005 just didn't measure it. Sprint
+005 documents the thinking-on FAIL honestly rather than claiming a
+win on the regime it didn't exercise.
 
-Suggested follow-on (filed in `SPRINT-005-FOLLOWUPS-dflash.md`):
-profile the DFlash draft hot path, evaluate whether a smaller draft
-(distilled from 27B, or a cheaper draft architecture) closes the gap.
-Tighter quantization on target (Q3_K_M / Q2_K) would also shift the
-ratio in DFlash's favor.
+Suggested follow-ons (filed in `SPRINT-005-FOLLOWUPS-dflash.md`):
+- F-016: surface the real `#gen drafts` count via
+  `timings.draft_n_generated` (separate from the post-verify
+  `draft_n_accepted` count). Bench harness reads the new field.
+- F-017: re-run Phase 1 with `LLAMA_SPEC_NO_THINK=1` and publish
+  both regimes side by side. Expect thinking-off numbers to land
+  near PR #22105's published 1.5–2× range.
+- Investigation only: profile the draft hot path; evaluate
+  smaller/cheaper drafts; consider tighter target quantization
+  (Q3_K_M / Q2_K) which would shift the ratio in DFlash's favor.
 
 #### Reproduction
 
