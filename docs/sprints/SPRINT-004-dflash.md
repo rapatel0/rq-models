@@ -1,4 +1,10 @@
-# Sprint 004: Rebase Fork + DFlash Block-Diffusion Speculative Decoding on Hybrid Qwen3.6
+# Sprint 004-dflash: Rebase Fork + DFlash Block-Diffusion Speculative Decoding on Hybrid Qwen3.6
+
+> **Track suffix**: `-dflash` — this sprint is the llama.cpp DFlash
+> speculative-decoding feature track on `sprint/004-dflash`. A separate
+> Sprint 004 (`SPRINT-004.md`, no suffix) on `main` covers the orthogonal
+> vLLM-substrate planar3 port. Sprint *numbers* run independently per
+> track until the planning skill convention is sorted.
 
 **Created**: 2026-04-26
 **Status**: complete-with-followups — all 6 phases shipped; L2/L3/L4 measurement
@@ -21,7 +27,7 @@ runs deferred to follow-up F-001 (blocked on source-converted draft GGUFs)
 | 3 — DFlash cherry-pick | ✅ done (smoke deferred) | PR #22105 squash-merged at HEAD `67cb0d507`; zero conflicts; L1 PPL + vram correctness re-verified post-pick. Smoke test blocked on community draft GGUF format mismatch |
 | 4 — Docker profiles + entrypoint refactor | ✅ done (host-side runs deferred) | Added `qwen36-27b-dflash` + `qwen36-dflash` (EXPERIMENTAL-gated) compose profiles; entrypoint refactored with `SPECULATIVE_MODE` / `DRAFT_MODEL_NAME` / `DRAFT_KV_CACHE_TYPE` / `DRAFT_N_MAX` / `EXPERIMENTAL` env contract; Dockerfile pinned to fork SHA `bd7a7aabb`; `docker/test.sh` extended with cache-preservation gate; Makefile run-targets added |
 | 5 — Validation harness | ✅ harness ready (gate runs blocked on source-converted drafts) | `validate_dflash.py` (L2 + L3), `bench_speculative.py` (L4), `tests/test_speculative.py`, `tests/test_dflash_e2e.py`; `make bench-dflash` reproducibility entrypoint. Measurement runs blocked on community-draft tensor-name mismatch (Phase 3 issue) |
-| 6 — Docs + ship gates | ✅ done | README "Speculative Decoding (Experimental)" subsection; BENCHMARK-REPORT.md §10 extended (hybrid explainer, checkpoint summary, L4/z-lab/snapshot-grid TBD tables, acceptance-rate notes); QUANTIZATION-GUIDE.md "Draft model VRAM cost"; SPRINT-004-FOLLOWUPS.md created (9 items, F-001 is the load-bearing blocker for empirical numbers) |
+| 6 — Docs + ship gates | ✅ done | README "Speculative Decoding (Experimental)" subsection; BENCHMARK-REPORT.md §10 extended (hybrid explainer, checkpoint summary, L4/z-lab/snapshot-grid TBD tables, acceptance-rate notes); QUANTIZATION-GUIDE.md "Draft model VRAM cost"; SPRINT-004-FOLLOWUPS-dflash.md created (9 items, F-001 is the load-bearing blocker for empirical numbers) |
 
 ---
 
@@ -44,7 +50,7 @@ runs deferred to follow-up F-001 (blocked on source-converted draft GGUFs)
   marked `complete-with-followups`: every phase deliverable is in place,
   but the empirical L2/L3/L4 numbers remain `TBD` pending a
   source-converted DFlash draft GGUF (tracked under F-001 in the new
-  `SPRINT-004-FOLLOWUPS.md`). The scaffolding lands so once a working
+  `SPRINT-004-FOLLOWUPS-dflash.md`). The scaffolding lands so once a working
   draft drops, each gate is one command.
 - `README.md`: added "Speculative Decoding (Experimental)" subsection
   under Performance. Documents both compose profiles
@@ -72,7 +78,7 @@ runs deferred to follow-up F-001 (blocked on source-converted draft GGUFs)
   typical contexts (recurrent state per-model-fixed; full-attention KV
   cells `TBD`), restates Phase 1 finding that snapshot is host-RAM not
   VRAM, per-profile RTX 5090 (32 GB) accounting table.
-- `docs/sprints/SPRINT-004-FOLLOWUPS.md`: NEW. 9 items (F-001
+- `docs/sprints/SPRINT-004-FOLLOWUPS-dflash.md`: NEW. 9 items (F-001
   through F-009), matching the SPRINT-001-FOLLOWUPS.md format. F-001
   (source-converted drafts) is the load-bearing blocker — gates L2/L3/L4
   measurement plus `tests/test_dflash_e2e.py` actual run plus
@@ -302,7 +308,7 @@ work — verified by `gh api repos/ggml-org/llama.cpp/pulls/22105/files`.
 
 EAGLE3, multi-slot speculative serving, non-greedy sampler validation, MoE
 deep-dive profiling, and any custom `seq_rm` block-aware truncation are
-explicitly out of scope. See `SPRINT-004-DEFERRED.md`.
+explicitly out of scope. See `SPRINT-004-DEFERRED-dflash.md`.
 
 ---
 
@@ -442,7 +448,7 @@ Implications:
   planar/iso layouts store rows of whole blocks → tail trim is whole-block
   drop with no partial-block work needed. The Claude v1 draft's proposed
   `kv_cache_quantized_seq_rm()` block-aware helper remains correctly
-  out-of-scope (deferred item D-005 in SPRINT-004-DEFERRED.md is unchanged
+  out-of-scope (deferred item D-005 in SPRINT-004-DEFERRED-dflash.md is unchanged
   for the same reason).
 
 ### Decode loop (annotated for hybrid)
@@ -567,7 +573,7 @@ mainline commits that included quantization-kernel improvements.
       `wikitext-2-raw-v1` test split at ctx=2048. **10/10 cells pass**, 0
       regressions; 8/10 *improved* (rebased fork has lower PPL than old
       fork by 0.06–0.60 PPL on quantized types). Results in
-      `docs/sprints/SPRINT-004-L1-results.json` and
+      `docs/sprints/SPRINT-004-L1-results-dflash.json` and
       `docs/BENCHMARK-REPORT.md` §10. C4 corpus deferred (dataset not
       currently local).
 - [x] **Architecture spike** (HARD GATE) — COMPLETE: Read upstream PRs
@@ -714,7 +720,7 @@ and `src/models/eagle3.cpp` (+186). Full EAGLE3 came along for the ride
 - [x] **Re-run L1 PPL regression sweep** post-cherry-pick. Result:
       identical to Phase 1 — 10/10 pass, 0 regressions. Cherry-pick is
       quality-neutral on RotorQuant KV paths. Results in
-      `docs/sprints/SPRINT-004-L1-results-postcherrypick.json`.
+      `docs/sprints/SPRINT-004-L1-results-postcherrypick-dflash.json`.
 - [x] **Re-verify vram_seq_checkpoint bit-exactness** post-cherry-pick.
       27B/iso3 still 0.53 ms round-trip with `tail_match: true`. No
       regression.
@@ -812,8 +818,8 @@ gate; results land in `BENCHMARK-REPORT.md` §10.
       writes `BENCHMARK-REPORT.md`-comparable JSON; ran in Phase 1 and
       again post-cherry-pick in Phase 3 with **0/10 regressions** both
       times. Results in
-      `docs/sprints/SPRINT-004-L1-results.json` and
-      `docs/sprints/SPRINT-004-L1-results-postcherrypick.json`. No
+      `docs/sprints/SPRINT-004-L1-results-dflash.json` and
+      `docs/sprints/SPRINT-004-L1-results-postcherrypick-dflash.json`. No
       changes needed.
 - [partial] **L2 (greedy equivalence + forced-rejection)**: harness
       shipped as `scripts/validate_dflash.py`. CLI matches the brief
@@ -879,7 +885,7 @@ gate; results land in `BENCHMARK-REPORT.md` §10.
 - `docs/QUANTIZATION-GUIDE.md` — add "Draft model VRAM cost" subsection;
   note that 24 GB tier with DFlash drops default context from 131K to 65K
   if Phase 1 spike confirms full-copy snapshots
-- `docs/sprints/SPRINT-004-FOLLOWUPS.md` — record any execution-discovered
+- `docs/sprints/SPRINT-004-FOLLOWUPS-dflash.md` — record any execution-discovered
   follow-ups (TBD)
 
 **Tasks**:
@@ -953,9 +959,9 @@ gate; results land in `BENCHMARK-REPORT.md` §10.
 | `docs/BENCHMARK-REPORT.md` | Modify | Add §10 Speculative Decoding |
 | `docs/QUANTIZATION-GUIDE.md` | Modify | Add "Draft model VRAM cost" subsection |
 | `README.md` | Modify | "Speculative Decoding (Experimental)" section |
-| `docs/sprints/SPRINT-004.md` | This file | Final sprint doc |
-| `docs/sprints/SPRINT-004-DEFERRED.md` | Create | Deferred items |
-| `docs/sprints/SPRINT-004-FOLLOWUPS.md` | Create at end of sprint | Execution-discovered items |
+| `docs/sprints/SPRINT-004-dflash.md` | This file | Final sprint doc |
+| `docs/sprints/SPRINT-004-DEFERRED-dflash.md` | Create | Deferred items |
+| `docs/sprints/SPRINT-004-FOLLOWUPS-dflash.md` | Create at end of sprint | Execution-discovered items |
 
 ---
 
@@ -1176,7 +1182,7 @@ community DFlash drafts have a tensor-name format mismatch with PR
 #22105's canonical schema, and source-converted drafts require gated
 z-lab safetensors access. Profiles boot through llama-server start;
 draft load is what fails. Tracked under
-[`SPRINT-004-FOLLOWUPS.md`](SPRINT-004-FOLLOWUPS.md) F-001 — that doc is
+[`SPRINT-004-FOLLOWUPS-dflash.md`](SPRINT-004-FOLLOWUPS-dflash.md) F-001 — that doc is
 the entry point for resuming work and lists 9 follow-ups in total
 (F-001 load-bearing for measurement; F-002 forced-rejection env in
 fork; F-003/F-004 formal C++ test + runtime guard from Phase 2;

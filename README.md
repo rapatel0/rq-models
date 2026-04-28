@@ -293,7 +293,7 @@ optics would not reflect deployed behavior. Operators who specifically want PR
 This sprint validates greedy decoding only: `--temp 0 --top-k 1 --seed 42`.
 Sampling-mode (temp > 0) speculative behavior is unverified — token sequences
 diverge by design under sampling, so equivalence requires distribution-level
-metrics that are out of scope (see SPRINT-004-DEFERRED.md D-003). Streaming
+metrics that are out of scope (see SPRINT-004-DEFERRED-dflash.md D-003). Streaming
 (`stream: true`) is similarly deferred (D-006).
 
 #### Source-converted drafts (`make convert-drafts`)

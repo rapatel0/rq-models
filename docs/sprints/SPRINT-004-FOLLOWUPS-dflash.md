@@ -2,7 +2,7 @@
 
 Items discovered during Sprint 004 execution (Phases 0–6) that need to be
 addressed in future work. This is the execution-discovered companion to
-`SPRINT-004-DEFERRED.md` (planning-time deferrals) — items here were not
+`SPRINT-004-DEFERRED-dflash.md` (planning-time deferrals) — items here were not
 on the original deferred list but emerged as the sprint actually ran.
 
 ---
@@ -218,7 +218,7 @@ needed. What remains is repo-side: a Docker compose profile (e.g.
 analogous to Sprint 004's DFlash gates.
 
 **Suggested next action**: When Sprint 005 plans, note that D-001 in
-SPRINT-004-DEFERRED.md is partially-mitigated — the full graph is
+SPRINT-004-DEFERRED-dflash.md is partially-mitigated — the full graph is
 already in fork. Plan the harness work, not the cherry-pick.
 
 **Files**: SPRINT-005 planning docs (when created).

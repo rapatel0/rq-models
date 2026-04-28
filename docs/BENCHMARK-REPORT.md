@@ -430,7 +430,7 @@ mainline drift between merge-base and rebase target.
 
 C4 corpus deferred to a follow-up (dataset not currently local).
 
-Raw results JSON: `docs/sprints/SPRINT-004-L1-results.json`.
+Raw results JSON: `docs/sprints/SPRINT-004-L1-results-dflash.json`.
 
 ### Sprint 004 Phase 2 — checkpoint snapshot cost measurement
 
@@ -477,7 +477,7 @@ restore_us_min, the two operations executed back-to-back.)
 4. **Sprint 004 hard-gate value of ≤5 ms was based on the spike's
    underestimate of recurrent state size**. Measured values are 9.3 ms
    (35B production default) and 21.7 ms (27B production default). The
-   gate is revised in `SPRINT-004.md` to ≤25 ms to reflect ground truth.
+   gate is revised in `SPRINT-004-dflash.md` to ≤25 ms to reflect ground truth.
 
 **Speculative speedup impact** (rough analytical model, draft_max=16,
 acceptance rate 0.5):
@@ -566,7 +566,7 @@ Validation gates:
   `llama-speculative-simple`).
 - **L1 PPL regression** (re-ran post-cherry-pick): identical to Phase 1.
   10 cells, 0 regressions, 8 quantized cells improved 0.06–0.60 PPL vs
-  old fork. See `docs/sprints/SPRINT-004-L1-results-postcherrypick.json`.
+  old fork. See `docs/sprints/SPRINT-004-L1-results-postcherrypick-dflash.json`.
 - **vram_seq_checkpoint correctness**: re-verified post-cherry-pick.
   27B/iso3 `tail_match: true`, save+restore = 0.53 ms (unchanged from
   Phase 2).
@@ -646,7 +646,7 @@ Qwen3.6-27B. Quicksort-only headline (not gated): ≥1.5×.
 
 **Status: blocked** on source-converted draft GGUFs (see Phase 3 §; Phase 5
 deferred the measurement run until a draft GGUF passes draft-load). Tracking
-under `docs/sprints/SPRINT-004-FOLLOWUPS.md` F-001.
+under `docs/sprints/SPRINT-004-FOLLOWUPS-dflash.md` F-001.
 
 Reproduction (operator runs each leg sequentially, then finalizes):
 
