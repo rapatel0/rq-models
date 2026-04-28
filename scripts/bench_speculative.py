@@ -64,7 +64,8 @@ def default_md_path(profile: str) -> Path:
 
 
 def post_completion(base_url: str, prompt: str, max_tokens: int, seed: int,
-                    temperature: float, top_k: int, timeout_s: int) -> dict:
+                    temperature: float, top_k: int, timeout_s: int,
+                    no_think: bool = False) -> dict:
     payload = {
         "model": "rotorquant",
         "messages": [{"role": "user", "content": prompt}],
@@ -74,6 +75,13 @@ def post_completion(base_url: str, prompt: str, max_tokens: int, seed: int,
         "seed": seed,
         "stream": False,
     }
+    if no_think:
+        # Disable Qwen3.x thinking mode via chat_template_kwargs (handled by
+        # tools/server/server-context.cpp's enable_thinking path). Sprint
+        # 005 follow-up F-017: PR #22105's published 1.5-2x DFlash speedups
+        # were measured with thinking off; this flag puts the bench in that
+        # regime so we can compare apples to apples.
+        payload["chat_template_kwargs"] = {"enable_thinking": False}
     data = json.dumps(payload).encode()
     req = urllib.request.Request(
         f"{base_url}/v1/chat/completions",
@@ -170,6 +178,7 @@ def run_leg(args, leg: str) -> dict:
                     resp = post_completion(
                         args.base_url, p, args.tokens, args.seed,
                         args.temp, args.top_k, args.request_timeout_s,
+                        no_think=getattr(args, "no_think", False),
                     )
                     tps = parse_decode_tps(resp)
                     draft_stats = parse_draft_stats(resp)
@@ -260,6 +269,7 @@ def run_leg(args, leg: str) -> dict:
             "seed": args.seed,
             "temp": args.temp,
             "top_k": args.top_k,
+            "no_think": getattr(args, "no_think", False),
         },
         "cells": cells,
     }
@@ -392,6 +402,9 @@ def main():
                     help="timeout for each completion request")
     ap.add_argument("--output", default=None)
     ap.add_argument("--md-output", default=None)
+    ap.add_argument("--no-think", action="store_true",
+                    help="Send chat_template_kwargs.enable_thinking=false "
+                    "(matches PR #22105's published-numbers regime)")
     args = ap.parse_args()
 
     out = Path(args.output) if args.output else default_output_path(args.profile)
