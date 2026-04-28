@@ -1,0 +1,10 @@
+{
+  "status": "blocked",
+  "profile": "qwen36",
+  "reason": "Speculative server instability on this host: first completion succeeds, subsequent completions frequently reset/hang. Full 5x3x3 run not collected.",
+  "timestamp": 1777349300,
+  "retry_commands": [
+    "nvidia-smi",
+    "make bench-dflash-all PROFILE=qwen36"
+  ]
+}

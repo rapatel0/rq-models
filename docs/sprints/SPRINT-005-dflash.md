@@ -6,7 +6,7 @@
 > for the vLLM-substrate planar3 port. Sprint *numbers* run independently
 > per track until we sort the planning skill convention.
 
-**Status**: Phase 0 + 0.5 complete (2026-04-27); Phase 1 ready
+**Status**: execution partial/blocked (2026-04-27) — Phase 0/0.5 done; Phase 1/2 blocked by speculative runtime instability; Phase 3 blocked on fork push permission. See `docs/sprints/SPRINT-005-CODEX-EXECUTION-LOG.md`.
 **Created**: 2026-04-27
 **Depends on**: SPRINT-004-dflash (rebase + DFlash cherry-pick + source-converted drafts)
 **Target hardware**: RTX 5090 (32 GB), 123 GB system RAM

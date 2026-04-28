@@ -1,0 +1,62 @@
+{
+  "meta": {
+    "timestamp": 1777346803.211119,
+    "base_url": "http://localhost:8080",
+    "port": 8080,
+    "prompt": "Write a quicksort algorithm in Python. Write code only.",
+    "trials": 3,
+    "tokens": 256,
+    "seed": 42,
+    "temp": 0.0,
+    "top_k": 1,
+    "profile": "qwen",
+    "mode": "dflash"
+  },
+  "sweeps": {
+    "target_weight_quant": {
+      "q4_k_xl": {
+        "sweep": "target_weight_quant",
+        "level": "q4_k_xl",
+        "env_overrides": {},
+        "trials": [
+          {
+            "trial": 0,
+            "attempt": 0,
+            "tps": 73.47945603388321,
+            "draft_n": 221,
+            "draft_n_accepted": 221,
+            "acceptance_rate": 1.0,
+            "completion_tokens": 256,
+            "wallclock_s": 3.5537529939902015
+          },
+          {
+            "trial": 1,
+            "attempt": 1,
+            "tps": 74.30572043749815,
+            "draft_n": 221,
+            "draft_n_accepted": 221,
+            "acceptance_rate": 1.0,
+            "completion_tokens": 256,
+            "wallclock_s": 3.5127885410329327
+          },
+          {
+            "trial": 2,
+            "attempt": 1,
+            "tps": 72.37763938067359,
+            "draft_n": 221,
+            "draft_n_accepted": 221,
+            "acceptance_rate": 1.0,
+            "completion_tokens": 256,
+            "wallclock_s": 3.617158545006532
+          }
+        ],
+        "timestamp": 1777346803.2111964,
+        "median_tps": 73.47945603388321,
+        "mean_tps": 73.38760528401832,
+        "draft_n_total": 663,
+        "draft_n_accepted_total": 663,
+        "acceptance_rate": 1.0
+      }
+    }
+  }
+}

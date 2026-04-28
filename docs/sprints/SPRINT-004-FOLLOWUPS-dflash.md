@@ -69,7 +69,7 @@ chat-template canonical form) on the 27B for headline-prompt optimization.
 
 ## F-002: `LLAMA_SPEC_FORCE_REJECT_AT=N` debug env in fork
 
-**Status**: open (Phase 2 deferred; tracked back through Phase 5 harness)
+**Status**: in-progress (implemented locally in fork commit `afec36229`, blocked on push permission to `rapatel0` remote)
 
 **What**: A debug env that forces speculative rejection at a specific
 position N in the draft, exercising the checkpoint-restore + replay path
@@ -98,7 +98,7 @@ or remove it.
 
 ## F-003: Formal C++ unit test `tests/test-checkpoint-hybrid-state.cpp`
 
-**Status**: partially-mitigated
+**Status**: partially-mitigated (F-H harness drafted locally in fork commit `afec36229`; generic tiny-model CTest skips by design, hybrid-model execution still pending)
 
 **What**: The Sprint 004 plan called for a formal C++ unit-test file in
 the fork covering subtests A (deferred f16 staging), B (4 quantized K
@@ -298,8 +298,8 @@ BENCHMARK-REPORT.md §10's acceptance-rate notes paragraph.
 | Item | Title | Status | Suggested next action |
 |------|-------|--------|------------------------|
 | F-001 | Source-converted DFlash drafts | resolved | Both pairs converted; re-run `make convert-drafts` after upstream draft refresh |
-| F-002 | `LLAMA_SPEC_FORCE_REJECT_AT` env in fork | open | Add to fork's `common/speculative.cpp`; flip `xfail` to xpass-strict |
-| F-003 | Formal C++ checkpoint test file | partially-mitigated | Author `tests/test-checkpoint-hybrid-state.cpp` (subtest C already inline) |
+| F-002 | `LLAMA_SPEC_FORCE_REJECT_AT` env in fork | in-progress | Local implementation exists (`afec36229`); push rights + downstream image rebuild still required |
+| F-003 | Formal C++ checkpoint test file | partially-mitigated | Local `tests/test-checkpoint-hybrid-state.cpp` exists (`afec36229`); run against hybrid-model fixture after push/rebuild |
 | F-004 | Runtime guard `prefill_complete`/`deferred_drained` | partially-mitigated | Defensive only; land alongside F-003 |
 | F-005 | `docker/test.sh` cache-preservation gate run | open | Run on host with warmed `llm-models` + rebuilt image |
 | F-006 | z-lab commit SHA pin | open | Capture + pin SHA on first L3 run |
