@@ -101,12 +101,13 @@ Out of scope: EAGLE3 (Sprint 006), multi-slot batched-draft optimization
 ### Phase ordering
 
 ```
-Phase 0: Sprint setup                      (~5%, 0.5 days)
-Phase 1: Canonical L4 sweep                (~20%, 2 days)
-Phase 2: Experiment sweep                  (~30%, 3 days)
-Phase 3: Forced-rejection (F-002 + F-003) (~25%, 2.5 days)
-Phase 4: BENCHMARK-REPORT publish + docs  (~15%, 1.5 days)
-Phase 5: Sprint outcome + DoD              (~5%, 0.5 days)
+Phase 0:   Sprint setup                    (~5%,  0.5 days)
+Phase 0.5: 27B correctness probe (blocking)(~3%,  0.5 days)
+Phase 1:   Canonical L4 sweep              (~18%, 2 days)
+Phase 2:   Experiment sweep                (~30%, 3 days)
+Phase 3:   Forced-rejection (F-002 + F-003)(~25%, 2.5 days)
+Phase 4:   BENCHMARK-REPORT publish + docs (~15%, 1.5 days)
+Phase 5:   Sprint outcome + DoD            (~4%,  0.5 days)
 ```
 
 ---
@@ -131,6 +132,59 @@ that the L4 harness can hit a running profile.
 
 **Phase gate**: `qwen` profile boots, `/health` returns 200, one greedy
 completion succeeds.
+
+### Phase 0.5: 27B correctness probe (blocking)
+
+**Goal**: Decisively answer "is the dense 27B-DFlash output correct, or
+is the 37% acceptance hiding a verify-path bug?" before any benchmarking.
+
+**Why blocking**: PR #22105 was tuned primarily on MoE targets
+(gpt-oss-20B reference, Qwen3.6-35B-A3B test set). The dense 27B is a
+hybrid model with a different layer ratio (48 of 64 `linear_attention`
+layers vs 30 of 40 on the 35B-A3B); the rollback path exercises the
+recurrent-state checkpoint heavily on every rejection. Sprint 004 smoke
+saw 37% acceptance on the 27B vs 100% on the 35B-A3B on similar probes.
+Most likely explanation is draft training distribution drift (z-lab
+marks 27B as preview). Possible-but-unlikely explanation: a verify-path
+bug specific to the dense 27B that surfaces under thinking-on prompts.
+
+**Why probing acceptance ≠ probing correctness**: speculative decoding
+is *designed* such that acceptance rate doesn't determine output
+correctness — rejected drafts fall back to sampling from the target's
+logits at the rejection point. So even at 0% acceptance, output should
+match target-only token-for-token. Only iff the verify path is bug-free.
+
+**Tasks**:
+- [ ] Bring up `qwen36-27b` (target-only) profile in background. Capture
+      a 256-token greedy completion on the quicksort prompt at
+      `--temp 0 --top-k 1 --seed 42`. Save token sequence as
+      `docs/sprints/SPRINT-005-27b-target-only.tokens.json`.
+- [ ] `make stop`. Bring up `qwen36-27b-dflash` (PREVIEW=1) on the same
+      port. Same prompt + sampling params. Save as
+      `SPRINT-005-27b-dflash.tokens.json`.
+- [ ] Diff the two sequences byte-for-byte. Expected: 256/256 match.
+
+**Phase gate (the answer)**:
+- **Pass (256/256)**: 27B output is correct; 37% acceptance is a perf
+  observation, not a correctness bug. PREVIEW gate stays for "drafts
+  iterating", not for "broken". Continue to Phase 1.
+- **Fail (any divergence)**: STOP. 27B-DFlash disabled in
+  `make run-qwen36-27b-dflash` (entrypoint refuses `qwen3.6-27b*` +
+  dflash regardless of PREVIEW=1) until rollback path debugged. Open
+  F-011 in `SPRINT-005-FOLLOWUPS.md` documenting the divergence
+  position, expected vs actual tokens at the divergence, and a
+  hypothesis. Sprint 005 descopes to 35B-only L4 publish.
+
+**Files**:
+- `scripts/validate_dflash.py` — already exists; the `--reference none`
+  mode does the L2 greedy equivalence already. May need an
+  `--save-tokens <path>` flag to dump the per-position token IDs (Phase
+  1 will reuse this for per-prompt correctness checks anyway).
+- `docs/sprints/SPRINT-005-27b-correctness-probe.md` — short MD with
+  result + hypothesis + next action.
+
+**Estimated effort**: ~30 minutes once rotorquant rebuild is warm. Two
+compose-up/stop cycles, two completions, one diff.
 
 ### Phase 1: Canonical L4 sweep (~20%)
 
@@ -305,17 +359,21 @@ prepared for merge.
 
 ### Hard gates (sprint fails if any miss)
 
-1. **L4 canonical sweep numbers exist** for `qwen` (MoE+DFlash) and
-   `qwen36-27b-dflash` (PREVIEW), both with thinking-on, written to
-   `SPRINT-005-L4-results.json`.
-2. **L4 ≥1.3× median gate** evaluated on `qwen36-27b-dflash`. Pass/fail
+1. **27B correctness probe pass** (Phase 0.5): 256/256 token match
+   between target-only and target+DFlash on the dense 27B at greedy
+   sampling. If fail → 27B is not measurable until the verify-path bug
+   is fixed; sprint descopes to 35B-only.
+2. **L4 canonical sweep numbers exist** for `qwen` (MoE+DFlash) and
+   `qwen36-27b-dflash` (PREVIEW, only if Hard Gate #1 passes), both with
+   thinking-on, written to `SPRINT-005-L4-results.json`.
+3. **L4 ≥1.3× median gate** evaluated on `qwen36-27b-dflash`. Pass/fail
    recorded; if fail, root-caused (e.g., "thinking-on cuts acceptance to X%
    vs PR's no-think Y%; expected with current draft training data").
-3. **Forced-rejection correctness** (Sprint 004 DoD #5): C++ subtests F-H
+4. **Forced-rejection correctness** (Sprint 004 DoD #5): C++ subtests F-H
    pass; pytest `test_force_reject_preserves_output` xpasses-strict.
-4. **BENCHMARK-REPORT.md §10 has zero TBD cells** in the L4 / parity /
+5. **BENCHMARK-REPORT.md §10 has zero TBD cells** in the L4 / parity /
    snapshot-cost / acceptance-rate subsections.
-5. **Reproducibility**: `make bench-dflash-all` on a fresh-clone host with
+6. **Reproducibility**: `make bench-dflash-all` on a fresh-clone host with
    warmed `llm-models` reproduces the headline ratio within ±10%.
 
 ### Soft gates
