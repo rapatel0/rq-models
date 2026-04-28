@@ -201,3 +201,48 @@ flipped the outcome.
 | F-012 | Important | Immediate | `docs/sprints/SPRINT-005-experiments.json`, `scripts/sweep_dflash.py` |
 | F-013 | resolved | — | fork commit `afec3622...` pushed; `docker/Dockerfile` pin landed |
 | F-014 | Important | Sprint 006-dflash or DFlash perf work | fork `common/speculative.cpp` draft paths; repo `scripts/bench_speculative.py` (harness handled correctly) |
+| F-015 | Important | Sprint 006-dflash | redesign `tests/test_speculative.py::TestForceReject` to actually exercise the env hook (the monkeypatch.setenv approach can't reach the dockerized server) |
+
+---
+
+## F-015: Pytest force-reject test design bug — env never reaches the server
+
+**Severity**: Important (Phase 3 had pytest validation as part of Hard Gate #4; the test as-written doesn't validate the env hook).
+
+**What**: `tests/test_speculative.py::TestForceReject::test_force_reject_preserves_output`
+uses `monkeypatch.setenv("LLAMA_SPEC_FORCE_REJECT_AT", "8")` between
+two completions and asserts the outputs match. Problem:
+- `monkeypatch.setenv` sets the env in the pytest process
+- `LLAMA_SPEC_FORCE_REJECT_AT` is read by `common_speculative_init` in
+  the dockerized `llama-server` (a different process, started before
+  pytest runs)
+- The env never reaches the server, so both completions run with the
+  same server config and produce identical tokens deterministically,
+  spuriously passing the assertion.
+
+The original `xfail()` was acknowledging the env hook hadn't landed.
+After fork commit `afec36229` landed the hook, codex flipped
+`xfail(strict=True)` expecting xpass. But the structural test bug means
+the test still always passes (just for the wrong reason); strict=True
+turns that spurious pass into a suite failure. Reverted in the
+2026-04-28 session.
+
+**Why this isn't a Critical-blocker for Sprint 005**: Hard Gate #4
+covers C++ subtests F-H in the fork's
+`tests/test-checkpoint-hybrid-state.cpp` AND the pytest. The C++ ctest
+runs in-process with env set at process start, so it CAN actually
+validate the hook. The pytest is a complementary check, not the
+primary one.
+
+**Suggested redesign**: server fixture should accept
+`LLAMA_SPEC_FORCE_REJECT_AT` as a parameter and bring up two distinct
+docker compose containers (one with env unset, one with env=8) on
+different ports. The test compares outputs across the two.
+Alternative: a server-side debug endpoint that toggles the value at
+runtime (more invasive on fork side).
+
+**Files**:
+- `tests/test_speculative.py` (redesign)
+- potentially `tests/conftest.py` (param fixture)
+- fork: nothing additional needed — the C++ ctest already covers
+  this properly

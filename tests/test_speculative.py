@@ -148,9 +148,14 @@ class TestSamplerDeterminism:
 # ── LLAMA_SPEC_FORCE_REJECT_AT honor test ───────────────────────────────────
 
 @pytest.mark.xfail(
-    strict=True,
-    reason="LLAMA_SPEC_FORCE_REJECT_AT env hook deferred from Phase 2 — "
-    "needs landing in fork's common/speculative.cpp post-cherry-pick."
+    reason="Test design bug: monkeypatch.setenv() sets env in the pytest "
+    "process, but LLAMA_SPEC_FORCE_REJECT_AT is read by the dockerized "
+    "llama-server at startup. Without restarting the server with the env "
+    "baked in, both completions run with identical config and the test "
+    "spuriously passes. Real validation happens in the fork's C++ "
+    "tests/test-checkpoint-hybrid-state.cpp (ctest target) per F-015. "
+    "Not flipping to strict=True until the test is redesigned to actually "
+    "exercise the hook."
 )
 class TestForceReject:
     def test_force_reject_preserves_output(self, server, monkeypatch):
