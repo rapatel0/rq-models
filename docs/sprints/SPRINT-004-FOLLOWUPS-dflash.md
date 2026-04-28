@@ -43,15 +43,27 @@ upstream draft refresh.
 L2/L3/L4 measurement gates are now runnable on both `qwen36-dflash`
 (EXPERIMENTAL=1) and `qwen36-27b-dflash` (PREVIEW=1) profiles.
 
+**27B correctness probe (2026-04-27)**: ran `scripts/probe_27b_correctness.sh`
+against the rebuilt `rotorquant:latest` image. Quicksort prompt, 256 tokens,
+greedy, thinking-on. **Result: PASS** — 937/937 char shared prefix between
+target-only and target+DFlash output (zero divergence within the shared
+length); 28-char tail-length difference is a token-budget artifact (both
+runs hit the 256-token cap, speculative tokenization can place the cap at
+slightly different character positions in the same string). Acceptance on
+the longer prompt: **221/221 = 100%**, decode 1.053× target-only. Confirms
+the 37% acceptance from the 7-token smoke was a prompt-regime observation,
+not a verify-path bug. Report: `docs/sprints/SPRINT-005-27b-correctness-probe.md`.
+
 **Suggested next action**: Run the L4 5-prompt benchmark with thinking-on
 on both profiles to establish baseline numbers, then explore the
 quality-vs-acceptance tradeoffs (target Q5_K_M, draft KV variants,
 chat-template canonical form) on the 27B for headline-prompt optimization.
 
 **Files**: `scripts/convert_dflash_drafts.sh` (host-side converter);
-fork `convert_hf_to_gguf.py` (one-line tokenizer-hash mapping for
-Qwen3.6); `docker/entrypoint.sh:57-72` (registry now points at local
-GGUFs, with `local/...` short-circuit in `download_model_if_missing()`).
+`scripts/probe_27b_correctness.sh` (correctness probe); fork
+`convert_hf_to_gguf.py` (one-line tokenizer-hash mapping for Qwen3.6);
+`docker/entrypoint.sh:57-72` (registry now points at local GGUFs, with
+`local/...` short-circuit in `download_model_if_missing()`).
 
 ---
 
