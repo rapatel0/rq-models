@@ -1,8 +1,12 @@
-# Sprint 006: EAGLE3 Productionization
+# Sprint 006-dflash: EAGLE3 Productionization
+
+> **Track suffix**: `-dflash` — speculative-decoding feature track. See
+> `SPRINT-ROADMAP-dflash.md` for the full track context and the vLLM
+> Sprint 004/005/... track collision note.
 
 **Status**: Planning (draft)
 **Created**: 2026-04-27
-**Depends on**: Sprint 005 (L4 numbers published, forced-rejection gate closed)
+**Depends on**: SPRINT-005-dflash (L4 numbers published, forced-rejection gate closed)
 **Target hardware**: RTX 5090 (32 GB), 123 GB system RAM
 **Estimated effort**: 1 week single-engineer
 **Branches**:

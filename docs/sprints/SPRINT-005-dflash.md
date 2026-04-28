@@ -1,8 +1,14 @@
-# Sprint 005: L4 Benchmark Publish + Experimentation
+# Sprint 005-dflash: L4 Benchmark Publish + Experimentation
+
+> **Track suffix**: `-dflash` — this sprint plan belongs to the llama.cpp
+> DFlash speculative-decoding feature track on `sprint/004-dflash`.
+> A different (orthogonal) Sprint 004 / 005 track exists on `main`
+> for the vLLM-substrate planar3 port. Sprint *numbers* run independently
+> per track until we sort the planning skill convention.
 
 **Status**: Planning
 **Created**: 2026-04-27
-**Depends on**: Sprint 004 (rebase + DFlash cherry-pick + source-converted drafts)
+**Depends on**: SPRINT-004-dflash (rebase + DFlash cherry-pick + source-converted drafts)
 **Target hardware**: RTX 5090 (32 GB), 123 GB system RAM
 **Estimated effort**: 1.5 weeks single-engineer
 **Branches**:
@@ -304,10 +310,10 @@ matches target-only trajectory.
   snapshot-cost / acceptance-rate subsections with real numbers.
 - `README.md` — update "Speculative Decoding" section's reproduction
   instructions to point at `make bench-dflash-all`.
-- `docs/sprints/SPRINT-004.md` — flip the relevant DoD checkboxes from
-  `[ ]` / `[partial]` to `[x]`. Status: complete.
-- `docs/sprints/SPRINT-005-FOLLOWUPS.md` (NEW) — execution-discovered
-  follow-ups for Sprint 006+.
+- `docs/sprints/SPRINT-004-dflash.md` — flip the relevant DoD
+  checkboxes from `[ ]` / `[partial]` to `[x]`. Status: complete.
+- `docs/sprints/SPRINT-005-dflash-FOLLOWUPS.md` (NEW) —
+  execution-discovered follow-ups for Sprint 006-dflash and beyond.
 
 **Tasks**:
 - [ ] Embed `SPRINT-005-L4-summary.md` content into BENCHMARK-REPORT.md

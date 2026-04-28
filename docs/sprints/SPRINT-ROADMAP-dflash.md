@@ -1,12 +1,23 @@
-# Sprint Roadmap (post-004)
+# Sprint Roadmap (post-004) — DFlash track
 
+**Track suffix**: `-dflash`
 **Created**: 2026-04-27
 **Last updated**: 2026-04-27
 
+> **Naming context**: this repo currently runs *two parallel sprint
+> tracks* with overlapping numbering: a vLLM-substrate planar3-port
+> track (no suffix, lives on `main`) and a llama.cpp DFlash
+> speculative-decoding track (`-dflash` suffix, lives on
+> `sprint/004-dflash`). Until the planning skill convention is sorted,
+> all docs for this track carry the suffix. See
+> `SPRINT-004-dflash.md` for this track's Sprint 004 sources of
+> truth and `SPRINT-004.md` for the vLLM track's.
+
 This roadmap captures the next 6–9 months of speculative-decoding +
-RotorQuant work after Sprint 004. Sprints 005 and 006 are concretely
-planned in their own docs; Sprints 007–010 are sketched here at "what /
-why / when" level. Re-plan in detail as each sprint approaches.
+RotorQuant work after Sprint 004-dflash. Sprints 005-dflash and
+006-dflash are concretely planned in their own docs; Sprints
+007-dflash–010-dflash are sketched here at "what / why / when" level.
+Re-plan in detail as each sprint approaches.
 
 The throughline: **Sprint 004 shipped DFlash; the next sprints publish
 proof, broaden coverage, optimize, then explore.** Each sprint either
@@ -17,7 +28,7 @@ operator experience.
 
 ## Sprint 005 — L4 Benchmark Publish + Experimentation
 
-**Status**: planned · see `SPRINT-005.md`
+**Status**: planned · see `SPRINT-005-dflash.md`
 
 **Goal**: Fill BENCHMARK-REPORT.md §10's TBD cells with real numbers;
 close Sprint 004 hard gate #5 (forced-rejection).
@@ -30,7 +41,7 @@ sprint authors.
 
 ## Sprint 006 — EAGLE3 Productionization
 
-**Status**: planned · see `SPRINT-006.md`
+**Status**: planned · see `SPRINT-006-dflash.md`
 
 **Goal**: EAGLE3 speculative decoding shipped behind opt-in profile,
 4-way benchmark vs target-only / autoregressive / DFlash on the same
