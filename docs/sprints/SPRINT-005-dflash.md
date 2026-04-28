@@ -6,7 +6,7 @@
 > for the vLLM-substrate planar3 port. Sprint *numbers* run independently
 > per track until we sort the planning skill convention.
 
-**Status**: execution partial/blocked (2026-04-27) — Phase 0/0.5 done; Phase 1/2 blocked by speculative runtime instability; Phase 3 blocked on fork push permission. See `docs/sprints/SPRINT-005-CODEX-EXECUTION-LOG.md`.
+**Status**: Phase 1 complete (2026-04-28); Hard Gate #3 (≥1.3× DFlash×) FAILED on the qwen 5-prompt set with thinking-on (median 0.80×). F-011 fix shipped (fork commit `40856a1d2`); F-013 push resolved. Phases 2 (sweeps), 3 (forced-rejection pytest), and 4 (publish) remain. See `docs/sprints/SPRINT-005-CODEX-EXECUTION-LOG.md` for the codex pre-fix log and `SPRINT-005-L4-summary-qwen.md` for the post-fix Phase 1 numbers.
 **Created**: 2026-04-27
 **Depends on**: SPRINT-004-dflash (rebase + DFlash cherry-pick + source-converted drafts)
 **Target hardware**: RTX 5090 (32 GB), 123 GB system RAM
