@@ -1,4 +1,4 @@
-.PHONY: build run-qwen run-qwen36-27b run-qwen36-27b-dflash run-qwen36-dflash run-reasoning run-gemma stop logs test bench bench-dflash bench-dflash-leg smoke clean
+.PHONY: build run-qwen run-qwen-target-only run-qwen36-27b run-qwen36-27b-dflash run-reasoning run-gemma stop logs test bench bench-dflash bench-dflash-leg smoke clean
 
 # ── Build ────────────────────────────────────────────────────────────
 build:
@@ -12,14 +12,14 @@ run-qwen36-27b:
 	docker compose --profile qwen36-27b up
 
 # ── Sprint 004: DFlash speculative decoding ───────────────────────────
-# Both DFlash profiles require host-side opt-in. The 27B dense profile is
-# preview (community drafts iterating); the 35B MoE profile is experimental
-# (no speedup gate, MoE acceptance characteristics differ from dense).
+# `qwen` (default) is now the MoE 35B + DFlash combo — no opt-in needed.
+# `qwen36-27b-dflash` is preview-gated (community drafts still iterating).
+# `qwen-target-only` opts out of speculative decoding for multi-user throughput.
 run-qwen36-27b-dflash:
 	PREVIEW=1 docker compose --profile qwen36-27b-dflash up
 
-run-qwen36-dflash:
-	EXPERIMENTAL=1 docker compose --profile qwen36-dflash up
+run-qwen-target-only:
+	docker compose --profile qwen-target-only up
 
 run-reasoning:
 	docker compose --profile reasoning up
@@ -52,8 +52,8 @@ run-qwen36-27b-dflash-bg:
 		sleep 1; \
 	done
 
-run-qwen36-dflash-bg:
-	EXPERIMENTAL=1 docker compose --profile qwen36-dflash up -d
+run-qwen-target-only-bg:
+	docker compose --profile qwen-target-only up -d
 	@echo "Waiting for server..." && \
 	for i in $$(seq 1 240); do \
 		curl -sf http://localhost:$${PORT:-8080}/health >/dev/null 2>&1 && echo "Ready on port $${PORT:-8080}" && break; \
@@ -81,9 +81,10 @@ run-throughput-bg:
 # ── Logs ─────────────────────────────────────────────────────────────
 logs:
 	docker compose \
-	  --profile qwen --profile qwen36-q3 --profile qwen36-iq3 \
+	  --profile qwen --profile qwen-target-only \
+	  --profile qwen36-q3 --profile qwen36-iq3 \
 	  --profile qwen36-27b --profile qwen36-27b-q3 --profile qwen36-27b-iq3 \
-	  --profile qwen36-27b-dflash --profile qwen36-dflash \
+	  --profile qwen36-27b-dflash \
 	  --profile qwen36-throughput \
 	  --profile reasoning --profile gemma \
 	  --profile qwen-q3 --profile qwen-q3-xxs --profile qwen-iq4 --profile gemma-q3 \
@@ -93,9 +94,10 @@ logs:
 # ── Stop ─────────────────────────────────────────────────────────────
 stop:
 	docker compose \
-	  --profile qwen --profile qwen36-q3 --profile qwen36-iq3 \
+	  --profile qwen --profile qwen-target-only \
+	  --profile qwen36-q3 --profile qwen36-iq3 \
 	  --profile qwen36-27b --profile qwen36-27b-q3 --profile qwen36-27b-iq3 \
-	  --profile qwen36-27b-dflash --profile qwen36-dflash \
+	  --profile qwen36-27b-dflash \
 	  --profile qwen36-throughput \
 	  --profile reasoning --profile gemma \
 	  --profile qwen-q3 --profile qwen-q3-xxs --profile qwen-iq4 --profile gemma-q3 \
@@ -139,9 +141,10 @@ convert-drafts:
 # ── Clean ────────────────────────────────────────────────────────────
 clean:
 	docker compose \
-	  --profile qwen --profile qwen36-q3 --profile qwen36-iq3 \
+	  --profile qwen --profile qwen-target-only \
+	  --profile qwen36-q3 --profile qwen36-iq3 \
 	  --profile qwen36-27b --profile qwen36-27b-q3 --profile qwen36-27b-iq3 \
-	  --profile qwen36-27b-dflash --profile qwen36-dflash \
+	  --profile qwen36-27b-dflash \
 	  --profile reasoning --profile gemma \
 	  down --volumes
 	docker rmi rotorquant 2>/dev/null || true

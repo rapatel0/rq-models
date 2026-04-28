@@ -48,16 +48,46 @@ x-llm-base: &llm-base
   restart: unless-stopped
 
 services:
+  # Default profile: Qwen3.6-35B-A3B MoE + DFlash speculative decoding.
+  # The 35B-A3B/DFlash pair is the validated default after Sprint 004 — smoke
+  # demonstrated 100% acceptance + 128.9 tok/s on a thinking-on greedy probe.
+  # Single-slot by default (multi-slot serializes through the shared draft
+  # context). Source-converted draft GGUF is required: run `make convert-drafts`
+  # once before the first launch.
   qwen:
     <<: *llm-base
     profiles: [qwen]
     container_name: rotorquant-qwen
     environment:
       MODEL_NAME: qwen3.6-35b
-      # iso3: K+V both at 3.125 bpe — best PPL for Qwen3.6 MoE at this memory budget
-      # P=2 ctx=524288: 262K/slot (full training ctx), KV ~7.1 GB, total ~28.7 GB
+      # iso3: K+V both at 3.125 bpe — best PPL for Qwen3.6 MoE at this memory budget.
       KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso3}
-      # 524,288 = 262,144 × 2 → full training context per slot at N_PARALLEL=2
+      # 131K context per single slot — leaves headroom for target weights (~20 GB
+      # Q4_K_XL) + draft weights (~1 GB bf16) + KV (<1 GB iso3 hybrid) on 32 GB.
+      # Bump to 262K with care; KV is small at iso3 hybrid but draft scales too.
+      CTX_SIZE: ${CTX_SIZE:-131072}
+      PORT: ${PORT:-8080}
+      GPU_LAYERS: ${GPU_LAYERS:-99}
+      N_PARALLEL: ${N_PARALLEL:-1}
+      CACHE_RAM: ${CACHE_RAM:-2048}
+      HF_TOKEN: ${HF_TOKEN:-}
+      EXTRA_ARGS: ${EXTRA_ARGS:-}
+      SPECULATIVE_MODE: dflash
+      DRAFT_MODEL_NAME: qwen3.6-35b-dflash
+      DRAFT_KV_CACHE_TYPE: ${DRAFT_KV_CACHE_TYPE:-iso3}
+      DRAFT_N_MAX: ${DRAFT_N_MAX:-16}
+
+  # Target-only Qwen3.6-35B-A3B MoE — opt-in for users who want to skip
+  # speculative decoding (e.g. multi-user throughput, where multi-slot
+  # speculative serializes through the draft context). Same model + KV
+  # config as `qwen`, just SPECULATIVE_MODE=target-only and N_PARALLEL=2.
+  qwen-target-only:
+    <<: *llm-base
+    profiles: [qwen-target-only]
+    container_name: rotorquant-qwen-target-only
+    environment:
+      MODEL_NAME: qwen3.6-35b
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso3}
       CTX_SIZE: ${CTX_SIZE:-524288}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
@@ -65,6 +95,7 @@ services:
       CACHE_RAM: ${CACHE_RAM:-2048}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
+      SPECULATIVE_MODE: target-only
 
   qwen36-q3:
     <<: *llm-base
@@ -167,29 +198,6 @@ services:
       DRAFT_KV_CACHE_TYPE: ${DRAFT_KV_CACHE_TYPE:-planar3}
       DRAFT_N_MAX: ${DRAFT_N_MAX:-16}
       PREVIEW: ${PREVIEW:-0}
-
-  # MoE 35B + DFlash. Experimental — gated by EXPERIMENTAL=1 host env (no
-  # speedup gate; correctness-only). Default ctx 65K for snapshot headroom
-  # safety on 32 GB; can extend if measurements allow.
-  qwen36-dflash:
-    <<: *llm-base
-    profiles: [qwen36-dflash]
-    container_name: rotorquant-qwen36-dflash
-    environment:
-      MODEL_NAME: qwen3.6-35b
-      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso3}
-      CTX_SIZE: ${CTX_SIZE:-65536}
-      PORT: ${PORT:-8080}
-      GPU_LAYERS: ${GPU_LAYERS:-99}
-      N_PARALLEL: ${N_PARALLEL:-1}
-      CACHE_RAM: ${CACHE_RAM:-2048}
-      HF_TOKEN: ${HF_TOKEN:-}
-      EXTRA_ARGS: ${EXTRA_ARGS:-}
-      SPECULATIVE_MODE: dflash
-      DRAFT_MODEL_NAME: qwen3.6-35b-dflash
-      DRAFT_KV_CACHE_TYPE: ${DRAFT_KV_CACHE_TYPE:-iso3}
-      DRAFT_N_MAX: ${DRAFT_N_MAX:-16}
-      EXPERIMENTAL: ${EXPERIMENTAL:-0}
 
   reasoning:
     <<: *llm-base

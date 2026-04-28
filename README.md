@@ -12,10 +12,18 @@ Serve Qwen3.6-35B-A3B, Qwen3.6-27B, Qwen3.5-27B, Gemma 4 26B, and other large mo
 # 1. Build
 make build
 
-# 2. Run (first run downloads the model ~22 GB)
+# 2. One-time: source-convert the DFlash drafts (~5 GB total download).
+#    The 27B-DFlash repo is gated; visit https://huggingface.co/z-lab/Qwen3.6-27B-DFlash
+#    once to request access (the 35B repo is open). Re-run after each upstream
+#    draft refresh; idempotent.
+make convert-drafts
+
+# 3. Run (first run downloads the target model ~22 GB)
+#    `make run-qwen` is now Qwen3.6-35B-A3B MoE + DFlash speculative decoding
+#    by default. To skip speculative decoding, use `make run-qwen-target-only`.
 make run-qwen
 
-# 3. Query
+# 4. Query
 curl http://localhost:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model":"qwen","messages":[{"role":"user","content":"Hello!"}],"temperature":1.0,"top_p":0.95,"max_tokens":500}'
@@ -23,27 +31,31 @@ curl http://localhost:8080/v1/chat/completions \
 
 ## Available Models
 
-| Command | Model | Weights | Active Params | KV default |
-|---------|-------|---------|---------------|:----------:|
-| `make run-qwen` | **Qwen3.6-35B-A3B** (default) | UD-Q4_K_XL (20.8 GB) | 3B active (MoE) | `iso3` |
-| `docker compose --profile qwen36-q3 up` | Qwen3.6-35B-A3B | UD-Q3_K_XL (16.8 GB) | 3B active (MoE) | `planar4` |
-| `docker compose --profile qwen36-iq3 up` | Qwen3.6-35B-A3B | UD-IQ3_XXS (13.2 GB) | 3B active (MoE) | `planar4` |
-| `make run-qwen36-27b` | **Qwen3.6-27B** (dense) | UD-Q4_K_XL (16.4 GB) | 27B dense | `planar3` |
-| `docker compose --profile qwen36-27b-q3 up` | Qwen3.6-27B | UD-Q3_K_XL (~12 GB) | 27B dense | `planar3` |
-| `docker compose --profile qwen36-27b-iq3 up` | Qwen3.6-27B | UD-IQ3_XXS (~9 GB) | 27B dense | `planar3` |
-| `make run-reasoning` | Qwen3.5-27B Claude Opus Distilled | i1-Q4_K_M (16.6 GB) | 27B dense | `planar3` |
-| `make run-gemma` | Gemma 4 26B MoE | UD-Q4_K_XL (17.1 GB) | 3.8B active | `planar4` |
+| Command | Model | Weights | Active Params | KV default | Speculative |
+|---------|-------|---------|---------------|:----------:|:-----------:|
+| `make run-qwen` | **Qwen3.6-35B-A3B** (default) | UD-Q4_K_XL (20.8 GB) | 3B active (MoE) | `iso3` | DFlash |
+| `make run-qwen-target-only` | Qwen3.6-35B-A3B (multi-user throughput) | UD-Q4_K_XL (20.8 GB) | 3B active (MoE) | `iso3` | — |
+| `docker compose --profile qwen36-q3 up` | Qwen3.6-35B-A3B | UD-Q3_K_XL (16.8 GB) | 3B active (MoE) | `planar4` | — |
+| `docker compose --profile qwen36-iq3 up` | Qwen3.6-35B-A3B | UD-IQ3_XXS (13.2 GB) | 3B active (MoE) | `planar4` | — |
+| `make run-qwen36-27b` | **Qwen3.6-27B** (dense) | UD-Q4_K_XL (16.4 GB) | 27B dense | `planar3` | — |
+| `make run-qwen36-27b-dflash` | Qwen3.6-27B + DFlash (preview) | UD-Q4_K_XL + bf16 draft | 27B + 1B draft | `planar3` | DFlash (PREVIEW=1) |
+| `docker compose --profile qwen36-27b-q3 up` | Qwen3.6-27B | UD-Q3_K_XL (~12 GB) | 27B dense | `planar3` | — |
+| `docker compose --profile qwen36-27b-iq3 up` | Qwen3.6-27B | UD-IQ3_XXS (~9 GB) | 27B dense | `planar3` | — |
+| `make run-reasoning` | Qwen3.5-27B Claude Opus Distilled | i1-Q4_K_M (16.6 GB) | 27B dense | `planar3` | — |
+| `make run-gemma` | Gemma 4 26B MoE | UD-Q4_K_XL (17.1 GB) | 3.8B active | `planar4` | — |
 
 Or use Docker Compose directly:
 
 ```bash
-docker compose --profile qwen up           # Qwen3.6-35B-A3B Q4 (32 GB+), iso3
-docker compose --profile qwen36-q3 up     # Qwen3.6-35B-A3B Q3 (24 GB)
-docker compose --profile qwen36-iq3 up    # Qwen3.6-35B-A3B IQ3 (16 GB)
-docker compose --profile qwen36-27b up    # Qwen3.6-27B dense (24 GB+), planar3
-docker compose --profile qwen36-27b-q3 up # Qwen3.6-27B Q3 (16 GB)
-docker compose --profile reasoning up     # Qwen3.5-27B reasoning-tuned
-docker compose --profile gemma up         # Gemma 4 MoE
+docker compose --profile qwen up                   # Qwen3.6-35B-A3B Q4 + DFlash (default)
+docker compose --profile qwen-target-only up       # Same, but no speculative decoding
+docker compose --profile qwen36-q3 up              # Qwen3.6-35B-A3B Q3 (24 GB)
+docker compose --profile qwen36-iq3 up             # Qwen3.6-35B-A3B IQ3 (16 GB)
+docker compose --profile qwen36-27b up             # Qwen3.6-27B dense (24 GB+), planar3
+PREVIEW=1 docker compose --profile qwen36-27b-dflash up  # 27B + DFlash (preview)
+docker compose --profile qwen36-27b-q3 up          # Qwen3.6-27B Q3 (16 GB)
+docker compose --profile reasoning up              # Qwen3.5-27B reasoning-tuned
+docker compose --profile gemma up                  # Gemma 4 MoE
 ```
 
 ### Recommended Sampling (Qwen3.6)
@@ -206,24 +218,26 @@ Benchmarked on RTX 5090 (32 GB). Full results in [docs/BENCHMARK-REPORT.md](docs
 
 > `planar3` wins on all dense models: same compression as iso3 (4.9×) but lower PPL.
 
-### Speculative Decoding (Experimental)
+### Speculative Decoding
 
-DFlash block-diffusion speculative decoding lands behind two opt-in compose
-profiles. Both default to single-slot, greedy-validated; sampling-mode behavior
-is unverified. The DFlash drafts are source-converted from z-lab's safetensors
-via `make convert-drafts` (see below) — the previously-tracked blocker on
-community-GGUF format mismatch is now resolved.
+DFlash block-diffusion speculative decoding is **on by default** for the 35B
+MoE — `make run-qwen` runs target+DFlash, single-slot. The dense 27B has a
+preview-gated DFlash profile because its draft training is still iterating
+upstream.
 
-| Profile | Target | Draft | KV | Ctx | Speedup gate | Opt-in |
-|---------|--------|-------|:--:|----:|:-------------|:------:|
-| `qwen36-27b-dflash` | Qwen3.6-27B (dense) | source-converted from `z-lab/Qwen3.6-27B-DFlash` | planar3 | 131K | median ≥1.3× / quicksort ≥1.5× | `PREVIEW=1` |
-| `qwen36-dflash` | Qwen3.6-35B-A3B (MoE) | source-converted from `z-lab/Qwen3.6-35B-A3B-DFlash` | iso3 | 65K | correctness only (no speedup gate) | `EXPERIMENTAL=1` |
+| Profile | Target | Draft | KV | Ctx | Status |
+|---------|--------|-------|:--:|----:|:------:|
+| `qwen` (default) | Qwen3.6-35B-A3B (MoE) | source-converted from `z-lab/Qwen3.6-35B-A3B-DFlash` | iso3 | 131K | shipped |
+| `qwen-target-only` | Qwen3.6-35B-A3B (MoE) | — | iso3 | 524K (P=2) | shipped, opt-in |
+| `qwen36-27b-dflash` | Qwen3.6-27B (dense) | source-converted from `z-lab/Qwen3.6-27B-DFlash` | planar3 | 131K | preview (`PREVIEW=1`) |
 
-Both DFlash profiles require host-side opt-in. The 27B-DFlash draft is **preview**
-— z-lab's draft training is iterating, so re-running `make convert-drafts` after
-their next release is expected. The 35B-DFlash MoE profile is **experimental** —
-PR #22105's reference gpt-oss-20B numbers (0.61–1.27×) show MoE speedup is
-workload-dependent and may go negative; we ship correctness-validated only.
+`qwen-target-only` is the escape hatch when you'd rather have 524K context
+and 2 concurrent slots than DFlash's single-slot speculative gain — DFlash
+serializes through one shared draft `llama_context`, so multi-user throughput
+is sub-linear vs target-only multi-slot today.
+
+The 27B-DFlash draft is preview because z-lab is still iterating; re-running
+`make convert-drafts` after each upstream draft refresh is expected.
 
 ```bash
 # One-time: source-convert drafts from z-lab safetensors into the llm-models volume.
@@ -231,11 +245,14 @@ workload-dependent and may go negative; we ship correctness-validated only.
 # request access (one-time per HF account).
 make convert-drafts
 
-# Dense 27B — preview profile, default single-slot, planar3 KV
-make run-qwen36-27b-dflash      # implicitly sets PREVIEW=1
+# Default — MoE + DFlash
+make run-qwen
 
-# MoE 35B — experimental opt-in (correctness only)
-make run-qwen36-dflash          # implicitly sets EXPERIMENTAL=1
+# Multi-user throughput escape hatch (no speculative)
+make run-qwen-target-only
+
+# Dense 27B + DFlash (preview)
+make run-qwen36-27b-dflash      # implicitly sets PREVIEW=1
 ```
 
 #### Env var contract
@@ -249,8 +266,7 @@ Set on the compose service or via `docker run -e` (full table in
 | `DRAFT_MODEL_NAME` | model key from `MODELS` registry | — | Required if mode != target-only |
 | `DRAFT_KV_CACHE_TYPE` | same options as `KV_CACHE_TYPE` | inherits target | Independent draft KV quantization |
 | `DRAFT_N_MAX` | int | `16` | Max draft tokens per verify round |
-| `EXPERIMENTAL` | `0` / `1` | `0` | Required `=1` to enable `qwen36-dflash` (35B MoE) |
-| `PREVIEW` | `0` / `1` | `0` | Required `=1` to enable `qwen36-27b-dflash` (drafts iterating) |
+| `PREVIEW` | `0` / `1` | `0` | Required `=1` to enable `qwen36-27b-dflash` (z-lab drafts iterating) |
 
 The entrypoint defaults `N_PARALLEL=1` when `SPECULATIVE_MODE != target-only` but
 no longer forces it. Multi-slot speculative is functionally correct in the

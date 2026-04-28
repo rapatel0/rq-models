@@ -163,18 +163,11 @@ if [ "$SPECULATIVE_MODE" != "target-only" ]; then
     echo "ERROR: Unknown DRAFT_MODEL_NAME='$DRAFT_MODEL_NAME'"
     exit 1
   fi
-  # Qwen3.6-35B MoE + DFlash → EXPERIMENTAL=1 (no speedup gate; MoE is research-tier).
-  if [[ "$MODEL_NAME" == qwen3.6-35b* ]] && [ "$SPECULATIVE_MODE" = "dflash" ]; then
-    if [ "${EXPERIMENTAL:-0}" != "1" ]; then
-      echo "ERROR: $MODEL_NAME + DFlash requires EXPERIMENTAL=1"
-      echo "       MoE speedup is not gated; expect 0.6–1.3× decode."
-      exit 1
-    fi
-    echo "[experimental] $MODEL_NAME + DFlash enabled by EXPERIMENTAL=1"
-  fi
-  # Qwen3.6-27B + DFlash → PREVIEW=1. The community / z-lab DFlash drafts are
-  # still iterating (PR #22105 head still moves; draft training data evolving).
-  # Gate so it isn't picked up as a default.
+  # Qwen3.6-35B MoE + DFlash is the default (Sprint 004 validated: 100% accept,
+  # 128 tok/s on a thinking-on greedy probe). No opt-in env required.
+  #
+  # Qwen3.6-27B + DFlash → PREVIEW=1. The z-lab DFlash drafts for the dense 27B
+  # are still iterating; gate so it isn't picked up as a default.
   if [[ "$MODEL_NAME" == qwen3.6-27b* ]] && [ "$SPECULATIVE_MODE" = "dflash" ]; then
     if [ "${PREVIEW:-0}" != "1" ]; then
       echo "ERROR: $MODEL_NAME + DFlash requires PREVIEW=1"

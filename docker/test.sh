@@ -2,10 +2,11 @@
 # Smoke test: build image, verify each profile boots, and assert the
 # `llm-models` named volume is cache-preserving across the rebased image.
 #
-# Sprint 004 added two new profiles (qwen36-27b-dflash, qwen36-dflash) and
-# a refactored entrypoint that exposes SPECULATIVE_MODE / DRAFT_MODEL_NAME.
-# This script enforces the Phase-4 hard gates: (a) no existing profile
-# re-downloads its model; (b) all profiles still serve after the refactor.
+# Sprint 004: `qwen` is now MoE 35B + DFlash by default; qwen-target-only
+# preserves the old target-only behavior; qwen36-27b-dflash is preview-gated.
+# This script enforces the cache-preservation hard gate: (a) no existing
+# profile re-downloads its model; (b) all profiles still serve after the
+# entrypoint refactor.
 set -euo pipefail
 
 IMAGE="rotorquant:test"
@@ -15,12 +16,14 @@ VOLUME=llm-models
 # Profiles whose models we want to exercise. Existing profiles first;
 # DFlash profiles last so they don't block earlier coverage if blocked on
 # the known community-draft format mismatch.
-EXISTING_PROFILES=(qwen qwen36-q3 qwen36-iq3 qwen36-27b qwen36-27b-q3 qwen36-27b-iq3 reasoning gemma)
+# `qwen` (MoE + DFlash) is now exercised in EXISTING_PROFILES; the legacy
+# target-only path lives at `qwen-target-only`.
+EXISTING_PROFILES=(qwen qwen-target-only qwen36-q3 qwen36-iq3 qwen36-27b qwen36-27b-q3 qwen36-27b-iq3 reasoning gemma)
 NEW_PROFILES=(qwen36-27b-dflash)
 
-# Map profile → MODEL_NAME env that entrypoint expects (mirror of compose).
 declare -A PROFILE_MODEL=(
   [qwen]=qwen3.6-35b
+  [qwen-target-only]=qwen3.6-35b
   [qwen36-q3]=qwen3.6-35b-q3
   [qwen36-iq3]=qwen3.6-35b-iq3
   [qwen36-27b]=qwen3.6-27b
@@ -29,7 +32,6 @@ declare -A PROFILE_MODEL=(
   [reasoning]=qwen3.5-27b-reasoning
   [gemma]=gemma4-26b
   [qwen36-27b-dflash]=qwen3.6-27b
-  [qwen36-dflash]=qwen3.6-35b
 )
 
 echo "=== RotorQuant Docker Smoke Test ==="
@@ -86,8 +88,8 @@ run_profile_test() {
   fi
 
   local extra_env=()
-  if [ "$profile" = "qwen36-dflash" ]; then
-    extra_env+=(-e EXPERIMENTAL=1)
+  if [ "$profile" = "qwen36-27b-dflash" ]; then
+    extra_env+=(-e PREVIEW=1)
   fi
 
   # Use a small ctx so RAM/VRAM isn't the bottleneck.

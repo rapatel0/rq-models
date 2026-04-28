@@ -137,6 +137,24 @@ runs deferred to follow-up F-001 (blocked on source-converted draft GGUFs)
   Phase 3); not rewritten. Both result JSONs are already in
   `docs/sprints/`.
 
+### 2026-04-27 — Default `qwen` profile flipped to MoE + DFlash
+
+- `qwen` (the default Make target / compose profile) now runs Qwen3.6-35B-A3B
+  + DFlash speculative decoding by default. The standalone `qwen36-dflash`
+  service is removed (redundant). `EXPERIMENTAL=1` gate dropped from the
+  entrypoint for `qwen3.6-35b*` + DFlash — Sprint 004 smoke (100% accept,
+  128.9 tok/s on a thinking-on greedy probe) provides enough confidence.
+- Configuration: `MODEL_NAME=qwen3.6-35b`, `KV_CACHE_TYPE=iso3`,
+  `CTX_SIZE=131072` (down from 524288 because speculative is single-slot;
+  524K with N_PARALLEL=1 was excessive), `N_PARALLEL=1`,
+  `SPECULATIVE_MODE=dflash`, `DRAFT_MODEL_NAME=qwen3.6-35b-dflash`.
+- New escape hatch profile: `qwen-target-only`. Same target + KV config but
+  no speculative; preserves the old 524K × 2-slot multi-user throughput
+  profile for users who want it. `make run-qwen-target-only`.
+- README section "Speculative Decoding" rewritten — DFlash is the deployed
+  default; "Experimental" qualifier removed.
+- 27B-DFlash stays behind `PREVIEW=1`; not affected by this change.
+
 ### 2026-04-27 — F-001 (mostly resolved) + PREVIEW gate + multi-slot finding
 
 - `z-lab/Qwen3.6-27B-DFlash` access granted; 27B converted (3.47 GB GGUF) and
