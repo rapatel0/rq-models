@@ -4,9 +4,34 @@ Execution-discovered follow-ups while running Sprint 005-dflash.
 
 ---
 
-## F-011: DFlash draft path asserts on second request after prompt-cache miss
+## F-011: DFlash draft path asserts on second request after prompt-cache miss — RESOLVED 2026-04-27
 
-**Severity**: Critical (blocks canonical L4 and broad sweep completion)
+**Severity**: was Critical (blocks canonical L4 and broad sweep completion); now resolved
+
+**Resolution**: fork commit `40856a1d2c26e79156a697daaf222f482989d7c7`
+("F-011: reset DFlash + EAGLE3 cumulative state in begin()") on
+`feature/sprint-004-rebase-dflash`, pushed to
+`rapatel0/llama-cpp-turboquant`. `docker/Dockerfile`
+`ROTORQUANT_COMMIT` bumped accordingly; rotorquant image rebuilt.
+
+Verified 2026-04-27: `make run-qwen36-bg` followed by 3 sequential
+greedy `POST /v1/chat/completions` (the prior abort happened on
+request 2). All 3 succeeded, server stayed up, 100% draft acceptance
+(54/54 each). docker logs has zero `GGML_ASSERT` lines.
+
+**Root cause** (kept for posterity): `dflash_n_past` and
+`accumulated_ctx` are cumulative per-request state. The DFlash
+`begin()` override was a no-op (`GGML_UNUSED(prompt)`), so when a new
+request landed and the slot rebuilt its KV cache + prompt, the stale
+position from the previous request was still there. With a 280-token
+previous final state and a 24-token new prompt, `n_new == -256` and
+the `n_new >= 1` assert fired immediately on the first draft call.
+
+The fix mirrors what the legacy speculative state already does in
+`begin()` (line 255): clear per-request scratch in the lifecycle hook.
+EAGLE3 had the identical bug shape (also a no-op `begin()`) — fix
+applied there defensively even though Sprint 005 doesn't exercise it,
+to avoid landing the same fix twice.
 
 **What**: The fork's DFlash draft path asserts and crashes
 `llama-server` when a request lands after the prompt cache has been
@@ -113,6 +138,6 @@ same session; `make build` now reachable.
 
 | Item | Severity | Suggested Sprint | Files |
 |------|----------|------------------|-------|
-| F-011 | Critical | Immediate | fork `common/speculative.cpp:789`, fork `tools/server/server.cpp` cache-miss path |
+| F-011 | resolved | — | fork commit `40856a1d2`; rotorquant image rebuilt at the new pin; smoke verified 3 sequential requests stable |
 | F-012 | Important | Immediate | `docs/sprints/SPRINT-005-experiments.json`, `scripts/sweep_dflash.py` |
 | F-013 | resolved | — | fork commit `afec3622...` pushed; `docker/Dockerfile` pin landed |
