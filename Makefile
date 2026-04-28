@@ -1,4 +1,4 @@
-.PHONY: build run-qwen run-qwen-target-only run-qwen36 run-qwen36-target-only run-reasoning run-gemma stop logs test bench bench-dflash bench-dflash-leg smoke convert-drafts clean
+.PHONY: build run-qwen run-qwen-target-only run-qwen36 run-qwen36-target-only run-reasoning run-gemma stop logs test bench bench-dflash bench-dflash-leg bench-dflash-all smoke convert-drafts clean
 
 # ── Build ────────────────────────────────────────────────────────────
 build:
@@ -119,12 +119,35 @@ bench:
 #     docker compose --profile qwen-target-only up -d ; make bench-dflash-leg LEG=autoregressive ; make stop
 #   make run-qwen-bg ; make bench-dflash-leg LEG=dflash ; make stop
 #   make bench-dflash
+PROFILE ?= qwen
+BENCH_OUTPUT ?= /home/ravi/repos/turbo/docs/sprints/SPRINT-005-L4-results-$(PROFILE).json
+BENCH_MD_OUTPUT ?= /home/ravi/repos/turbo/docs/sprints/SPRINT-005-L4-summary-$(PROFILE).md
+
 bench-dflash:
-	python3 scripts/bench_speculative.py --finalize
+	python3 scripts/bench_speculative.py --profile $(PROFILE) --finalize --output $(BENCH_OUTPUT) --md-output $(BENCH_MD_OUTPUT)
 
 bench-dflash-leg:
 	@test -n "$(LEG)" || (echo "ERROR: LEG=target-only|autoregressive|dflash required" && exit 1)
-	python3 scripts/bench_speculative.py --leg $(LEG)
+	python3 scripts/bench_speculative.py --profile $(PROFILE) --leg $(LEG) --output $(BENCH_OUTPUT) --md-output $(BENCH_MD_OUTPUT)
+
+bench-dflash-all:
+	@case "$(PROFILE)" in \
+		qwen) target_profile=qwen-target-only ; draft_model=qwen3.6-27b-dflash ;; \
+		qwen36) target_profile=qwen36-target-only ; draft_model=qwen3.6-35b-dflash ;; \
+		*) echo "ERROR: PROFILE must be qwen or qwen36 (got $(PROFILE))" ; exit 1 ;; \
+	esac ; \
+	echo "== L4 sweep for PROFILE=$(PROFILE) ==" ; \
+	$(MAKE) stop ; \
+	$(MAKE) run-$$target_profile-bg ; \
+	$(MAKE) bench-dflash-leg PROFILE=$(PROFILE) LEG=target-only ; \
+	$(MAKE) stop ; \
+	SPECULATIVE_MODE=autoregressive DRAFT_MODEL_NAME=$$draft_model $(MAKE) run-$(PROFILE)-bg ; \
+	$(MAKE) bench-dflash-leg PROFILE=$(PROFILE) LEG=autoregressive ; \
+	$(MAKE) stop ; \
+	$(MAKE) run-$(PROFILE)-bg ; \
+	$(MAKE) bench-dflash-leg PROFILE=$(PROFILE) LEG=dflash ; \
+	$(MAKE) stop ; \
+	$(MAKE) bench-dflash PROFILE=$(PROFILE)
 
 smoke:
 	bash docker/test.sh

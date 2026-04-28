@@ -148,6 +148,7 @@ class TestSamplerDeterminism:
 # ── LLAMA_SPEC_FORCE_REJECT_AT honor test ───────────────────────────────────
 
 @pytest.mark.xfail(
+    strict=True,
     reason="LLAMA_SPEC_FORCE_REJECT_AT env hook deferred from Phase 2 — "
     "needs landing in fork's common/speculative.cpp post-cherry-pick."
 )

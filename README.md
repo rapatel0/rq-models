@@ -237,6 +237,13 @@ throughput than DFlash's single-slot speculative gain — DFlash serializes
 through one shared draft `llama_context`, so multi-user throughput is
 sub-linear vs target-only multi-slot today.
 
+Canonical Sprint 005 L4 command:
+
+```bash
+make bench-dflash-all PROFILE=qwen
+make bench-dflash-all PROFILE=qwen36
+```
+
 ```bash
 # One-time: source-convert drafts from z-lab safetensors into the llm-models volume.
 # 27B repo is gated; visit https://huggingface.co/z-lab/Qwen3.6-27B-DFlash to
