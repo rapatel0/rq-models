@@ -628,44 +628,112 @@ load-bearing details. Recap:
   bit-exact round-trip validated. Snapshot is no longer a meaningful slice
   of cycle time.
 
-### Sprint 004 Phase 5 — Speculative L4 results (TBD)
+### Sprint 005 — Speculative L4 results (thinking-on)
 
 5-prompt benchmark, 3 trials per prompt, median per prompt. All runs
-`--temp 0 --top-k 1 --seed 42 --tokens 256`, `LLAMA_SPEC_NO_THINK=1`.
-Pulls `timings.predicted_per_second` from llama-server, falls back to
-wallclock + completion_tokens. Headline gate: median ≥1.3× target-only on
-Qwen3.6-27B. Quicksort-only headline (not gated): ≥1.5×.
+`--temp 0 --top-k 1 --seed 42 --tokens 256` with **thinking-on** (the
+deployed regime — Sprint 005 chose this over Sprint 004's original
+`LLAMA_SPEC_NO_THINK=1` plan because thinking-on is what production
+ships). Pulls `timings.predicted_per_second` from llama-server.
+Acceptance rate parsed from `timings.draft_n` /
+`timings.draft_n_accepted`. Hard Gate #3: median DFlash× ≥1.3× on
+`qwen` (Qwen3.6-27B + DFlash). Quicksort-only headline (not gated):
+≥1.5×.
 
-| # | Prompt | target-only tok/s | target+autoregressive tok/s | target+DFlash tok/s | accept rate | DFlash speedup |
-|:-:|--------|------------------:|----------------------------:|--------------------:|------------:|---------------:|
-| 1 | Write a quicksort algorithm in Python. Write code only. | TBD | TBD | TBD | TBD | TBD |
-| 2 | Explain the Pythagorean theorem. | TBD | TBD | TBD | TBD | TBD |
-| 3 | Plan a 1 day trip to DC. | TBD | TBD | TBD | TBD | TBD |
-| 4 | Summarize the plot of Hamlet in 3 paragraphs. | TBD | TBD | TBD | TBD | TBD |
-| 5 | Write a SQL query to find the top 5 customers by revenue. | TBD | TBD | TBD | TBD | TBD |
+Run on RTX 5090 (32 GB), rotorquant pinned to fork commit
+`40856a1d2c26e79156a697daaf222f482989d7c7` (includes the F-011 fix —
+DFlash + EAGLE3 cumulative state reset in `begin()`). Bench harness:
+`scripts/bench_speculative.py` via `make bench-dflash-all PROFILE=...`.
+Raw JSON in `docs/sprints/SPRINT-005-L4-results-{qwen,qwen36}.json`,
+per-profile summaries in `SPRINT-005-L4-summary-{qwen,qwen36}.md`.
 
-**Status: blocked** on source-converted draft GGUFs (see Phase 3 §; Phase 5
-deferred the measurement run until a draft GGUF passes draft-load). Tracking
-under `docs/sprints/SPRINT-004-FOLLOWUPS-dflash.md` F-001.
+#### qwen (Qwen3.6-27B + DFlash) — the headline ≥1.3× gate target
 
-Reproduction (operator runs each leg sequentially, then finalizes):
+| # | Prompt | target-only tok/s | +autoregressive tok/s | +DFlash tok/s | accept rate | DFlash× |
+|:-:|--------|------------------:|----------------------:|--------------:|------------:|--------:|
+| 1 | Write a quicksort algorithm in Python. Write code only. | 69.34 | 75.83 | 76.19 | 100.00% | **1.10×** |
+| 2 | Explain the Pythagorean theorem. | 69.32 | 54.38 | 55.34 | 100.00% | 0.80× |
+| 3 | Plan a 1 day trip to DC. | 69.36 | n/a (transport err) | n/a (transport err) | n/a | n/a |
+| 4 | Summarize the plot of Hamlet in 3 paragraphs. | 69.43 | 43.98 | 43.73 | 100.00% | 0.63× |
+| 5 | Write a SQL query to find the top 5 customers by revenue. | 69.39 | 55.24 | 55.91 | 100.00% | 0.81× |
+
+**Median DFlash× across 4 measured prompts: 0.80×.** Hard Gate #3
+(≥1.3×): **FAIL.** Quicksort headline 1.10× (FAIL ≥1.5× soft target,
+but only prompt where DFlash > target-only).
+
+Prompt 3 hit `Remote end closed connection without response` on both
+speculative legs across all 9 retries while target-only completed
+clean — tracked as F-014 in `SPRINT-005-FOLLOWUPS-dflash.md`. Excluded
+from the median; doesn't change the verdict.
+
+#### qwen36 (Qwen3.6-35B-A3B + DFlash MoE) — secondary publish
+
+| # | Prompt | target-only tok/s | +autoregressive tok/s | +DFlash tok/s | accept rate | DFlash× |
+|:-:|--------|------------------:|----------------------:|--------------:|------------:|--------:|
+| 1 | Write a quicksort algorithm in Python. Write code only. | 215.12 | 175.27 | 178.06 | 100.00% | 0.83× |
+| 2 | Explain the Pythagorean theorem. | 214.75 | 124.11 | 124.51 | 100.00% | 0.58× |
+| 3 | Plan a 1 day trip to DC. | 215.29 | 83.40 | 81.58 | 100.00% | 0.38× |
+| 4 | Summarize the plot of Hamlet in 3 paragraphs. | 215.39 | 76.47 | 75.79 | 100.00% | 0.35× |
+| 5 | Write a SQL query to find the top 5 customers by revenue. | 214.71 | 112.16 | 111.74 | 100.00% | 0.52× |
+
+**Median DFlash×: 0.52×.** All 5 prompts measured cleanly (no F-014
+transport error here, so that issue is qwen-environment-specific).
+DFlash slows the MoE target uniformly — **stronger** loss than on the
+27B because the MoE target uses 3B active params per token (~215
+tok/s flat), so per-token target cost is small and the DFlash draft
+graph (encoder + decoder + block sampling) costs more than 3B-active
+verifies save.
+
+#### Why does DFlash lose with 100% acceptance?
+
+Every speculative leg ran at 100% draft acceptance (every draft token
+was correct vs. target). Yet DFlash is net-slower than target-only on
+4 of 5 qwen prompts and 5 of 5 qwen36 prompts. Mechanism: DFlash
+draft cost per produced token > target-only verify cost per token.
+Concretely each draft step runs an encoder on accumulated target
+features, a decoder on the noise block, and per-position sampling
+across `block_size` positions; the per-block cost compares
+unfavorably with `block_size` target-only verifies, especially on
+fast targets (MoE active-3B, dense 27B Q4_K_XL on a 5090).
+
+The win condition for DFlash is *expensive* targets — older or
+heavily-quantized models where target verify dominates and DFlash
+draft amortizes. The current Qwen3.6 + RTX 5090 + Q4_K_XL stack
+doesn't hit that regime.
+
+Quicksort is the lone qwen prompt where DFlash wins (1.10×); it has
+the most repetitive token structure (boilerplate `def`, `if`,
+`return`, `else`), which both the autoregressive and DFlash drafts
+predict efficiently. The other prompts produce more entropic
+content, increasing per-draft-step cost relative to target's flat
+verify cost.
+
+#### Hard Gate verdict
+
+Hard Gate #3 (≥1.3× median DFlash× on `qwen`): **FAIL** at 0.80×.
+The 27B + DFlash stack does not deliver a measurable speedup at the
+deployed thinking-on regime on the 5-prompt set with Q4_K_XL on a
+5090. Sprint 005 documents this honestly rather than claiming a win.
+
+Suggested follow-on (filed in `SPRINT-005-FOLLOWUPS-dflash.md`):
+profile the DFlash draft hot path, evaluate whether a smaller draft
+(distilled from 27B, or a cheaper draft architecture) closes the gap.
+Tighter quantization on target (Q3_K_M / Q2_K) would also shift the
+ratio in DFlash's favor.
+
+#### Reproduction
 
 ```
-make run-qwen36-27b-bg
-make bench-dflash-leg LEG=target-only
-make stop
-
-SPECULATIVE_MODE=autoregressive DRAFT_MODEL_NAME=qwen3.6-27b-dflash \
-    docker compose --profile qwen36-27b up -d
-make bench-dflash-leg LEG=autoregressive
-make stop
-
-make run-qwen36-27b-dflash-bg
-make bench-dflash-leg LEG=dflash
-make stop
-
-make bench-dflash
+make build  # if rotorquant:latest is older than fork commit 40856a1d2
+make bench-dflash-all PROFILE=qwen
+make bench-dflash-all PROFILE=qwen36
 ```
+
+Each invocation does the three-leg orchestration (target-only,
+autoregressive draft, DFlash draft) with a `make stop` between legs
+and a final `bench-dflash --finalize` that writes the JSON +
+summary. Total wallclock ~25–35 min per profile on a warm
+`llm-models` volume.
 
 ### Sprint 004 Phase 5 — z-lab pytorch parity (TBD)
 

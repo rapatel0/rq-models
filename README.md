@@ -225,6 +225,17 @@ runs Qwen3.6-27B (dense) + DFlash, single-slot. Sprint 005 Phase 0.5 validated
 byte-equal output vs target-only on a greedy quicksort prompt (937/937 chars
 shared prefix, 100% acceptance).
 
+**Sprint 005 Phase 1 measurement** (5-prompt L4, thinking-on, 5090,
+Q4_K_XL targets, fork commit `40856a1d2`): DFlash× median **0.80×** on
+`qwen` (FAIL the ≥1.3× gate) and **0.52×** on `qwen36` (MoE). 100%
+draft acceptance throughout — DFlash slows current-stack targets
+because draft cost > target verify cost. Quicksort is the single qwen
+prompt where DFlash wins (1.10×). See
+[BENCHMARK-REPORT.md §Sprint 005 — Speculative L4 results](docs/BENCHMARK-REPORT.md#sprint-005--speculative-l4-results-thinking-on)
+for the full breakdown and discussion of the win condition (DFlash
+needs more expensive targets than 5090-class Q4_K_XL Qwen3.6 to pay
+off).
+
 | Profile | Target | Draft | KV | Ctx | Speculative |
 |---------|--------|-------|:--:|----:|:-----------:|
 | `qwen` (default) | Qwen3.6-27B (dense) | source-converted from `z-lab/Qwen3.6-27B-DFlash` | planar3 | 131K | DFlash |
