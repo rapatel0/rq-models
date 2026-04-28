@@ -3,7 +3,7 @@
     "target-only": {
       "leg": "target-only",
       "meta": {
-        "timestamp": 1777345639.343335,
+        "timestamp": 1777351254.616839,
         "base_url": "http://localhost:8080",
         "tokens": 256,
         "trials": 3,
@@ -19,9 +19,9 @@
             {
               "trial": 0,
               "attempt": 0,
-              "tps": 69.43327530049555,
+              "tps": 69.33501759646911,
               "completion_tokens": 256,
-              "wallclock_s": 3.7523518609814346,
+              "wallclock_s": 3.7550679499981925,
               "draft_n": null,
               "draft_n_accepted": null,
               "acceptance_rate": null
@@ -29,9 +29,9 @@
             {
               "trial": 1,
               "attempt": 0,
-              "tps": 69.40979979610871,
+              "tps": 69.29931891763127,
               "completion_tokens": 256,
-              "wallclock_s": 3.777878226013854,
+              "wallclock_s": 3.7823649960337207,
               "draft_n": null,
               "draft_n_accepted": null,
               "acceptance_rate": null
@@ -39,15 +39,15 @@
             {
               "trial": 2,
               "attempt": 0,
-              "tps": 69.3757537160743,
+              "tps": 69.3776714468605,
               "completion_tokens": 256,
-              "wallclock_s": 3.7412145400303416,
+              "wallclock_s": 3.739966045017354,
               "draft_n": null,
               "draft_n_accepted": null,
               "acceptance_rate": null
             }
           ],
-          "median_tps": 69.40979979610871,
+          "median_tps": 69.33501759646911,
           "sum_draft_n": 0,
           "sum_draft_n_accepted": 0,
           "acceptance_rate": NaN
@@ -59,9 +59,9 @@
             {
               "trial": 0,
               "attempt": 0,
-              "tps": 69.51965179344408,
+              "tps": 69.35289952011044,
               "completion_tokens": 256,
-              "wallclock_s": 3.732418837957084,
+              "wallclock_s": 3.740415333013516,
               "draft_n": null,
               "draft_n_accepted": null,
               "acceptance_rate": null
@@ -69,9 +69,9 @@
             {
               "trial": 1,
               "attempt": 0,
-              "tps": 69.4771814952955,
+              "tps": 69.31767042805286,
               "completion_tokens": 256,
-              "wallclock_s": 3.7732287789694965,
+              "wallclock_s": 3.77883056900464,
               "draft_n": null,
               "draft_n_accepted": null,
               "acceptance_rate": null
@@ -79,15 +79,15 @@
             {
               "trial": 2,
               "attempt": 0,
-              "tps": 69.4590846649264,
+              "tps": 69.31215269467238,
               "completion_tokens": 256,
-              "wallclock_s": 3.7351355170249008,
+              "wallclock_s": 3.74207005900098,
               "draft_n": null,
               "draft_n_accepted": null,
               "acceptance_rate": null
             }
           ],
-          "median_tps": 69.4771814952955,
+          "median_tps": 69.31767042805286,
           "sum_draft_n": 0,
           "sum_draft_n_accepted": 0,
           "acceptance_rate": NaN
@@ -99,9 +99,9 @@
             {
               "trial": 0,
               "attempt": 0,
-              "tps": 69.44346488168027,
+              "tps": 69.25509383388895,
               "completion_tokens": 256,
-              "wallclock_s": 3.736629293009173,
+              "wallclock_s": 3.7457760999677703,
               "draft_n": null,
               "draft_n_accepted": null,
               "acceptance_rate": null
@@ -109,9 +109,9 @@
             {
               "trial": 1,
               "attempt": 0,
-              "tps": 69.46824500690205,
+              "tps": 69.3910609134249,
               "completion_tokens": 256,
-              "wallclock_s": 3.7724488570238464,
+              "wallclock_s": 3.7753760240157135,
               "draft_n": null,
               "draft_n_accepted": null,
               "acceptance_rate": null
@@ -119,15 +119,15 @@
             {
               "trial": 2,
               "attempt": 0,
-              "tps": 69.44214628313625,
+              "tps": 69.357014418944,
               "completion_tokens": 256,
-              "wallclock_s": 3.7362627160036936,
+              "wallclock_s": 3.7398613509722054,
               "draft_n": null,
               "draft_n_accepted": null,
               "acceptance_rate": null
             }
           ],
-          "median_tps": 69.44346488168027,
+          "median_tps": 69.357014418944,
           "sum_draft_n": 0,
           "sum_draft_n_accepted": 0,
           "acceptance_rate": NaN
@@ -139,9 +139,9 @@
             {
               "trial": 0,
               "attempt": 0,
-              "tps": 69.40507649334104,
+              "tps": 69.4350832149637,
               "completion_tokens": 256,
-              "wallclock_s": 3.7400217480026186,
+              "wallclock_s": 3.737872669007629,
               "draft_n": null,
               "draft_n_accepted": null,
               "acceptance_rate": null
@@ -149,9 +149,9 @@
             {
               "trial": 1,
               "attempt": 0,
-              "tps": 69.33676405863832,
+              "tps": 69.42949028448191,
               "completion_tokens": 256,
-              "wallclock_s": 3.7822582370135933,
+              "wallclock_s": 3.775408214016352,
               "draft_n": null,
               "draft_n_accepted": null,
               "acceptance_rate": null
@@ -159,15 +159,15 @@
             {
               "trial": 2,
               "attempt": 0,
-              "tps": 69.44190140606288,
+              "tps": 69.4307330800558,
               "completion_tokens": 256,
-              "wallclock_s": 3.737977960961871,
+              "wallclock_s": 3.7372231479967013,
               "draft_n": null,
               "draft_n_accepted": null,
               "acceptance_rate": null
             }
           ],
-          "median_tps": 69.40507649334104,
+          "median_tps": 69.4307330800558,
           "sum_draft_n": 0,
           "sum_draft_n_accepted": 0,
           "acceptance_rate": NaN
@@ -179,9 +179,9 @@
             {
               "trial": 0,
               "attempt": 0,
-              "tps": 69.345760671527,
+              "tps": 69.38758141182586,
               "completion_tokens": 256,
-              "wallclock_s": 3.742566673026886,
+              "wallclock_s": 3.739079734950792,
               "draft_n": null,
               "draft_n_accepted": null,
               "acceptance_rate": null
@@ -189,9 +189,9 @@
             {
               "trial": 1,
               "attempt": 0,
-              "tps": 69.2998066643675,
+              "tps": 69.40247989158031,
               "completion_tokens": 256,
-              "wallclock_s": 3.782964590995107,
+              "wallclock_s": 3.7761974539607763,
               "draft_n": null,
               "draft_n_accepted": null,
               "acceptance_rate": null
@@ -199,20 +199,481 @@
             {
               "trial": 2,
               "attempt": 0,
-              "tps": 69.39017689887169,
+              "tps": 69.38363213015069,
               "completion_tokens": 256,
-              "wallclock_s": 3.7407502090209164,
+              "wallclock_s": 3.7399621839867905,
               "draft_n": null,
               "draft_n_accepted": null,
               "acceptance_rate": null
             }
           ],
-          "median_tps": 69.345760671527,
+          "median_tps": 69.38758141182586,
           "sum_draft_n": 0,
           "sum_draft_n_accepted": 0,
           "acceptance_rate": NaN
         }
       ]
+    },
+    "autoregressive": {
+      "leg": "autoregressive",
+      "meta": {
+        "timestamp": 1777352889.1413267,
+        "base_url": "http://localhost:8080",
+        "tokens": 256,
+        "trials": 3,
+        "seed": 42,
+        "temp": 0.0,
+        "top_k": 1
+      },
+      "cells": [
+        {
+          "prompt_idx": 1,
+          "prompt": "Write a quicksort algorithm in Python. Write code only.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 0,
+              "tps": 74.22378878229206,
+              "completion_tokens": 256,
+              "wallclock_s": 3.5142589989700355,
+              "draft_n": 221,
+              "draft_n_accepted": 221,
+              "acceptance_rate": 1.0
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 75.8326633793997,
+              "completion_tokens": 256,
+              "wallclock_s": 3.463341137045063,
+              "draft_n": 221,
+              "draft_n_accepted": 221,
+              "acceptance_rate": 1.0
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 76.09970011961921,
+              "completion_tokens": 256,
+              "wallclock_s": 3.414530984009616,
+              "draft_n": 221,
+              "draft_n_accepted": 221,
+              "acceptance_rate": 1.0
+            }
+          ],
+          "median_tps": 75.8326633793997,
+          "sum_draft_n": 663,
+          "sum_draft_n_accepted": 663,
+          "acceptance_rate": 1.0
+        },
+        {
+          "prompt_idx": 2,
+          "prompt": "Explain the Pythagorean theorem.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 1,
+              "tps": 54.38151436372991,
+              "completion_tokens": 256,
+              "wallclock_s": 4.79481425601989,
+              "draft_n": 210,
+              "draft_n_accepted": 210,
+              "acceptance_rate": 1.0
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 54.324103116484665,
+              "completion_tokens": 256,
+              "wallclock_s": 4.806155216007028,
+              "draft_n": 210,
+              "draft_n_accepted": 210,
+              "acceptance_rate": 1.0
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 54.47787953366084,
+              "completion_tokens": 256,
+              "wallclock_s": 4.789843334991019,
+              "draft_n": 210,
+              "draft_n_accepted": 210,
+              "acceptance_rate": 1.0
+            }
+          ],
+          "median_tps": 54.38151436372991,
+          "sum_draft_n": 630,
+          "sum_draft_n_accepted": 630,
+          "acceptance_rate": 1.0
+        },
+        {
+          "prompt_idx": 3,
+          "prompt": "Plan a 1 day trip to DC.",
+          "trials": [
+            {
+              "trial": 0,
+              "error": "timed out"
+            },
+            {
+              "trial": 1,
+              "error": "timed out"
+            },
+            {
+              "trial": 2,
+              "error": "timed out"
+            }
+          ],
+          "median_tps": NaN,
+          "sum_draft_n": 0,
+          "sum_draft_n_accepted": 0,
+          "acceptance_rate": NaN
+        },
+        {
+          "prompt_idx": 4,
+          "prompt": "Summarize the plot of Hamlet in 3 paragraphs.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 0,
+              "tps": 43.982604192813554,
+              "completion_tokens": 256,
+              "wallclock_s": 6.835087598010432,
+              "draft_n": 197,
+              "draft_n_accepted": 197,
+              "acceptance_rate": 1.0
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 43.39105869606818,
+              "completion_tokens": 256,
+              "wallclock_s": 5.9901047379826196,
+              "draft_n": 198,
+              "draft_n_accepted": 198,
+              "acceptance_rate": 1.0
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 44.019124934186245,
+              "completion_tokens": 256,
+              "wallclock_s": 5.908140960964374,
+              "draft_n": 198,
+              "draft_n_accepted": 198,
+              "acceptance_rate": 1.0
+            }
+          ],
+          "median_tps": 43.982604192813554,
+          "sum_draft_n": 593,
+          "sum_draft_n_accepted": 593,
+          "acceptance_rate": 1.0
+        },
+        {
+          "prompt_idx": 5,
+          "prompt": "Write a SQL query to find the top 5 customers by revenue.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 0,
+              "tps": 55.90436335739769,
+              "completion_tokens": 256,
+              "wallclock_s": 4.630476443038788,
+              "draft_n": 211,
+              "draft_n_accepted": 211,
+              "acceptance_rate": 1.0
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 55.24443396142946,
+              "completion_tokens": 256,
+              "wallclock_s": 4.723977154993918,
+              "draft_n": 211,
+              "draft_n_accepted": 211,
+              "acceptance_rate": 1.0
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 55.18154729058603,
+              "completion_tokens": 256,
+              "wallclock_s": 4.690197710006032,
+              "draft_n": 211,
+              "draft_n_accepted": 211,
+              "acceptance_rate": 1.0
+            }
+          ],
+          "median_tps": 55.24443396142946,
+          "sum_draft_n": 633,
+          "sum_draft_n_accepted": 633,
+          "acceptance_rate": 1.0
+        }
+      ]
+    },
+    "dflash": {
+      "leg": "dflash",
+      "meta": {
+        "timestamp": 1777354523.7087986,
+        "base_url": "http://localhost:8080",
+        "tokens": 256,
+        "trials": 3,
+        "seed": 42,
+        "temp": 0.0,
+        "top_k": 1
+      },
+      "cells": [
+        {
+          "prompt_idx": 1,
+          "prompt": "Write a quicksort algorithm in Python. Write code only.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 0,
+              "tps": 75.17741576458663,
+              "completion_tokens": 256,
+              "wallclock_s": 3.4729369310080074,
+              "draft_n": 221,
+              "draft_n_accepted": 221,
+              "acceptance_rate": 1.0
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 76.19029478501243,
+              "completion_tokens": 256,
+              "wallclock_s": 3.4502883189707063,
+              "draft_n": 221,
+              "draft_n_accepted": 221,
+              "acceptance_rate": 1.0
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 77.60955300838577,
+              "completion_tokens": 256,
+              "wallclock_s": 3.349552428990137,
+              "draft_n": 221,
+              "draft_n_accepted": 221,
+              "acceptance_rate": 1.0
+            }
+          ],
+          "median_tps": 76.19029478501243,
+          "sum_draft_n": 663,
+          "sum_draft_n_accepted": 663,
+          "acceptance_rate": 1.0
+        },
+        {
+          "prompt_idx": 2,
+          "prompt": "Explain the Pythagorean theorem.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 1,
+              "tps": 55.907794070629016,
+              "completion_tokens": 256,
+              "wallclock_s": 4.66961318498943,
+              "draft_n": 210,
+              "draft_n_accepted": 210,
+              "acceptance_rate": 1.0
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 55.33706541489613,
+              "completion_tokens": 256,
+              "wallclock_s": 4.7187736529740505,
+              "draft_n": 210,
+              "draft_n_accepted": 210,
+              "acceptance_rate": 1.0
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 55.27038770233874,
+              "completion_tokens": 256,
+              "wallclock_s": 4.720317366998643,
+              "draft_n": 210,
+              "draft_n_accepted": 210,
+              "acceptance_rate": 1.0
+            }
+          ],
+          "median_tps": 55.33706541489613,
+          "sum_draft_n": 630,
+          "sum_draft_n_accepted": 630,
+          "acceptance_rate": 1.0
+        },
+        {
+          "prompt_idx": 3,
+          "prompt": "Plan a 1 day trip to DC.",
+          "trials": [
+            {
+              "trial": 0,
+              "error": "timed out"
+            },
+            {
+              "trial": 1,
+              "error": "timed out"
+            },
+            {
+              "trial": 2,
+              "error": "timed out"
+            }
+          ],
+          "median_tps": NaN,
+          "sum_draft_n": 0,
+          "sum_draft_n_accepted": 0,
+          "acceptance_rate": NaN
+        },
+        {
+          "prompt_idx": 4,
+          "prompt": "Summarize the plot of Hamlet in 3 paragraphs.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 0,
+              "tps": 42.7728574140065,
+              "completion_tokens": 256,
+              "wallclock_s": 6.95119099697331,
+              "draft_n": 197,
+              "draft_n_accepted": 197,
+              "acceptance_rate": 1.0
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 43.725531423199435,
+              "completion_tokens": 256,
+              "wallclock_s": 5.946028340025805,
+              "draft_n": 198,
+              "draft_n_accepted": 198,
+              "acceptance_rate": 1.0
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 43.96209025314093,
+              "completion_tokens": 256,
+              "wallclock_s": 5.914407416014001,
+              "draft_n": 198,
+              "draft_n_accepted": 198,
+              "acceptance_rate": 1.0
+            }
+          ],
+          "median_tps": 43.725531423199435,
+          "sum_draft_n": 593,
+          "sum_draft_n_accepted": 593,
+          "acceptance_rate": 1.0
+        },
+        {
+          "prompt_idx": 5,
+          "prompt": "Write a SQL query to find the top 5 customers by revenue.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 0,
+              "tps": 55.90598709445229,
+              "completion_tokens": 256,
+              "wallclock_s": 4.629866199975368,
+              "draft_n": 211,
+              "draft_n_accepted": 211,
+              "acceptance_rate": 1.0
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 56.008325987710116,
+              "completion_tokens": 256,
+              "wallclock_s": 4.66208156599896,
+              "draft_n": 211,
+              "draft_n_accepted": 211,
+              "acceptance_rate": 1.0
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 55.743532715901125,
+              "completion_tokens": 256,
+              "wallclock_s": 4.643635234038811,
+              "draft_n": 211,
+              "draft_n_accepted": 211,
+              "acceptance_rate": 1.0
+            }
+          ],
+          "median_tps": 55.90598709445229,
+          "sum_draft_n": 633,
+          "sum_draft_n_accepted": 633,
+          "acceptance_rate": 1.0
+        }
+      ]
     }
+  },
+  "summary": {
+    "profile": "qwen",
+    "median_ratio_dflash": 0.8020085219775421,
+    "quicksort_ratio_dflash": 1.098871788400504,
+    "gate_pass_median_ge_1_3": false,
+    "headline_quicksort_ge_1_5": false,
+    "acceptance_rate_by_leg": {
+      "target-only": NaN,
+      "autoregressive": 1.0,
+      "dflash": 1.0
+    },
+    "rows": [
+      {
+        "prompt": "Write a quicksort algorithm in Python. Write code only.",
+        "target_only_tps": 69.33501759646911,
+        "autoregressive_tps": 75.8326633793997,
+        "dflash_tps": 76.19029478501243,
+        "ratio_autoreg": 1.0937137684271891,
+        "ratio_dflash": 1.098871788400504,
+        "target_only_acceptance_rate": NaN,
+        "autoregressive_acceptance_rate": 1.0,
+        "dflash_acceptance_rate": 1.0
+      },
+      {
+        "prompt": "Explain the Pythagorean theorem.",
+        "target_only_tps": 69.31767042805286,
+        "autoregressive_tps": 54.38151436372991,
+        "dflash_tps": 55.33706541489613,
+        "ratio_autoreg": 0.7845259950011493,
+        "ratio_dflash": 0.7983110954707043,
+        "target_only_acceptance_rate": NaN,
+        "autoregressive_acceptance_rate": 1.0,
+        "dflash_acceptance_rate": 1.0
+      },
+      {
+        "prompt": "Plan a 1 day trip to DC.",
+        "target_only_tps": 69.357014418944,
+        "autoregressive_tps": NaN,
+        "dflash_tps": NaN,
+        "ratio_autoreg": NaN,
+        "ratio_dflash": NaN,
+        "target_only_acceptance_rate": NaN,
+        "autoregressive_acceptance_rate": NaN,
+        "dflash_acceptance_rate": NaN
+      },
+      {
+        "prompt": "Summarize the plot of Hamlet in 3 paragraphs.",
+        "target_only_tps": 69.4307330800558,
+        "autoregressive_tps": 43.982604192813554,
+        "dflash_tps": 43.725531423199435,
+        "ratio_autoreg": 0.6334745759071885,
+        "ratio_dflash": 0.6297719969740566,
+        "target_only_acceptance_rate": NaN,
+        "autoregressive_acceptance_rate": 1.0,
+        "dflash_acceptance_rate": 1.0
+      },
+      {
+        "prompt": "Write a SQL query to find the top 5 customers by revenue.",
+        "target_only_tps": 69.38758141182586,
+        "autoregressive_tps": 55.24443396142946,
+        "dflash_tps": 55.90598709445229,
+        "ratio_autoreg": 0.7961717765250431,
+        "ratio_dflash": 0.80570594848438,
+        "target_only_acceptance_rate": NaN,
+        "autoregressive_acceptance_rate": 1.0,
+        "dflash_acceptance_rate": 1.0
+      }
+    ]
   }
 }
