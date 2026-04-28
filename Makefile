@@ -12,10 +12,12 @@ run-qwen36-27b:
 	docker compose --profile qwen36-27b up
 
 # ── Sprint 004: DFlash speculative decoding ───────────────────────────
+# Both DFlash profiles require host-side opt-in. The 27B dense profile is
+# preview (community drafts iterating); the 35B MoE profile is experimental
+# (no speedup gate, MoE acceptance characteristics differ from dense).
 run-qwen36-27b-dflash:
-	docker compose --profile qwen36-27b-dflash up
+	PREVIEW=1 docker compose --profile qwen36-27b-dflash up
 
-# qwen36-dflash (35B MoE) is experimental — must opt in.
 run-qwen36-dflash:
 	EXPERIMENTAL=1 docker compose --profile qwen36-dflash up
 
@@ -43,7 +45,7 @@ run-qwen36-27b-bg:
 	done
 
 run-qwen36-27b-dflash-bg:
-	docker compose --profile qwen36-27b-dflash up -d
+	PREVIEW=1 docker compose --profile qwen36-27b-dflash up -d
 	@echo "Waiting for server..." && \
 	for i in $$(seq 1 240); do \
 		curl -sf http://localhost:$${PORT:-8080}/health >/dev/null 2>&1 && echo "Ready on port $${PORT:-8080}" && break; \

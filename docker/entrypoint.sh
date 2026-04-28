@@ -163,7 +163,7 @@ if [ "$SPECULATIVE_MODE" != "target-only" ]; then
     echo "ERROR: Unknown DRAFT_MODEL_NAME='$DRAFT_MODEL_NAME'"
     exit 1
   fi
-  # qwen3.6-35b MoE + DFlash is the experimental tier (per Sprint 004 spec).
+  # Qwen3.6-35B MoE + DFlash → EXPERIMENTAL=1 (no speedup gate; MoE is research-tier).
   if [[ "$MODEL_NAME" == qwen3.6-35b* ]] && [ "$SPECULATIVE_MODE" = "dflash" ]; then
     if [ "${EXPERIMENTAL:-0}" != "1" ]; then
       echo "ERROR: $MODEL_NAME + DFlash requires EXPERIMENTAL=1"
@@ -171,6 +171,19 @@ if [ "$SPECULATIVE_MODE" != "target-only" ]; then
       exit 1
     fi
     echo "[experimental] $MODEL_NAME + DFlash enabled by EXPERIMENTAL=1"
+  fi
+  # Qwen3.6-27B + DFlash → PREVIEW=1. The community / z-lab DFlash drafts are
+  # still iterating (PR #22105 head still moves; draft training data evolving).
+  # Gate so it isn't picked up as a default.
+  if [[ "$MODEL_NAME" == qwen3.6-27b* ]] && [ "$SPECULATIVE_MODE" = "dflash" ]; then
+    if [ "${PREVIEW:-0}" != "1" ]; then
+      echo "ERROR: $MODEL_NAME + DFlash requires PREVIEW=1"
+      echo "       Draft GGUFs are pre-canonical-release; expect L4 numbers to"
+      echo "       drift as z-lab iterates. Re-run \`make convert-drafts\` after"
+      echo "       upstream draft updates to pick up new safetensors."
+      exit 1
+    fi
+    echo "[preview] $MODEL_NAME + DFlash enabled by PREVIEW=1"
   fi
 fi
 
@@ -184,9 +197,14 @@ if [ "$SPECULATIVE_MODE" != "target-only" ]; then
   DRAFT_PATH=$(download_model_if_missing "$DRAFT_MODEL_NAME")
 fi
 
-# Speculative decoding requires single-slot serving. Phase 4 doc: N_PARALLEL=1.
+# Speculative decoding default is single-slot. The fork's server creates one
+# common_speculative per slot but all slots share a single draft context
+# (server-context.cpp:779, params_dft.n_parallel = 1). Multi-slot is functionally
+# correct but serializes through draft inference — see TODO TAG_SERVER_SPEC_REWORK
+# in tools/server/server-context.cpp:339. Operators can opt in by setting
+# N_PARALLEL > 1 explicitly for throughput experiments.
 if [ "$SPECULATIVE_MODE" != "target-only" ]; then
-  N_PARALLEL_EFFECTIVE=1
+  N_PARALLEL_EFFECTIVE="${N_PARALLEL:-1}"
 else
   N_PARALLEL_EFFECTIVE="${N_PARALLEL:-2}"
 fi

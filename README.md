@@ -209,28 +209,33 @@ Benchmarked on RTX 5090 (32 GB). Full results in [docs/BENCHMARK-REPORT.md](docs
 ### Speculative Decoding (Experimental)
 
 DFlash block-diffusion speculative decoding lands behind two opt-in compose
-profiles. Both are single-slot, greedy-validated only; sampling-mode behavior
-is unverified. End-to-end measurement is **currently blocked** on a draft-GGUF
-format mismatch (see below) — the profiles boot, but draft load fails until
-source-converted GGUFs land. See [BENCHMARK-REPORT.md §10](docs/BENCHMARK-REPORT.md#10-speculative-decoding-sprint-004-work-in-progress)
-for architecture findings, snapshot-cost numbers, and the placeholder result tables.
+profiles. Both default to single-slot, greedy-validated; sampling-mode behavior
+is unverified. The DFlash drafts are source-converted from z-lab's safetensors
+via `make convert-drafts` (see below) — the previously-tracked blocker on
+community-GGUF format mismatch is now resolved.
 
 | Profile | Target | Draft | KV | Ctx | Speedup gate | Opt-in |
 |---------|--------|-------|:--:|----:|:-------------|:------:|
-| `qwen36-27b-dflash` | Qwen3.6-27B (dense, 27B) | `spiritbuun/Qwen3.6-27B-DFlash-GGUF` | planar3 | 131K | median ≥1.3× / quicksort ≥1.5× | — |
-| `qwen36-dflash` | Qwen3.6-35B-A3B (MoE) | `lym00/Qwen3.6-35B-A3B-DFlash-GGUF-Test` | iso3 | 65K | correctness only (no speedup gate) | `EXPERIMENTAL=1` |
+| `qwen36-27b-dflash` | Qwen3.6-27B (dense) | source-converted from `z-lab/Qwen3.6-27B-DFlash` | planar3 | 131K | median ≥1.3× / quicksort ≥1.5× | `PREVIEW=1` |
+| `qwen36-dflash` | Qwen3.6-35B-A3B (MoE) | source-converted from `z-lab/Qwen3.6-35B-A3B-DFlash` | iso3 | 65K | correctness only (no speedup gate) | `EXPERIMENTAL=1` |
 
-The MoE profile is gated behind `EXPERIMENTAL=1` because PR #22105's reference
-gpt-oss-20B numbers (0.61–1.27×) suggest MoE speedup is workload-dependent and
-may go negative; we ship correctness-validated only. The dense 27B owns the
-hard speedup gate.
+Both DFlash profiles require host-side opt-in. The 27B-DFlash draft is **preview**
+— z-lab's draft training is iterating, so re-running `make convert-drafts` after
+their next release is expected. The 35B-DFlash MoE profile is **experimental** —
+PR #22105's reference gpt-oss-20B numbers (0.61–1.27×) show MoE speedup is
+workload-dependent and may go negative; we ship correctness-validated only.
 
 ```bash
-# Dense 27B — single-slot DFlash on planar3 KV
-make run-qwen36-27b-dflash
+# One-time: source-convert drafts from z-lab safetensors into the llm-models volume.
+# 27B repo is gated; visit https://huggingface.co/z-lab/Qwen3.6-27B-DFlash to
+# request access (one-time per HF account).
+make convert-drafts
+
+# Dense 27B — preview profile, default single-slot, planar3 KV
+make run-qwen36-27b-dflash      # implicitly sets PREVIEW=1
 
 # MoE 35B — experimental opt-in (correctness only)
-EXPERIMENTAL=1 make run-qwen36-dflash
+make run-qwen36-dflash          # implicitly sets EXPERIMENTAL=1
 ```
 
 #### Env var contract
@@ -244,21 +249,28 @@ Set on the compose service or via `docker run -e` (full table in
 | `DRAFT_MODEL_NAME` | model key from `MODELS` registry | — | Required if mode != target-only |
 | `DRAFT_KV_CACHE_TYPE` | same options as `KV_CACHE_TYPE` | inherits target | Independent draft KV quantization |
 | `DRAFT_N_MAX` | int | `16` | Max draft tokens per verify round |
-| `EXPERIMENTAL` | `0` / `1` | `0` | Required `=1` to enable `qwen36-dflash` |
+| `EXPERIMENTAL` | `0` / `1` | `0` | Required `=1` to enable `qwen36-dflash` (35B MoE) |
+| `PREVIEW` | `0` / `1` | `0` | Required `=1` to enable `qwen36-27b-dflash` (drafts iterating) |
 
-The entrypoint forces `N_PARALLEL=1` whenever `SPECULATIVE_MODE != target-only`
-([docker/entrypoint.sh:174-179](docker/entrypoint.sh#L174-L179)); multi-slot
-speculative is upstream-uncharted and explicitly out of scope (see
-SPRINT-004-DEFERRED.md D-002).
+The entrypoint defaults `N_PARALLEL=1` when `SPECULATIVE_MODE != target-only` but
+no longer forces it. Multi-slot speculative is functionally correct in the
+cherry-picked PR #22105 — each slot has its own `common_speculative` context
+([server-context.cpp:928](https://github.com/rapatel0/llama-cpp-turboquant/blob/feature/sprint-004-rebase-dflash/tools/server/server-context.cpp#L928))
+— but all slots serialize through one shared draft `llama_context`
+(`params_dft.n_parallel = 1` at server-context.cpp:779). The optimization to
+batch all slots' draft inference together is upstream's `TAG_SERVER_SPEC_REWORK`
+TODO. Throughput experiments with `N_PARALLEL > 1` are operator-overridable
+but currently expected to scale sub-linearly with concurrent slots.
 
 #### Acceptance-rate tuning
 
-Setting `LLAMA_SPEC_NO_THINK=1` (read in `examples/speculative-simple/speculative-simple.cpp`,
-came in via PR #22105) suppresses Qwen3.x thinking-mode tokens for the
-draft-aligned chat template. Per the upstream PR, leaving thinking on **drops
-acceptance rate by 60–80 percentage points**, so Sprint 004's 5-prompt benchmark
-suite runs with this flag set by default
-([scripts/bench_speculative.py:265](scripts/bench_speculative.py#L265)).
+`LLAMA_SPEC_NO_THINK=1` (read in `examples/speculative-simple/speculative-simple.cpp`,
+came in via PR #22105) suppresses Qwen3.x thinking-mode tokens. Per the upstream
+PR, leaving thinking on drops acceptance rate by 60–80 percentage points relative
+to a no-think baseline. **Sprint 004 measures with thinking on** because thinking
+mode is critical to Qwen3.x quality on actual tasks; suppressing it for benchmark
+optics would not reflect deployed behavior. Operators who specifically want PR
+#22105's headline numbers can set `LLAMA_SPEC_NO_THINK=1` to reproduce them.
 
 #### Validation scope
 
@@ -268,16 +280,18 @@ diverge by design under sampling, so equivalence requires distribution-level
 metrics that are out of scope (see SPRINT-004-DEFERRED.md D-003). Streaming
 (`stream: true`) is similarly deferred (D-006).
 
-#### Blocked: draft-GGUF format mismatch
+#### Source-converted drafts (`make convert-drafts`)
 
-The two community drafts above use a non-canonical GGUF schema that doesn't
-match PR #22105's `convert_hf_to_gguf.py` output: `general.architecture`
-disagrees, the metadata key prefix is 3-segment instead of 2, and several
-DFlash-specific tensors (e.g. `fc.weight`) are missing. The fork's LLM_KV
-arch-name override (commit `bd7a7aabb`) handles the first two; the tensor-name
-mismatch needs either source-side reconversion against z-lab's gated safetensors
-or fork-side aliasing. Profiles boot; draft load fails until canonical GGUFs
-drop. Tracking under `docs/sprints/SPRINT-004-FOLLOWUPS.md` F-001.
+`scripts/convert_dflash_drafts.sh` downloads the z-lab safetensors plus the
+target's tokenizer files (no target weights needed), runs the cherry-picked
+PR #22105's `convert_hf_to_gguf.py` against them, and copies the result GGUFs
+into the `llm-models` named volume so the compose profiles can find them. The
+script is idempotent — re-running skips repos already on disk and only
+re-publishes if the volume copy differs.
+
+The 27B repo (`z-lab/Qwen3.6-27B-DFlash`) is gated; the operator must visit
+the HF page once and request access using the same account as
+`~/.cache/huggingface/token`. The 35B repo is public.
 
 ## Project Structure
 

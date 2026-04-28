@@ -137,6 +137,28 @@ runs deferred to follow-up F-001 (blocked on source-converted draft GGUFs)
   Phase 3); not rewritten. Both result JSONs are already in
   `docs/sprints/`.
 
+### 2026-04-27 — F-001 (mostly resolved) + PREVIEW gate + multi-slot finding
+
+- `z-lab/Qwen3.6-27B-DFlash` access granted; 27B converted (3.47 GB GGUF) and
+  smoke-tested. Speculative decoding works end-to-end: target Q4_K_XL +
+  draft bf16, ngl=99/99, ctx=2048, greedy on "The capital of France is" →
+  **75.4 tok/s decode, 37.3% acceptance** (n_drafted=75, n_accept=28).
+  Coherent generation. Acceptance is lower than 35B's 100% because the
+  smoke runs with thinking-on (which Sprint 004 keeps as the validation
+  regime — `LLAMA_SPEC_NO_THINK=1` is opt-in only since suppressing
+  thinking-mode tokens would not reflect deployed behavior).
+- 27B-DFlash gated behind `PREVIEW=1` (parallel to `EXPERIMENTAL=1` for the
+  MoE) because z-lab's draft training is iterating; `make run-qwen36-27b-dflash`
+  sets it implicitly. Re-run `make convert-drafts` after each upstream
+  draft refresh.
+- Multi-slot speculative finding: server-context.cpp:928 instantiates one
+  `common_speculative` per slot, but all slots share a single draft context
+  (`params_dft.n_parallel = 1` at server-context.cpp:779). The
+  `TAG_SERVER_SPEC_REWORK` TODO at server-context.cpp:339 is the *optimization*
+  (batched draft inference across slots), not a correctness barrier.
+  Entrypoint relaxed: `N_PARALLEL` now *defaults* to 1 in dflash mode but
+  is operator-overridable for throughput experiments.
+
 ### 2026-04-27 — F-001 (partial): 35B-A3B DFlash draft source-converted
 
 - z-lab safetensors are public for the 35B-A3B (`gated: False`); the

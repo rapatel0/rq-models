@@ -9,7 +9,7 @@ on the original deferred list but emerged as the sprint actually ran.
 
 ## F-001: Source-converted DFlash drafts
 
-**Status**: 35B-A3B resolved · 27B blocked on access approval
+**Status**: resolved (both pairs converted; both behind opt-in gates)
 
 **What**: The two community DFlash drafts originally pinned in
 `docker/entrypoint.sh` used a non-canonical GGUF schema relative to PR
@@ -25,21 +25,28 @@ with 100% acceptance** on a 16-token "capital of France is" probe
 auto-setup correctly extracted target layers `[2, 11, 20, 29, 38]`
 matching the draft's `dflash_config.target_layer_ids`.
 
-**27B**: `z-lab/Qwen3.6-27B-DFlash` is gated (`gated: auto` in the API
-search response is misleading — actual GET returns 403 *"restricted, not
-in authorized list, ask for access"*). Operator must visit
-`https://huggingface.co/z-lab/Qwen3.6-27B-DFlash` while logged in as the
-HF account whose token sits in `~/.cache/huggingface/token` and click
-"Request access". Once approved, `make convert-drafts` re-runs idempotent
-and the 27B pair lands in the volume the same way.
+**27B**: Done. Access was granted by z-lab; converted
+`Qwen3.6-27B-DFlash-bf16.gguf` (3.47 GB) loads and runs DFlash speculative
+end-to-end. Smoke (target Q4_K_XL + draft bf16, ngl=99/99, ctx=2048,
+greedy, thinking-on): **75.4 tok/s decode, 37.3% acceptance** on a
+7-token probe. The 37% acceptance is the thinking-on regime (Sprint 004
+keeps this as the validation default; PR #22105's headline 60–80%
+acceptance is no-think and ships as opt-in only).
 
-**Impact**: 35B-A3B side: L2/L3/L4 gates are now runnable on the
-`qwen36-dflash` profile (still EXPERIMENTAL=1 per Sprint 004 spec).
-27B side: gates remain blocked until access lands.
+**Gating change (2026-04-27)**: 27B-DFlash is now behind `PREVIEW=1`
+(parallel to `EXPERIMENTAL=1` for the 35B MoE) because the z-lab draft
+training is still iterating. `make run-qwen36-27b-dflash` sets PREVIEW=1
+implicitly. Operators should re-run `make convert-drafts` after each
+upstream draft refresh.
 
-**Suggested next action**: (1) operator requests access at the URL
-above; (2) re-run `make convert-drafts`; (3) execute Phase 5 L2/L3/L4
-harness against the converted pairs.
+**Impact**: Both pairs convertible reproducibly via `make convert-drafts`.
+L2/L3/L4 measurement gates are now runnable on both `qwen36-dflash`
+(EXPERIMENTAL=1) and `qwen36-27b-dflash` (PREVIEW=1) profiles.
+
+**Suggested next action**: Run the L4 5-prompt benchmark with thinking-on
+on both profiles to establish baseline numbers, then explore the
+quality-vs-acceptance tradeoffs (target Q5_K_M, draft KV variants,
+chat-template canonical form) on the 27B for headline-prompt optimization.
 
 **Files**: `scripts/convert_dflash_drafts.sh` (host-side converter);
 fork `convert_hf_to_gguf.py` (one-line tokenizer-hash mapping for
@@ -218,6 +225,40 @@ already in fork. Plan the harness work, not the cherry-pick.
 
 ---
 
+## F-010: Multi-slot speculative — batched draft inference
+
+**Status**: open (optimization, not correctness)
+
+**What**: The cherry-picked PR #22105 instantiates one `common_speculative`
+context per server slot
+(`tools/server/server-context.cpp:928`) but all slots share a single
+draft `llama_context` with `params_dft.n_parallel = 1` (server-context.cpp:779).
+Multi-slot speculative is functionally correct — each slot has independent
+state and the verify path handles per-slot rollback — but the draft side
+serializes: only one slot's draft inference runs at a time.
+
+**Impact**: When multiple users hit a DFlash profile concurrently (`N_PARALLEL`
+> 1), draft inference becomes a serialization point. For drafts where draft
+inference is fast relative to target verify (which is the case for both our
+27B and 35B draft pairs), this matters less; for pathological cases the
+multi-slot speedup is sub-linear.
+
+The TODO at server-context.cpp:339 (`TAG_SERVER_SPEC_REWORK`) explicitly
+calls out the optimization: "perform the speculative drafting for all
+sequences at the same time in a single batch". Upstream PR #18961 is
+the in-flight rework.
+
+**Suggested next action**: Don't fork-pick #18961 (large, still iterating).
+Run a throughput experiment with `N_PARALLEL=2/4/8` on
+`qwen36-27b-dflash` (PREVIEW=1) at fixed ctx + greedy + thinking-on to
+characterize the serialization cost in our setup. If sub-linear by
+>50% at N=4, escalate.
+
+**Files**: `docker/entrypoint.sh:188-198` (default-but-overridable
+`N_PARALLEL`); fork `tools/server/server-context.cpp:339, 779`.
+
+---
+
 ## F-009: `LLAMA_SPEC_NO_THINK=1` documentation
 
 **Status**: closed (documented in README + BENCHMARK-REPORT.md §10)
@@ -244,7 +285,7 @@ BENCHMARK-REPORT.md §10's acceptance-rate notes paragraph.
 
 | Item | Title | Status | Suggested next action |
 |------|-------|--------|------------------------|
-| F-001 | Source-converted DFlash drafts | partially-mitigated (35B done, 27B awaiting access) | Operator requests access to z-lab/Qwen3.6-27B-DFlash; rerun `make convert-drafts` |
+| F-001 | Source-converted DFlash drafts | resolved | Both pairs converted; re-run `make convert-drafts` after upstream draft refresh |
 | F-002 | `LLAMA_SPEC_FORCE_REJECT_AT` env in fork | open | Add to fork's `common/speculative.cpp`; flip `xfail` to xpass-strict |
 | F-003 | Formal C++ checkpoint test file | partially-mitigated | Author `tests/test-checkpoint-hybrid-state.cpp` (subtest C already inline) |
 | F-004 | Runtime guard `prefill_complete`/`deferred_drained` | partially-mitigated | Defensive only; land alongside F-003 |
@@ -253,3 +294,4 @@ BENCHMARK-REPORT.md §10's acceptance-rate notes paragraph.
 | F-007 | `make bench-dflash-all` | open | Add aggregate Makefile target |
 | F-008 | Sprint 005 EAGLE3 scope | informational | Plan harness only; cherry-pick already done |
 | F-009 | `LLAMA_SPEC_NO_THINK=1` doc | closed | n/a (documented) |
+| F-010 | Multi-slot speculative batched-draft optimization | open | Throughput experiment with N_PARALLEL>1; escalate if >50% sub-linear at N=4 |

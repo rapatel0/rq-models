@@ -143,8 +143,11 @@ services:
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 
   # ── DFlash speculative decoding (Sprint 004) ─────────────────────────
-  # Single-slot, greedy. Entrypoint forces N_PARALLEL=1 when SPECULATIVE_MODE
-  # != target-only. Headline gate: median ≥1.3× decode tok/s on the dense 27B.
+  # Default N_PARALLEL=1 — multi-slot speculative is functionally correct but
+  # serializes through the shared draft context (server-context.cpp:779).
+  # Override N_PARALLEL>1 for throughput experiments. Headline gate: median
+  # ≥1.3× decode tok/s on the dense 27B (single-slot, greedy, thinking-on).
+  # PREVIEW=1 gate: community DFlash drafts are pre-canonical-release.
   qwen36-27b-dflash:
     <<: *llm-base
     profiles: [qwen36-27b-dflash]
@@ -155,7 +158,7 @@ services:
       CTX_SIZE: ${CTX_SIZE:-131072}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
-      N_PARALLEL: 1
+      N_PARALLEL: ${N_PARALLEL:-1}
       CACHE_RAM: ${CACHE_RAM:-8192}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
@@ -163,6 +166,7 @@ services:
       DRAFT_MODEL_NAME: qwen3.6-27b-dflash
       DRAFT_KV_CACHE_TYPE: ${DRAFT_KV_CACHE_TYPE:-planar3}
       DRAFT_N_MAX: ${DRAFT_N_MAX:-16}
+      PREVIEW: ${PREVIEW:-0}
 
   # MoE 35B + DFlash. Experimental — gated by EXPERIMENTAL=1 host env (no
   # speedup gate; correctness-only). Default ctx 65K for snapshot headroom
@@ -177,7 +181,7 @@ services:
       CTX_SIZE: ${CTX_SIZE:-65536}
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
-      N_PARALLEL: 1
+      N_PARALLEL: ${N_PARALLEL:-1}
       CACHE_RAM: ${CACHE_RAM:-2048}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
