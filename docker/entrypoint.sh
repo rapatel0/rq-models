@@ -153,7 +153,7 @@ if [[ -z "${MODELS[$MODEL_NAME]+x}" ]]; then
   exit 1
 fi
 
-# ── Speculative validation + experimental gate ──────────────────────────────
+# ── Speculative validation ──────────────────────────────────────────────────
 if [ "$SPECULATIVE_MODE" != "target-only" ]; then
   if [ -z "$DRAFT_MODEL_NAME" ]; then
     echo "ERROR: SPECULATIVE_MODE=$SPECULATIVE_MODE requires DRAFT_MODEL_NAME"
@@ -163,21 +163,11 @@ if [ "$SPECULATIVE_MODE" != "target-only" ]; then
     echo "ERROR: Unknown DRAFT_MODEL_NAME='$DRAFT_MODEL_NAME'"
     exit 1
   fi
-  # Qwen3.6-35B MoE + DFlash is the default (Sprint 004 validated: 100% accept,
-  # 128 tok/s on a thinking-on greedy probe). No opt-in env required.
-  #
-  # Qwen3.6-27B + DFlash → PREVIEW=1. The z-lab DFlash drafts for the dense 27B
-  # are still iterating; gate so it isn't picked up as a default.
-  if [[ "$MODEL_NAME" == qwen3.6-27b* ]] && [ "$SPECULATIVE_MODE" = "dflash" ]; then
-    if [ "${PREVIEW:-0}" != "1" ]; then
-      echo "ERROR: $MODEL_NAME + DFlash requires PREVIEW=1"
-      echo "       Draft GGUFs are pre-canonical-release; expect L4 numbers to"
-      echo "       drift as z-lab iterates. Re-run \`make convert-drafts\` after"
-      echo "       upstream draft updates to pick up new safetensors."
-      exit 1
-    fi
-    echo "[preview] $MODEL_NAME + DFlash enabled by PREVIEW=1"
-  fi
+  # Both 27B and 35B-A3B + DFlash are validated (Sprint 005 Phase 0.5
+  # correctness probe: 27B 937/937-char shared prefix + 100% accept on
+  # quicksort; 35B 100% accept on capital-of-france probe). No opt-in env
+  # required. Operators should still re-run `make convert-drafts` after
+  # upstream draft refreshes to pick up new safetensors.
 fi
 
 # ── Resolve target + (optional) draft ───────────────────────────────────────

@@ -1,25 +1,25 @@
-.PHONY: build run-qwen run-qwen-target-only run-qwen36-27b run-qwen36-27b-dflash run-reasoning run-gemma stop logs test bench bench-dflash bench-dflash-leg smoke clean
+.PHONY: build run-qwen run-qwen-target-only run-qwen36 run-qwen36-target-only run-reasoning run-gemma stop logs test bench bench-dflash bench-dflash-leg smoke convert-drafts clean
 
 # ── Build ────────────────────────────────────────────────────────────
 build:
 	docker build -t rotorquant -f docker/Dockerfile .
 
 # ── Run models ───────────────────────────────────────────────────────
+# Default: Qwen3.6-27B (dense) + DFlash speculative decoding. Sprint 005
+# Phase 0.5 validated byte-equal output vs target-only on greedy + 100%
+# acceptance. `qwen-target-only` is the multi-user throughput escape hatch.
+# `qwen36` / `qwen36-target-only` are the 35B-A3B MoE variants.
 run-qwen:
 	docker compose --profile qwen up
 
-run-qwen36-27b:
-	docker compose --profile qwen36-27b up
-
-# ── Sprint 004: DFlash speculative decoding ───────────────────────────
-# `qwen` (default) is now the MoE 35B + DFlash combo — no opt-in needed.
-# `qwen36-27b-dflash` is preview-gated (community drafts still iterating).
-# `qwen-target-only` opts out of speculative decoding for multi-user throughput.
-run-qwen36-27b-dflash:
-	PREVIEW=1 docker compose --profile qwen36-27b-dflash up
-
 run-qwen-target-only:
 	docker compose --profile qwen-target-only up
+
+run-qwen36:
+	docker compose --profile qwen36 up
+
+run-qwen36-target-only:
+	docker compose --profile qwen36-target-only up
 
 run-reasoning:
 	docker compose --profile reasoning up
@@ -31,22 +31,6 @@ run-gemma:
 run-qwen-bg:
 	docker compose --profile qwen up -d
 	@echo "Waiting for server..." && \
-	for i in $$(seq 1 150); do \
-		curl -sf http://localhost:$${PORT:-8080}/health >/dev/null 2>&1 && echo "Ready on port $${PORT:-8080}" && break; \
-		sleep 1; \
-	done
-
-run-qwen36-27b-bg:
-	docker compose --profile qwen36-27b up -d
-	@echo "Waiting for server..." && \
-	for i in $$(seq 1 150); do \
-		curl -sf http://localhost:$${PORT:-8080}/health >/dev/null 2>&1 && echo "Ready on port $${PORT:-8080}" && break; \
-		sleep 1; \
-	done
-
-run-qwen36-27b-dflash-bg:
-	PREVIEW=1 docker compose --profile qwen36-27b-dflash up -d
-	@echo "Waiting for server..." && \
 	for i in $$(seq 1 240); do \
 		curl -sf http://localhost:$${PORT:-8080}/health >/dev/null 2>&1 && echo "Ready on port $${PORT:-8080}" && break; \
 		sleep 1; \
@@ -54,6 +38,22 @@ run-qwen36-27b-dflash-bg:
 
 run-qwen-target-only-bg:
 	docker compose --profile qwen-target-only up -d
+	@echo "Waiting for server..." && \
+	for i in $$(seq 1 240); do \
+		curl -sf http://localhost:$${PORT:-8080}/health >/dev/null 2>&1 && echo "Ready on port $${PORT:-8080}" && break; \
+		sleep 1; \
+	done
+
+run-qwen36-bg:
+	docker compose --profile qwen36 up -d
+	@echo "Waiting for server..." && \
+	for i in $$(seq 1 240); do \
+		curl -sf http://localhost:$${PORT:-8080}/health >/dev/null 2>&1 && echo "Ready on port $${PORT:-8080}" && break; \
+		sleep 1; \
+	done
+
+run-qwen36-target-only-bg:
+	docker compose --profile qwen36-target-only up -d
 	@echo "Waiting for server..." && \
 	for i in $$(seq 1 240); do \
 		curl -sf http://localhost:$${PORT:-8080}/health >/dev/null 2>&1 && echo "Ready on port $${PORT:-8080}" && break; \
@@ -82,9 +82,9 @@ run-throughput-bg:
 logs:
 	docker compose \
 	  --profile qwen --profile qwen-target-only \
+	  --profile qwen36 --profile qwen36-target-only \
 	  --profile qwen36-q3 --profile qwen36-iq3 \
-	  --profile qwen36-27b --profile qwen36-27b-q3 --profile qwen36-27b-iq3 \
-	  --profile qwen36-27b-dflash \
+	  --profile qwen36-27b-q3 --profile qwen36-27b-iq3 \
 	  --profile qwen36-throughput \
 	  --profile reasoning --profile gemma \
 	  --profile qwen-q3 --profile qwen-q3-xxs --profile qwen-iq4 --profile gemma-q3 \
@@ -95,9 +95,9 @@ logs:
 stop:
 	docker compose \
 	  --profile qwen --profile qwen-target-only \
+	  --profile qwen36 --profile qwen36-target-only \
 	  --profile qwen36-q3 --profile qwen36-iq3 \
-	  --profile qwen36-27b --profile qwen36-27b-q3 --profile qwen36-27b-iq3 \
-	  --profile qwen36-27b-dflash \
+	  --profile qwen36-27b-q3 --profile qwen36-27b-iq3 \
 	  --profile qwen36-throughput \
 	  --profile reasoning --profile gemma \
 	  --profile qwen-q3 --profile qwen-q3-xxs --profile qwen-iq4 --profile gemma-q3 \
@@ -111,14 +111,13 @@ test:
 bench:
 	python scripts/battery_test.py
 
-# ── Sprint 004 L4: 3-way decode tok/s benchmark ──────────────────────
-# Reproducibility entrypoint per Phase 6 spec. Operator brings up each
-# leg's profile in sequence; the script appends to a single results JSON.
-# Usage:
-#   make run-qwen36-27b-bg                        ; make bench-dflash-leg LEG=target-only       ; make stop
+# ── Sprint 005 L4: 3-way decode tok/s benchmark ──────────────────────
+# Operator brings up each leg's profile in sequence; the script appends
+# to a single results JSON. Usage:
+#   make run-qwen-target-only-bg ; make bench-dflash-leg LEG=target-only ; make stop
 #   SPECULATIVE_MODE=autoregressive DRAFT_MODEL_NAME=qwen3.6-27b-dflash \
-#     docker compose --profile qwen36-27b up -d   ; make bench-dflash-leg LEG=autoregressive    ; make stop
-#   make run-qwen36-27b-dflash-bg                 ; make bench-dflash-leg LEG=dflash            ; make stop
+#     docker compose --profile qwen-target-only up -d ; make bench-dflash-leg LEG=autoregressive ; make stop
+#   make run-qwen-bg ; make bench-dflash-leg LEG=dflash ; make stop
 #   make bench-dflash
 bench-dflash:
 	python3 scripts/bench_speculative.py --finalize
@@ -130,7 +129,7 @@ bench-dflash-leg:
 smoke:
 	bash docker/test.sh
 
-# ── Sprint 004 F-001: source-convert DFlash draft GGUFs ──────────────
+# ── Sprint 005 F-001: source-convert DFlash draft GGUFs ──────────────
 # Downloads z-lab safetensors + target tokenizer, runs the cherry-picked
 # convert_hf_to_gguf.py, and publishes the result into the llm-models
 # named volume. Idempotent. The 27B-DFlash repo is gated — request access
@@ -142,9 +141,9 @@ convert-drafts:
 clean:
 	docker compose \
 	  --profile qwen --profile qwen-target-only \
+	  --profile qwen36 --profile qwen36-target-only \
 	  --profile qwen36-q3 --profile qwen36-iq3 \
-	  --profile qwen36-27b --profile qwen36-27b-q3 --profile qwen36-27b-iq3 \
-	  --profile qwen36-27b-dflash \
+	  --profile qwen36-27b-q3 --profile qwen36-27b-iq3 \
 	  --profile reasoning --profile gemma \
 	  down --volumes
 	docker rmi rotorquant 2>/dev/null || true

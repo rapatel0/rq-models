@@ -161,6 +161,25 @@ runs deferred to follow-up F-001 (blocked on source-converted draft GGUFs)
   default; "Experimental" qualifier removed.
 - 27B-DFlash stays behind `PREVIEW=1`; not affected by this change.
 
+### 2026-04-27 — Default flipped to Qwen3.6-27B + DFlash; PREVIEW gate dropped
+
+- Sprint 005 Phase 0.5 correctness probe (run early): byte-equal output
+  vs target-only on greedy quicksort, 937/937-char shared prefix, 100%
+  draft acceptance, 1.053× decode tok/s. Confirms the dense 27B-DFlash
+  verify+rollback path is correct; the 37% acceptance from the earlier
+  7-token smoke was a prompt-regime observation, not a bug.
+- `qwen` (default) profile is now Qwen3.6-27B + DFlash + planar3 KV +
+  131K ctx + single-slot. PREVIEW=1 gate removed from entrypoint.
+- `qwen-target-only` becomes the dense-27B target-only profile (was
+  35B-MoE target-only). Still planar3, 131K, N_PARALLEL=2.
+- Previous 35B-MoE+DFlash default moved to `qwen36`. The MoE multi-user
+  variant moves to `qwen36-target-only` (524K × 2 slots, iso3, was
+  `qwen-target-only`).
+- Removed redundant `qwen36-27b` and `qwen36-27b-dflash` profiles
+  (subsumed by the new `qwen` and `qwen-target-only`).
+- Makefile run targets updated; aggregate `logs`/`stop`/`clean` profile
+  lists updated. Sprint references in code comments updated to Sprint 005.
+
 ### 2026-04-27 — F-001 (mostly resolved) + PREVIEW gate + multi-slot finding
 
 - `z-lab/Qwen3.6-27B-DFlash` access granted; 27B converted (3.47 GB GGUF) and
