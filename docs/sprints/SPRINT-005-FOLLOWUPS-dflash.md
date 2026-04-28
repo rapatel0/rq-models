@@ -4,20 +4,69 @@ Execution-discovered follow-ups while running Sprint 005-dflash.
 
 ---
 
-## F-011: Speculative server instability under repeated requests
+## F-011: DFlash draft path asserts on second request after prompt-cache miss
 
 **Severity**: Critical (blocks canonical L4 and broad sweep completion)
 
-**What**: On both `qwen` and `qwen36` speculative profiles, the first completion request usually succeeds, then subsequent requests frequently fail (`Remote end closed connection without response`, `connection reset`) or hang.
+**What**: The fork's DFlash draft path asserts and crashes
+`llama-server` when a request lands after the prompt cache has been
+invalidated (forcing full re-processing). Concretely:
 
-**Why discovered**: Repeatedly reproduced during `make bench-dflash-all PROFILE=qwen` and direct OpenAI-compatible request loops.
+```
+/src/common/speculative.cpp:789: GGML_ASSERT(n_new >= 1 && "must have at least 1 new token") failed
+common_speculative_state_dflash::draft(...)
+common_speculative_draft(...)
+```
 
-**Suggested sprint**: Immediate (before finishing Sprint 005 measurement gates)
+Repro confirmed on `qwen36` (Qwen3.6-35B-A3B + DFlash MoE) on
+2026-04-27: first request completes cleanly (256 tokens, 100%
+acceptance, ~104 tok/s). Second request triggers
+`forcing full prompt re-processing due to lack of cache data
+(likely due to SWA or hybrid/recurrent memory, see PR #13194)`,
+which then drives the DFlash draft path into a state where
+`n_new == 0` and the assert fires.
+
+**Crucially**: the bug is **NOT model-specific**. Codex first
+observed it on `qwen` (Qwen3.6-27B dense + DFlash) and hypothesized
+the dense-hybrid layer ratio. A direct repro on `qwen36`
+(Qwen3.6-35B-A3B MoE + DFlash) hit the same assert in the same
+code path, ruling out the model-architecture hypothesis. Phase 0.5
+ran cleanly because it issued **one** completion — the bug only
+fires on subsequent requests.
+
+**Why discovered**: Repeatedly reproduced during
+`make bench-dflash-all PROFILE=qwen` and confirmed on
+`make bench-dflash-leg PROFILE=qwen36 LEG=dflash` with crash logs
+in `docker logs rotorquant-qwen36`.
+
+**Suggested sprint**: Immediate (before finishing Sprint 005
+measurement gates). This is the next thing to fix on the dflash
+track. Likely owner: fork-side speculative draft + cache invalidation
+interaction in the DFlash branch of PR #22105's draft graph.
+
+**Investigation pointers**:
+- `common/speculative.cpp:789` is the assert site; check what
+  produces `n_new` and whether the slot's cache-miss path resets
+  any state DFlash relies on.
+- The "forcing full prompt re-processing" log comes from
+  `tools/server/server.cpp` slot update logic (cache miss
+  handling for SWA / hybrid memory per upstream PR #13194). The
+  DFlash draft path probably needs to handle the
+  `n_new == 0` case gracefully (return early, no draft) rather
+  than asserting.
+- Reproducer (~30 seconds): `make run-qwen36-bg && curl -s
+  localhost:8080/v1/chat/completions ... && curl -s ...same... &&
+  docker logs rotorquant-qwen36 | grep GGML_ASSERT`.
 
 **Files**:
-- `scripts/bench_speculative.py` (retry hardening landed)
-- `scripts/sweep_dflash.py` (retry hardening landed)
-- fork runtime paths around speculative verify/restart behavior
+- fork: `common/speculative.cpp` (the assert site, the DFlash
+  draft state)
+- fork: `tools/server/server.cpp` (the cache-miss path that
+  hands `n_new == 0` to draft)
+- repo: `scripts/bench_speculative.py` (retry hardening landed
+  but is wallpaper over the assert; can't recover from a dead
+  server)
+- repo: `scripts/sweep_dflash.py` (same)
 
 ---
 
@@ -55,6 +104,6 @@ Execution-discovered follow-ups while running Sprint 005-dflash.
 
 | Item | Severity | Suggested Sprint | Files |
 |------|----------|------------------|-------|
-| F-011 | Critical | Immediate | `scripts/bench_speculative.py`, `scripts/sweep_dflash.py`, fork speculative runtime |
+| F-011 | Critical | Immediate | fork `common/speculative.cpp:789`, fork `tools/server/server.cpp` cache-miss path |
 | F-012 | Important | Immediate | `docs/sprints/SPRINT-005-experiments.json`, `scripts/sweep_dflash.py` |
 | F-013 | Critical | Immediate | fork commit `afec3622...`, `docker/Dockerfile` |
