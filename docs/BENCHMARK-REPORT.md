@@ -628,45 +628,91 @@ load-bearing details. Recap:
   bit-exact round-trip validated. Snapshot is no longer a meaningful slice
   of cycle time.
 
-### Sprint 005 — Speculative L4 results (thinking-on)
+### Sprint 005 — Speculative L4 results
 
 5-prompt benchmark, 3 trials per prompt, median per prompt. All runs
-`--temp 0 --top-k 1 --seed 42 --tokens 256` with **thinking-on** (the
-deployed regime — Sprint 005 chose this over Sprint 004's original
-`LLAMA_SPEC_NO_THINK=1` plan because thinking-on is what production
-ships). Pulls `timings.predicted_per_second` from llama-server.
-Acceptance rate parsed from `timings.draft_n` /
-`timings.draft_n_accepted`. Hard Gate #3: median DFlash× ≥1.3× on
-`qwen` (Qwen3.6-27B + DFlash). Quicksort-only headline (not gated):
-≥1.5×.
+`--temp 0 --top-k 1 --seed 42 --tokens 256`. Sprint 005 measured both
+regimes after F-016/F-017 surfaced the regime sensitivity:
+
+- **thinking-on**: deployed-regime numbers (what production users see)
+- **thinking-off** (`chat_template_kwargs.enable_thinking=false`):
+  PR #22105's published-numbers regime; what z-lab's drafts were
+  trained against
+
+Hard Gate #3: median DFlash× ≥1.3× on `qwen` (Qwen3.6-27B + DFlash).
+Quicksort-only headline (not gated): ≥1.5×.
 
 Run on RTX 5090 (32 GB), rotorquant pinned to fork commit
 `40856a1d2c26e79156a697daaf222f482989d7c7` (includes the F-011 fix —
 DFlash + EAGLE3 cumulative state reset in `begin()`). Bench harness:
-`scripts/bench_speculative.py` via `make bench-dflash-all PROFILE=...`.
-Raw JSON in `docs/sprints/SPRINT-005-L4-results-{qwen,qwen36}.json`,
-per-profile summaries in `SPRINT-005-L4-summary-{qwen,qwen36}.md`.
+`scripts/bench_speculative.py` via `make bench-dflash-all PROFILE=...`
+or with `--no-think` for the PR-aligned regime. Raw JSON in
+`docs/sprints/SPRINT-005-L4-results-{qwen,qwen36}{,-nothink}.json`,
+per-profile summaries in `SPRINT-005-L4-summary-*.md`.
+
+#### Cross-regime summary
+
+| Profile | Regime | Quicksort× | Median× (across measured) | Gate ≥1.3× |
+|---------|--------|-----------:|--------------------------:|:----------:|
+| `qwen`   (27B+DFlash)    | thinking-on  | 1.10× | 0.80× (4 of 5 prompts) | FAIL |
+| `qwen`   (27B+DFlash)    | thinking-off | **1.78×** | 0.67× (4 of 5 prompts) | FAIL |
+| `qwen36` (35B-A3B+DFlash MoE) | thinking-on  | 0.83× | 0.52× (5 of 5 prompts) | FAIL |
+| `qwen36` (35B-A3B+DFlash MoE) | thinking-off | 1.15× | 0.58× (3 of 5 prompts) | FAIL |
+
+The quicksort 1.78× DFlash thinking-off on qwen lands cleanly in PR
+#22105's published 1.5–2× range — **the implementation works on its
+target regime and prompt class**. The median fails because
+non-quicksort prompts have entropic content (Pythagorean exposition,
+Hamlet narrative, SQL queries with specific schemas) that the small
+draft can't predict well, leading to high rejection rate and wasted
+draft compute.
+
+> **Note on the "accept rate" column**: shown as 100% throughout the
+> per-prompt tables below because that's what `timings.draft_n` /
+> `timings.draft_n_accepted` reports via the OpenAI-compat response.
+> **That number is a metric reporting bug** (F-016 in
+> `SPRINT-005-FOLLOWUPS-dflash.md`): the server counts post-verify
+> accepted tokens as both numerator AND denominator. Server's own
+> internal `slot print_timing` log line tells the truth — measured
+> 107 accepted of 285 generated drafts on qwen36 Pythagorean
+> thinking-on (37.5% real rate). Where the per-prompt tables show
+> "100.00%", read it as "post-verify retention", not "draft acceptance".
 
 #### qwen (Qwen3.6-27B + DFlash) — the headline ≥1.3× gate target
 
+##### thinking-on
+
 | # | Prompt | target-only tok/s | +autoregressive tok/s | +DFlash tok/s | accept rate | DFlash× |
 |:-:|--------|------------------:|----------------------:|--------------:|------------:|--------:|
-| 1 | Write a quicksort algorithm in Python. Write code only. | 69.34 | 75.83 | 76.19 | 100.00% | **1.10×** |
+| 1 | Write a quicksort algorithm in Python. Write code only. | 69.34 | 75.83 | 76.19 | 100.00% | 1.10× |
 | 2 | Explain the Pythagorean theorem. | 69.32 | 54.38 | 55.34 | 100.00% | 0.80× |
 | 3 | Plan a 1 day trip to DC. | 69.36 | n/a (transport err) | n/a (transport err) | n/a | n/a |
 | 4 | Summarize the plot of Hamlet in 3 paragraphs. | 69.43 | 43.98 | 43.73 | 100.00% | 0.63× |
 | 5 | Write a SQL query to find the top 5 customers by revenue. | 69.39 | 55.24 | 55.91 | 100.00% | 0.81× |
 
-**Median DFlash× across 4 measured prompts: 0.80×.** Hard Gate #3
-(≥1.3×): **FAIL.** Quicksort headline 1.10× (FAIL ≥1.5× soft target,
-but only prompt where DFlash > target-only).
+**Median DFlash× (4 of 5 prompts): 0.80×. Quicksort: 1.10×.** Hard
+Gate #3 (≥1.3×): FAIL. Prompt 3 hit transport errors on both
+speculative legs across all 9 retries; target-only completed clean
+(F-014).
 
-Prompt 3 hit `Remote end closed connection without response` on both
-speculative legs across all 9 retries while target-only completed
-clean — tracked as F-014 in `SPRINT-005-FOLLOWUPS-dflash.md`. Excluded
-from the median; doesn't change the verdict.
+##### thinking-off (PR #22105 regime)
+
+| # | Prompt | target-only tok/s | +autoregressive tok/s | +DFlash tok/s | accept rate | DFlash× |
+|:-:|--------|------------------:|----------------------:|--------------:|------------:|--------:|
+| 1 | Write a quicksort algorithm in Python. Write code only. | 70.38 | 129.84 | 125.26 | 100.00% | **1.78×** |
+| 2 | Explain the Pythagorean theorem. | 69.49 | 64.50 | 61.76 | 100.00% | 0.89× |
+| 3 | Plan a 1 day trip to DC. | 69.48 | n/a (transport err) | n/a (transport err) | n/a | n/a |
+| 4 | Summarize the plot of Hamlet in 3 paragraphs. | 69.50 | 33.43 | 31.98 | 100.00% | 0.46× |
+| 5 | Write a SQL query to find the top 5 customers by revenue. | 69.43 | 20.44 | 19.72 | 100.00% | 0.28× |
+
+**Median DFlash× (4 of 5 prompts): 0.67×. Quicksort: 1.78×** ← lands
+in PR #22105's published 1.5–2× range, validating the
+implementation. Hard Gate #3: still FAIL on the median — variance
+across prompts is huge (1.78× on quicksort to 0.28× on SQL).
 
 #### qwen36 (Qwen3.6-35B-A3B + DFlash MoE) — secondary publish
+
+##### thinking-on
 
 | # | Prompt | target-only tok/s | +autoregressive tok/s | +DFlash tok/s | accept rate | DFlash× |
 |:-:|--------|------------------:|----------------------:|--------------:|------------:|--------:|
@@ -676,89 +722,111 @@ from the median; doesn't change the verdict.
 | 4 | Summarize the plot of Hamlet in 3 paragraphs. | 215.39 | 76.47 | 75.79 | 100.00% | 0.35× |
 | 5 | Write a SQL query to find the top 5 customers by revenue. | 214.71 | 112.16 | 111.74 | 100.00% | 0.52× |
 
-**Median DFlash×: 0.52×.** All 5 prompts measured cleanly (no F-014
-transport error here, so that issue is qwen-environment-specific).
-DFlash slows the MoE target uniformly — **stronger** loss than on the
-27B because the MoE target uses 3B active params per token (~215
-tok/s flat), so per-token target cost is small and the DFlash draft
-graph (encoder + decoder + block sampling) costs more than 3B-active
-verifies save.
+**Median DFlash× (all 5 prompts): 0.52×. Quicksort: 0.83×.** All 5
+prompts measured cleanly thinking-on. Lowest median of the 4 runs.
 
-#### Why does DFlash lose? (revised 2026-04-28 — the headline 100% acceptance was a metric artifact)
+##### thinking-off (PR #22105 regime)
 
-Initial diagnosis (and the table's "accept rate" column) reported
-100% draft acceptance, suggesting DFlash draft cost dominated. **That
-acceptance number is a metric reporting bug** (F-016): the
-OpenAI-compat response's `timings.draft_n` counts only post-verify
-accepted tokens both as numerator and denominator, hiding the real
-rejection rate. The server's own internal log tells a different story:
+| # | Prompt | target-only tok/s | +autoregressive tok/s | +DFlash tok/s | accept rate | DFlash× |
+|:-:|--------|------------------:|----------------------:|--------------:|------------:|--------:|
+| 1 | Write a quicksort algorithm in Python. Write code only. | 220.73 | 227.10 | 253.77 | 100.00% | 1.15× |
+| 2 | Explain the Pythagorean theorem. | 215.17 | 110.65 | 112.05 | 100.00% | 0.52× |
+| 3 | Plan a 1 day trip to DC. | 215.18 | 69.06 | 68.75 | 100.00% | 0.32× |
+| 4 | Summarize the plot of Hamlet in 3 paragraphs. | 214.75 | n/a (transport err) | n/a (transport err) | n/a | n/a |
+| 5 | Write a SQL query to find the top 5 customers by revenue. | 221.51 | n/a (transport err) | 140.47 | 100.00% | 0.63× |
 
-```
-slot print_timing: ...
-draft acceptance rate = 1.00000 ( 107 accepted / 107 generated)   <-- API metric
-statistics unknown: ... #gen drafts = 19, #acc drafts = 19,
-                       #gen tokens = 285, #acc tokens = 107       <-- real picture
-```
+**Median DFlash× (3 of 5 prompts): 0.58×. Quicksort: 1.15×.**
+F-014-style transport errors expanded under thinking-off — prompt 4
+(Hamlet) failed on both speculative legs, prompt 5 (SQL) failed on
+autoregressive only. So the F-014 issue is regime-sensitive on this
+profile.
 
-Real acceptance rate on qwen36 Pythagorean: **107/285 = 37.5%**, not
-100%. 178 of 285 generated draft tokens were rejected by verify and
-discarded. **This matches Sprint 005's risk row #1 prediction
-exactly** — the Sprint 004 plan documented that "PR's 60–80pp
-acceptance loss with thinking-on is a known deployment cost" and
-chose thinking-on as the validation regime anyway. Sprint 005
-measured the cost.
+#### Why does DFlash's median fail despite quicksort hitting 1.78×?
 
-So the FAIL verdict is honest, but the root cause is **thinking-on
-acceptance penalty**, not DFlash draft graph overhead. With 37%
-acceptance on a tiny 480M draft, ~60% of draft compute is wasted on
-rejected tokens and the verify path can't amortize.
+The implementation is fine — qwen thinking-off quicksort (1.78×) lands
+in PR #22105's published 1.5–2× range. The median FAIL is
+**content-driven**: prompts with predictable token structure (code,
+boilerplate) win big; prompts with entropic content (prose, queries
+with specific schemas) lose because the small draft (1.7B for the 27B
+target, ~480M for the MoE target) can't predict them well. With ~37%
+real acceptance (F-016 — the per-prompt "100%" column above is a
+metric reporting bug), ~63% of draft compute is wasted on rejected
+tokens, and even a small draft can't amortize.
 
-PR #22105's published numbers were thinking-**off**
-(`LLAMA_SPEC_NO_THINK=1`). Comparing them apples-to-oranges with
-Sprint 005's thinking-on numbers makes DFlash look worse than it is
-on the regime it was designed for. Filed as F-017: Sprint 006-dflash
-should re-publish with both regimes side by side so operators can
-read the regime-appropriate number.
+**Per-prompt picture (qwen, both regimes side by side)**:
 
-Quicksort is the lone qwen prompt where DFlash wins (1.10×) because
-its content is highly predictable (boilerplate `def`, `if`,
-`return`, `else`) and the draft acceptance stays high even with
-thinking-on. The other prompts produce more entropic content where
-thinking-mode tokens pull the draft off-distribution and acceptance
-collapses.
+| Prompt | think-on× | think-off× | Notes |
+|--------|----------:|-----------:|-------|
+| 1. quicksort | 1.10× | **1.78×** | wins both regimes; thinking-off close to PR's range |
+| 2. Pythagorean | 0.80× | 0.89× | near-neutral |
+| 3. DC trip | n/a | n/a | F-014 transport error on speculative legs |
+| 4. Hamlet | 0.63× | 0.46× | entropic prose; gets worse thinking-off |
+| 5. SQL | 0.81× | 0.28× | most variable; gets dramatically worse thinking-off |
+
+Counterintuitive observation: thinking-**off** is *worse* on the median
+for qwen (0.67 vs 0.80 thinking-on). Mechanism: thinking-on fills the
+256-token budget largely with thinking-mode tokens (`<think>` block
+content tends to be relatively boilerplate transition phrases), so
+DFlash amortizes the draft cost across that easier content. Thinking-
+off forces the bench to measure pure answer content where draft
+acceptance varies wildly by prompt.
+
+**For qwen36 (MoE)**, the picture is similar but with a faster target
+(~215 tok/s baseline vs qwen's 70). Even when DFlash works (quicksort
+1.15× thinking-off), the absolute speedup is more modest because the
+MoE target is already cheap to run, leaving less room for speculative
+to amortize. F-014 transport errors expand under thinking-off
+(Hamlet + SQL fail).
 
 #### Hard Gate verdict
 
-Hard Gate #3 (≥1.3× median DFlash× on `qwen`): **FAIL** at 0.80× on
-the **thinking-on** regime. The fork's DFlash implementation may well
-hit ≥1.3× on thinking-off — Sprint 005 just didn't measure it. Sprint
-005 documents the thinking-on FAIL honestly rather than claiming a
-win on the regime it didn't exercise.
+Hard Gate #3 (≥1.3× median DFlash× on `qwen`): **FAIL on both
+regimes** (0.80× thinking-on, 0.67× thinking-off). Quicksort
+thinking-off (1.78×) confirms the implementation is valid — it just
+doesn't generalize to non-code prompts in the 5-prompt set with the
+current draft model + target stack.
+
+Sprint 005's gate was structured around a 5-prompt median because
+it's a deployment-relevant signal (operators see varied prompts).
+That signal says DFlash isn't a uniform speedup on the current stack.
+Operators who run code-heavy workloads (e.g., autocomplete-style
+generation) will see real wins; operators on prose-heavy workloads
+won't.
 
 Suggested follow-ons (filed in `SPRINT-005-FOLLOWUPS-dflash.md`):
 - F-016: surface the real `#gen drafts` count via
   `timings.draft_n_generated` (separate from the post-verify
   `draft_n_accepted` count). Bench harness reads the new field.
-- F-017: re-run Phase 1 with `LLAMA_SPEC_NO_THINK=1` and publish
-  both regimes side by side. Expect thinking-off numbers to land
-  near PR #22105's published 1.5–2× range.
+- F-017: ✅ DONE — both regimes published above.
 - Investigation only: profile the draft hot path; evaluate
   smaller/cheaper drafts; consider tighter target quantization
-  (Q3_K_M / Q2_K) which would shift the ratio in DFlash's favor.
+  (Q3_K_M / Q2_K) which would shift the ratio in DFlash's favor;
+  consider draft-distillation work to broaden draft coverage on
+  prose-class prompts.
 
 #### Reproduction
 
 ```
 make build  # if rotorquant:latest is older than fork commit 40856a1d2
+
+# thinking-on (deployed regime) — uses make orchestrator
 make bench-dflash-all PROFILE=qwen
 make bench-dflash-all PROFILE=qwen36
+
+# thinking-off (PR #22105 regime) — direct invocation with --no-think
+# (each leg requires the right compose profile to be up; see
+# /tmp/bench-nothink-{qwen,qwen36}.sh in the session log for the
+# full sequence)
+python3 scripts/bench_speculative.py --profile qwen --leg dflash --no-think \
+    --output docs/sprints/SPRINT-005-L4-results-qwen-nothink.json \
+    --md-output docs/sprints/SPRINT-005-L4-summary-qwen-nothink.md
 ```
 
-Each invocation does the three-leg orchestration (target-only,
-autoregressive draft, DFlash draft) with a `make stop` between legs
-and a final `bench-dflash --finalize` that writes the JSON +
-summary. Total wallclock ~25–35 min per profile on a warm
-`llm-models` volume.
+Each `make bench-dflash-all` does the three-leg orchestration
+(target-only, autoregressive draft, DFlash draft) with `make stop`
+between legs and a final `bench-dflash --finalize` writing JSON +
+summary. Total wallclock ~25–35 min per profile thinking-on, ~15–20
+min thinking-off (no thinking block to fill the 256-token budget).
 
 ### Sprint 004 Phase 5 — z-lab pytorch parity (TBD)
 

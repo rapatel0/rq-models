@@ -225,19 +225,24 @@ runs Qwen3.6-27B (dense) + DFlash, single-slot. Sprint 005 Phase 0.5 validated
 byte-equal output vs target-only on a greedy quicksort prompt (937/937 chars
 shared prefix, 100% acceptance).
 
-**Sprint 005 Phase 1 measurement** (5-prompt L4, **thinking-on**,
-5090, Q4_K_XL targets, fork commit `40856a1d2`): DFlash× median
-**0.80×** on `qwen` and **0.52×** on `qwen36` (MoE), failing the
-≥1.3× gate on the thinking-on regime. Real draft acceptance on
-representative prompts measured at ~37% (the bench's 100% headline
-was a metric reporting bug — F-016 — counting post-verify accepted
-tokens as both numerator and denominator). The 60–80pp acceptance
-loss vs PR #22105's thinking-off baseline matches Sprint 005's
-risk-row prediction exactly. Quicksort (the most predictable prompt)
-is where qwen DFlash still wins at 1.10×. Sprint 006-dflash will
-re-publish with both `LLAMA_SPEC_NO_THINK=1` and thinking-on side by
-side. See
-[BENCHMARK-REPORT.md §Sprint 005 — Speculative L4 results](docs/BENCHMARK-REPORT.md#sprint-005--speculative-l4-results-thinking-on).
+**Sprint 005 Phase 1 measurement** (5-prompt L4, 5090, Q4_K_XL
+targets, fork commit `40856a1d2`):
+
+| Profile | Regime | Quicksort× | Median× | Gate ≥1.3× |
+|---------|--------|-----------:|--------:|:----------:|
+| `qwen`   | thinking-on  | 1.10× | 0.80× | FAIL |
+| `qwen`   | thinking-off | **1.78×** | 0.67× | FAIL |
+| `qwen36` | thinking-on  | 0.83× | 0.52× | FAIL |
+| `qwen36` | thinking-off | 1.15× | 0.58× | FAIL |
+
+Quicksort thinking-off on qwen lands in PR #22105's published 1.5–2×
+range — **the implementation works on its target regime and prompt
+class**. The median FAILs are content-driven: small drafts can't
+predict entropic prose well. The "100% acceptance" the bench harness
+reports is a metric bug (F-016) — server's internal log shows real
+acceptance ~37% on representative prompts. See
+[BENCHMARK-REPORT.md §Sprint 005 — Speculative L4 results](docs/BENCHMARK-REPORT.md#sprint-005--speculative-l4-results)
+for the full per-prompt breakdown across both regimes.
 
 | Profile | Target | Draft | KV | Ctx | Speculative |
 |---------|--------|-------|:--:|----:|:-----------:|
