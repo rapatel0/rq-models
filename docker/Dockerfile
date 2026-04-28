@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # squash-merges PR #22105 (DFlash) at upstream pinned-head 67cb0d507.
 ARG ROTORQUANT_REPO=https://github.com/rapatel0/llama-cpp-turboquant.git
 ARG ROTORQUANT_BRANCH=feature/sprint-004-rebase-dflash
-ARG ROTORQUANT_COMMIT=1c9b77fdd11753fe17f445e3507d3dfe78b08919
+ARG ROTORQUANT_COMMIT=afec36229f12253a60497099c5933e708da7e450
 
 RUN git clone --depth 100 -b ${ROTORQUANT_BRANCH} \
     ${ROTORQUANT_REPO} /src \
