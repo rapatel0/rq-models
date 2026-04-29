@@ -136,7 +136,96 @@ same session; `make build` now reachable.
 
 ---
 
-## F-014: Prompt-3 ("Plan a 1 day trip to DC") transport-errors on speculative legs
+## F-014: Speculative-decoding infinite restore loop on partial acceptance — RESOLVED 2026-04-29 (perf followup pending)
+
+**Severity**: was Critical (server hangs / aborts under bench load);
+now **resolved as a correctness/crash bug**. Performance regression
+remains as a separate follow-up.
+
+**Resolution chain** (fork commits, local on
+`feature/sprint-004-rebase-dflash`, awaiting interactive push by user):
+
+| Commit | Fix |
+|--------|-----|
+| `40856a1d2` | F-011: reset DFlash + EAGLE3 cumulative state in `begin()` (initial fix; addressed second-request crash but not this loop) |
+| `14ca877ea` | F-014 v1: clear draft KV in `begin()` (overshoot — didn't help) |
+| `d0b3e9e34` | F-014 v2: switch `seq_id=-1` → `0`; add LOG_INF tracer to confirm fix runs (still didn't help) |
+| `3d44a0b19` | F-014 v3: clear `spec_draft` (not move-assign `accepted`) on partial-acceptance restore (broke the spec_draft-reuse loop) |
+| `a3fba48d5` | F-014 v4: call `common_speculative_begin` on restore so impl state stays in sync (exposed v4-induced 0%-acceptance regression) |
+| `ee4248d73` | F-014 v5: `slot.spec_skip_next_round` flag — force one round of single-token decode after restore to break the deterministic-partial cycle |
+| `5f58c0d81` | F-014 v6: revert v2's draft-KV clear in `begin()` (was over-cautious) |
+| `46e9bcfb8` | F-014 v7: preserve `accumulated_ctx` prefix in `begin()` on restore — first signal of real recovery (P1 hit 52 tok/s, 25% real acceptance) but crashed P2 because the heuristic confused new-request with restore |
+| `86272e841` | F-014 v8: split `begin()` (always full reset) vs `rollback(n_tokens)` (truncate-and-keep) — clean API, no more new-vs-restore guessing |
+
+**Validation** (all 5 thinking-off prompts run end-to-end on
+`make run-qwen-bg` after rebuild from 86272e841):
+
+| Prompt | tps | tokens | raw drafts | accepted | real % |
+|--------|----:|-------:|-----------:|---------:|-------:|
+| P1 quicksort | 51.3 | 96 | 300 | 75 | 25.0% |
+| P2 Pythagorean | 13.7 | 256 | 3240 | 134 | 4.1% |
+| P3 DC trip | 10.5 | 256 | 7050 | 135 | 1.9% |
+| P4 Hamlet | 10.6 | 256 | 10830 | 138 | 1.3% |
+| P5 SQL | 14.5 | 256 | 13605 | 208 | 1.5% |
+
+**Root cause** (synthesized from the iteration): hybrid-state target
+contexts (Qwen3.6's SWA + recurrent KV) can only do `seq_rm` at full-
+context granularity (`COMMON_CONTEXT_SEQ_RM_TYPE_FULL`). When verify
+partial-accepts, the slot can't commit just the accepted prefix — it
+must restore the checkpoint and re-do. Pre-fix code did
+`slot.spec_draft = std::move(accepted)` and continued; the next
+iteration reused the partial-accepted result as the "draft", verify
+returned the same partial outcome (deterministic at temp=0/top_k=1),
+and the slot looped forever. With a 156 MiB checkpoint restore per
+loop iteration, server GPU stayed at 80% util with no forward
+progress until the client timed out.
+
+**Performance regression** (open as F-018, separate follow-up): even
+with the loop fixed, every partial-acceptance round is now penalized:
+1. Full target-side checkpoint restore (~150-300 MiB GPU memory copy)
+2. Forced single-token decode (1 token forward; no speculative gain)
+3. `rollback()` truncate of `accumulated_ctx`
+
+For prompts where the small DFlash draft (~1.7B for the 27B target)
+struggles to get full acceptance (Pythagorean / Hamlet / SQL with
+thinking-off), this throttles throughput to ~10-15 tok/s — much worse
+than the ~70 tok/s target-only baseline. The pre-fix code was faster
+WHEN it didn't hang, but hang-or-fast is a worse tradeoff than
+slow-but-reliable.
+
+Ideas for F-018:
+- Skip-round only after K consecutive partial-acceptances at the same
+  position (avoid penalizing one-off partials)
+- Smaller block_size dynamically when partial pattern is observed
+- Distill a draft model that stays high-acceptance on non-code prompts
+
+**What was tried and reverted**:
+- Clearing draft KV in begin() (v2/v6 cycle): broke draft quality,
+  forced 0% real acceptance.
+- Heuristic distinguishing new-request vs restore inside begin() (v7):
+  worked sometimes but couldn't always tell the cases apart;
+  superseded by the v8 API split.
+
+**Files** (fork, local commits — push awaiting interactive
+authorization in user's shell since the codex-CLI environment's SSH
+agent can't sign without 1Password approval):
+- `common/speculative.h`: declare `common_speculative_rollback()`
+- `common/speculative.cpp`: virtual `rollback()` in
+  `common_speculative_state`; DFlash override truncates
+  `accumulated_ctx`; free function loops impls
+- `tools/server/server-context.cpp`: in partial-restore path call
+  `common_speculative_rollback()` (not `_begin`); set
+  `slot.spec_skip_next_round`; declare `spec_skip_next_round` field
+  reset on slot init
+
+---
+
+## F-014-original (subsumed by above): Prompt-3 transport-errors on speculative legs
+
+This was the original framing of F-014 — qwen P3 ("Plan a 1 day trip
+to DC.") timing out on the speculative legs only. Traced through to
+the partial-acceptance restore loop above. The original wording
+preserved here for historical context.
 
 **Severity**: Important (drops one of five gate-prompt cells; doesn't
 block the sprint but means the median DFlash× is computed over 4 of 5
@@ -200,7 +289,8 @@ flipped the outcome.
 | F-011 | resolved | — | fork commit `40856a1d2`; rotorquant image rebuilt at the new pin; smoke verified 3 sequential requests stable |
 | F-012 | Important | Immediate | `docs/sprints/SPRINT-005-experiments.json`, `scripts/sweep_dflash.py` |
 | F-013 | resolved | — | fork commit `afec3622...` pushed; `docker/Dockerfile` pin landed |
-| F-014 | Important | Sprint 006-dflash or DFlash perf work | fork `common/speculative.cpp` draft paths; repo `scripts/bench_speculative.py` (harness handled correctly) |
+| F-014 | resolved (crash); F-018 spawned (perf) | — | fork commits `40856a1d2..86272e841` (local; user pushes) |
+| F-018 | Important | Sprint 006-dflash | fork `tools/server/server-context.cpp` partial-acceptance restore — single-token-fallback throttles throughput; needs adaptive heuristic (only skip after K consecutive partials) |
 | F-015 | Important | Sprint 006-dflash | redesign `tests/test_speculative.py::TestForceReject` to actually exercise the env hook (the monkeypatch.setenv approach can't reach the dockerized server) |
 | F-016 | Critical (correctness of bench reporting) | Sprint 006-dflash | fork `tools/server/server-context.cpp` — `timings.draft_n` reports post-verify accepted count, not total drafts generated; observed acceptance metric reads 100% even when real rate is ~37% |
 | F-017 | Critical (interpretation) | Sprint 006-dflash | `qwen` with thinking-on dropped to ~37% real acceptance (predicted by Sprint 005 risk row #1); the apparent "DFlash slow" is mostly thinking-on regime cost, not implementation defect; bench should publish both regimes |
