@@ -1,0 +1,72 @@
+==[E3-E5-baseline]== profile=qwen no_think=1 extra=(none)
+  -- leg=target-only env=(none) --
+  --profile qwen-throughput --profile qwen-throughput-q3 \
+  down
+Waiting for server...
+Ready on port 8080
+  [target-only][1/5][trial 0] 69.87 tok/s
+  [target-only][1/5][trial 1] 70.30 tok/s
+  [target-only][1/5][trial 2] 70.65 tok/s
+  [target-only][2/5][trial 0] 69.74 tok/s
+  [target-only][2/5][trial 1] 69.56 tok/s
+  [target-only][2/5][trial 2] 69.69 tok/s
+  [target-only][3/5][trial 0] 69.70 tok/s
+  [target-only][3/5][trial 1] 69.54 tok/s
+  [target-only][3/5][trial 2] 69.65 tok/s
+  [target-only][4/5][trial 0] 69.61 tok/s
+  [target-only][4/5][trial 1] 69.47 tok/s
+  [target-only][4/5][trial 2] 69.56 tok/s
+  [target-only][5/5][trial 0] 69.57 tok/s
+  [target-only][5/5][trial 1] 69.33 tok/s
+  [target-only][5/5][trial 2] 69.47 tok/s
+
+Wrote leg 'target-only' to /home/ravi/repos/turbo/docs/sprints/SPRINT-006-dflash-experiments/E3-E5-baseline/results-qwen.json
+  -- leg=autoregressive env=(none) --
+ Network turbo_default Removing 
+ Network turbo_default Removed 
+Waiting for server...
+Ready on port 8080
+  [autoregressive][1/5][trial 0] 53.59 tok/s acc=25.00%
+  [autoregressive][1/5][trial 1] 55.60 tok/s acc=25.00%
+  [autoregressive][1/5][trial 2] 55.87 tok/s acc=25.00%
+  [autoregressive][2/5][trial 0] 14.15 tok/s acc=7.40%
+  [autoregressive][2/5][trial 1] 14.22 tok/s acc=5.06%
+  [autoregressive][2/5][trial 2] 14.21 tok/s acc=4.14%
+  [autoregressive][3/5][trial 0] 10.91 tok/s acc=2.98%
+  [autoregressive][3/5][trial 1] 10.89 tok/s acc=2.33%
+  [autoregressive][3/5][trial 2] 10.92 tok/s acc=1.91%
+  [autoregressive][4/5][trial 0] 10.98 tok/s acc=1.64%
+  [autoregressive][4/5][trial 1] 10.88 tok/s acc=1.43%
+  [autoregressive][4/5][trial 2] 10.85 tok/s acc=1.27%
+  [autoregressive][5/5][trial 0] 14.92 tok/s acc=1.37%
+  [autoregressive][5/5][trial 1] 14.99 tok/s acc=1.46%
+  [autoregressive][5/5][trial 2] 10.80 tok/s acc=1.32%
+
+Wrote leg 'autoregressive' to /home/ravi/repos/turbo/docs/sprints/SPRINT-006-dflash-experiments/E3-E5-baseline/results-qwen.json
+  -- leg=dflash env=(none) --
+ Network turbo_default Removing 
+ Network turbo_default Removed 
+Waiting for server...
+Ready on port 8080
+  [dflash][1/5][trial 0] 53.71 tok/s acc=25.00%
+  [dflash][1/5][trial 1] 56.21 tok/s acc=25.00%
+  [dflash][1/5][trial 2] 56.09 tok/s acc=25.00%
+  [dflash][2/5][trial 0] 14.20 tok/s acc=7.40%
+  [dflash][2/5][trial 1] 14.21 tok/s acc=5.06%
+  [dflash][2/5][trial 2] 14.15 tok/s acc=4.14%
+  [dflash][3/5][trial 0] 10.89 tok/s acc=2.98%
+  [dflash][3/5][trial 1] 10.90 tok/s acc=2.33%
+  [dflash][3/5][trial 2] 10.89 tok/s acc=1.91%
+  [dflash][4/5][trial 0] 10.91 tok/s acc=1.64%
+  [dflash][4/5][trial 1] 10.99 tok/s acc=1.43%
+  [dflash][4/5][trial 2] 10.96 tok/s acc=1.27%
+  [dflash][5/5][trial 0] 14.97 tok/s acc=1.37%
+  [dflash][5/5][trial 1] 10.84 tok/s acc=1.24%
+  [dflash][5/5][trial 2] 10.82 tok/s acc=1.13%
+
+Wrote leg 'dflash' to /home/ravi/repos/turbo/docs/sprints/SPRINT-006-dflash-experiments/E3-E5-baseline/results-qwen.json
+ Network turbo_default Removing 
+ Network turbo_default Removed 
+
+Wrote /home/ravi/repos/turbo/docs/sprints/SPRINT-006-dflash-experiments/E3-E5-baseline/results-qwen.json
+Wrote /home/ravi/repos/turbo/docs/sprints/SPRINT-006-dflash-experiments/E3-E5-baseline/summary-qwen.md

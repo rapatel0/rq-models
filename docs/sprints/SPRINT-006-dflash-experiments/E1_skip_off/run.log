@@ -1,0 +1,6 @@
+  down
+Waiting for server...
+Ready on port 8080
+P1 quicksort: 0.34s ERR RemoteDisconnected: Remote end closed connection without response
+P4 Hamlet (entropic canary): 0.00s ERR ConnectionResetError: [Errno 104] Connection reset by peer
+ Network turbo_default Removed 

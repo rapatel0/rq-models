@@ -1,0 +1,11 @@
+  down
+Waiting for server...
+Ready on port 8080
+=== E2 DRAFT_N_MAX=4 ===
+prompt            wall_s   tps  real%  #sav  #res  sav_ms  res_ms  sav%
+P1 quicksort        1.66  62.2  96.00    25     1     874      11  55.5
+P2 Pythagoras       7.13  36.3  63.64    96    43    3372     473  47.9
+P3 DC trip         12.95  19.9  39.98   155   121    5430    1331  42.2
+P4 Hamlet          14.94  17.2  30.59   173   146    6170    1627  41.6
+P5 SQL              7.96  32.5  33.88   104    54    3636     595  46.2
+ Network turbo_default Removed 
