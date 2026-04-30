@@ -150,13 +150,28 @@ def parse_draft_stats(resp: dict) -> dict:
     if draft_n_accepted is None:
         draft_n_accepted = _to_int(usage.get("draft_n_accepted"))
 
+    # F-016 (fork commit a2a6168ea): real per-impl draft generation/acceptance
+    # counters. timings.draft_n is post-truncation and reads ~100% even when
+    # most drafts were rejected; the *_generated / *_acc_tokens fields below
+    # are the truthful values from common_speculative impls.
+    draft_n_generated = _to_int(timings.get("draft_n_generated"))
+    draft_n_acc_tokens = _to_int(timings.get("draft_n_acc_tokens"))
+
+    # Real acceptance rate prefers the F-016 fields; falls back to the legacy
+    # (misleading) post-truncation ratio on older fork pins.
     acceptance_rate = _to_float(usage.get("acceptance_rate"))
-    if acceptance_rate is None and draft_n and draft_n_accepted is not None and draft_n > 0:
-        acceptance_rate = draft_n_accepted / draft_n
+    if acceptance_rate is None:
+        if draft_n_generated and draft_n_generated > 0 and draft_n_acc_tokens is not None:
+            acceptance_rate = draft_n_acc_tokens / draft_n_generated
+        elif draft_n and draft_n_accepted is not None and draft_n > 0:
+            # Fallback: legacy post-truncation ratio (often misleadingly high)
+            acceptance_rate = draft_n_accepted / draft_n
 
     return {
         "draft_n": draft_n,
         "draft_n_accepted": draft_n_accepted,
+        "draft_n_generated": draft_n_generated,
+        "draft_n_acc_tokens": draft_n_acc_tokens,
         "acceptance_rate": acceptance_rate,
     }
 
@@ -190,6 +205,8 @@ def run_leg(args, leg: str) -> dict:
                         "wallclock_s": resp.get("_wallclock_s"),
                         "draft_n": draft_stats["draft_n"],
                         "draft_n_accepted": draft_stats["draft_n_accepted"],
+                        "draft_n_generated": draft_stats["draft_n_generated"],
+                        "draft_n_acc_tokens": draft_stats["draft_n_acc_tokens"],
                         "acceptance_rate": draft_stats["acceptance_rate"],
                     })
                     acc = draft_stats["acceptance_rate"]
@@ -243,12 +260,23 @@ def run_leg(args, leg: str) -> dict:
             and t["draft_n"] > 0
             and isinstance(t.get("draft_n_accepted"), int)
         )
-        median = statistics.median(valid) if valid else float("nan")
-        acceptance_rate = (
-            draft_n_accepted / draft_n
-            if draft_n > 0
-            else float("nan")
+        # F-016: real per-impl raw drafts vs accepted tokens. Falls back to
+        # post-truncation counts when the fork pin is older than a2a6168ea.
+        draft_n_generated = sum(
+            int(t["draft_n_generated"]) for t in trials
+            if isinstance(t.get("draft_n_generated"), int) and t["draft_n_generated"] > 0
         )
+        draft_n_acc_tokens = sum(
+            int(t["draft_n_acc_tokens"]) for t in trials
+            if isinstance(t.get("draft_n_acc_tokens"), int)
+        )
+        median = statistics.median(valid) if valid else float("nan")
+        if draft_n_generated > 0:
+            acceptance_rate = draft_n_acc_tokens / draft_n_generated
+        elif draft_n > 0:
+            acceptance_rate = draft_n_accepted / draft_n
+        else:
+            acceptance_rate = float("nan")
         cells.append({
             "prompt_idx": idx,
             "prompt": p,
@@ -256,6 +284,8 @@ def run_leg(args, leg: str) -> dict:
             "median_tps": median,
             "sum_draft_n": draft_n,
             "sum_draft_n_accepted": draft_n_accepted,
+            "sum_draft_n_generated": draft_n_generated,
+            "sum_draft_n_acc_tokens": draft_n_acc_tokens,
             "acceptance_rate": acceptance_rate,
         })
 

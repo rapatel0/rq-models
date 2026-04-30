@@ -37,6 +37,8 @@ x-llm-base: &llm-base
     DRAFT_MODEL_NAME: ${DRAFT_MODEL_NAME:-}
     DRAFT_KV_CACHE_TYPE: ${DRAFT_KV_CACHE_TYPE:-}
     DRAFT_N_MAX: ${DRAFT_N_MAX:-16}
+    LLAMA_SPEC_DISABLE_SKIP: ${LLAMA_SPEC_DISABLE_SKIP:-}
+    LLAMA_SPEC_ADAPTIVE_SKIP_K: ${LLAMA_SPEC_ADAPTIVE_SKIP_K:-}
     EXPERIMENTAL: ${EXPERIMENTAL:-0}
   deploy:
     resources:
@@ -74,6 +76,8 @@ services:
       DRAFT_MODEL_NAME: qwen3.6-27b-dflash
       DRAFT_KV_CACHE_TYPE: ${DRAFT_KV_CACHE_TYPE:-planar3}
       DRAFT_N_MAX: ${DRAFT_N_MAX:-16}
+      LLAMA_SPEC_DISABLE_SKIP: ${LLAMA_SPEC_DISABLE_SKIP:-}
+      LLAMA_SPEC_ADAPTIVE_SKIP_K: ${LLAMA_SPEC_ADAPTIVE_SKIP_K:-}
 
   # Target-only Qwen3.6-27B — opt-in escape hatch for multi-user throughput.
   # Speculative decoding's per-slot draft serialization makes target-only
@@ -117,6 +121,8 @@ services:
       DRAFT_MODEL_NAME: qwen3.6-35b-dflash
       DRAFT_KV_CACHE_TYPE: ${DRAFT_KV_CACHE_TYPE:-iso3}
       DRAFT_N_MAX: ${DRAFT_N_MAX:-16}
+      LLAMA_SPEC_DISABLE_SKIP: ${LLAMA_SPEC_DISABLE_SKIP:-}
+      LLAMA_SPEC_ADAPTIVE_SKIP_K: ${LLAMA_SPEC_ADAPTIVE_SKIP_K:-}
 
   # Qwen3.6-35B-A3B MoE target-only. Multi-user throughput on the MoE — uses
   # the full 524K-token context split across 2 slots (262K/slot).
