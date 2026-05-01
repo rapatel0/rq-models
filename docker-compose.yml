@@ -39,6 +39,8 @@ x-llm-base: &llm-base
     DRAFT_N_MAX: ${DRAFT_N_MAX:-16}
     LLAMA_SPEC_DISABLE_SKIP: ${LLAMA_SPEC_DISABLE_SKIP:-}
     LLAMA_SPEC_ADAPTIVE_SKIP_K: ${LLAMA_SPEC_ADAPTIVE_SKIP_K:-}
+    LLAMA_SPEC_VRAM_CKPT: ${LLAMA_SPEC_VRAM_CKPT:-}
+    LLAMA_SPEC_VRAM_CKPT_NOSAVE: ${LLAMA_SPEC_VRAM_CKPT_NOSAVE:-}
     EXPERIMENTAL: ${EXPERIMENTAL:-0}
   deploy:
     resources:
@@ -78,6 +80,8 @@ services:
       DRAFT_N_MAX: ${DRAFT_N_MAX:-16}
       LLAMA_SPEC_DISABLE_SKIP: ${LLAMA_SPEC_DISABLE_SKIP:-}
       LLAMA_SPEC_ADAPTIVE_SKIP_K: ${LLAMA_SPEC_ADAPTIVE_SKIP_K:-}
+      LLAMA_SPEC_VRAM_CKPT: ${LLAMA_SPEC_VRAM_CKPT:-}
+      LLAMA_SPEC_VRAM_CKPT_NOSAVE: ${LLAMA_SPEC_VRAM_CKPT_NOSAVE:-}
 
   # Target-only Qwen3.6-27B — opt-in escape hatch for multi-user throughput.
   # Speculative decoding's per-slot draft serialization makes target-only
@@ -123,6 +127,8 @@ services:
       DRAFT_N_MAX: ${DRAFT_N_MAX:-16}
       LLAMA_SPEC_DISABLE_SKIP: ${LLAMA_SPEC_DISABLE_SKIP:-}
       LLAMA_SPEC_ADAPTIVE_SKIP_K: ${LLAMA_SPEC_ADAPTIVE_SKIP_K:-}
+      LLAMA_SPEC_VRAM_CKPT: ${LLAMA_SPEC_VRAM_CKPT:-}
+      LLAMA_SPEC_VRAM_CKPT_NOSAVE: ${LLAMA_SPEC_VRAM_CKPT_NOSAVE:-}
 
   # Qwen3.6-35B-A3B MoE target-only. Multi-user throughput on the MoE — uses
   # the full 524K-token context split across 2 slots (262K/slot).
