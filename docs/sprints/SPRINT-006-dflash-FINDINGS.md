@@ -10,6 +10,57 @@ thinking-off (PR #22105 baseline)
 
 ---
 
+## Peer review (codex, gpt-5.4 high reasoning, 2026-05-01)
+
+Full assessment in `SPRINT-006-CODEX-REVIEW.md`. Cross-cutting
+issues that affect multiple sections of this document:
+
+1. **Cumulative-counter pollution**: `draft_n_generated` /
+   `draft_n_acc_tokens` are NOT reset per request — they accumulate
+   in the impl across the lifetime of `slot.spec`. The stored
+   E3-E5-baseline artifact shows `300 → 600 → 900` for quicksort
+   trials 0/1/2, confirming the leak. **The "real acceptance"
+   percentages in this document are measurements of cumulative
+   ratio at the moment of each request, not per-request
+   acceptance.** Relative ranking (P1 > P2 > P3 ≈ P4 > P5) is
+   probably still correct; absolute numbers shift.
+2. **E3 save-time timer conflation**: my `ggml_time_us()` wrapper
+   around `server_get_checkpoint()` includes `ctx->synchronize()`
+   + serialization, not only the GPU→host memcpy. Sprint 004's
+   standalone microbench shows `PARTIAL_ONLY` host save at ~21 ms;
+   my wrapper measures ~35 ms/save. The "38% of wallclock" is a
+   real critical-path share of speculative wallclock, but the
+   narrower "38% is the GPU→host copy" reading is overstated.
+3. **E2 / E4 stored only single-run logs**, not the 3-trial-per-
+   cell artifacts the sprint plan required. Recommendations are
+   based on a thinner evidence base than the tables suggest.
+
+Per-finding verdicts (codex):
+
+| Finding | Verdict | Note |
+|---------|---------|------|
+| Save ~38% wallclock | partially sound | wallclock-share real; raw-copy reading overstated |
+| Real acceptance scales inversely with N → N=4 | partially sound | throughput effect real; "96% at N=4" is structural (max possible is 75% since DFlash drafts N-1 per block) + cumulative-counter polluted |
+| Adaptive K=2/3 doesn't help at temp=0 | partially sound | empirical result correct; my causal story wrong — after F-018 v1's early-return, K>=2 is *inert* (never gets to retry) |
+| No prompt beats target-only on this stack | partially sound | true on current wiring; "structurally impossible" doesn't follow because dominant overhead is unwired optimization |
+| VRAM shadow exists but not wired into speculative path | **sound** | constraints (single-seq, hybrid, CUDA) match qwen profile; ship as Sprint 007 wire-up |
+| Skip flag is load-bearing | sound | with caveat: alternatives become viable once VRAM ckpt makes saves cheap |
+| 1.7B draft too small for entropic prompts | partially sound | effects are entangled with block size + restore semantics |
+
+Codex's recommended Sprint 007 ordering (which I adopt below):
+
+1. Wire `vram_seq_checkpoint` first.
+2. **Re-run E2 AFTER wire-up** before freezing any DRAFT_N_MAX
+   default. With cheap saves, the optimal N may move *up* —
+   shipping N=4 now risks optimizing around an avoidable
+   bottleneck.
+3. Split the instrumentation timer into synchronization-wait /
+   snapshot-copy / restore-copy.
+4. Choose N (fixed or adaptive) based on the post-wire-up data.
+
+**Adopted**: Sprint 007 = VRAM-ckpt wire-up + instrumentation split,
+DRAFT_N_MAX choice deferred to AFTER wire-up.
+
 ## TL;DR
 
 DFlash on Qwen3.6 + 5090 + Q4_K_XL is **structurally cost-bound**, not
@@ -188,12 +239,38 @@ lazy materialization. Touches the speculative-decoding correctness
 contract; higher risk than A. Defer to Sprint 008 unless candidate
 A turns out to be infeasible.
 
-### Recommendation: **Sprint 007 = candidates A + B together (~3.5 days total)**
+### Recommendation (revised after peer review): **Sprint 007 = A only; defer B until A's data is in**
 
-The original Sprint 006 sprint plan structured candidates as
-mutually exclusive. With the `vram_seq_checkpoint` discovery, A is
-fundamentally a different scope (it's a wire-up, not a redesign)
-and shouldn't compete with B. Ship both.
+**Updated 2026-05-01 after the codex peer review.** The original
+"ship A+B together" plan rested on E2's N=4 conclusion. Codex's
+critique is sound: shipping N=4 now risks optimizing around the
+ckpt-save tax that A is about to remove. With cheap VRAM-shadow
+saves, the optimal N may move up (more drafted tokens per save
+become amortized). N choice should be re-run AFTER A.
+
+**Sprint 007 scope (adopted)**:
+1. Wire `vram_seq_checkpoint` into speculative ckpt path
+   (~3 days). Same call-site swaps as before.
+2. Split instrumentation timer into synchronization-wait /
+   snapshot-copy / restore-copy so future E3-style results
+   isolate the actual D→D copy from cudaSynchronize stalls.
+   Codex flagged that the current timer wraps too broadly.
+3. Fix the cumulative-counter bug in `common_speculative_begin()`
+   so per-request acceptance is actually per-request. Reset
+   `n_gen_tokens` / `n_acc_tokens` (and `n_call_*` siblings) on
+   every begin().
+4. Re-run E2 (DRAFT_N_MAX sweep) on the wired-up build. Then
+   pick a default — could be 4, 8, or 16, depending on data.
+5. Re-run E5 (rejection profile) for completeness — the
+   distribution may shift once entropic-prompt rounds are no
+   longer save-cost-throttled.
+
+Effort: ~5 days single-engineer.
+
+**Sprint 008 candidates** (deferred from Sprint 007):
+- Adaptive block size (only after fixed-N data is in).
+- Save-cadence algorithmic changes (only if VRAM-shadow swap
+  doesn't recover the expected wallclock).
 
 ---
 
@@ -246,6 +323,38 @@ finding was at N=16. The N=4 results may show different
 dynamics — DFlash's block-diffusion advantage might emerge when
 the block is small enough that all positions can amortize. Worth
 a single bench point in Sprint 007.
+
+### F-022: cumulative-counter bug in `common_speculative_begin()` (codex peer review, 2026-05-01)
+
+`common/speculative.cpp:1452` (begin) does not reset
+`n_gen_tokens` / `n_acc_tokens` / `n_call_*` on the impl struct.
+They accumulate over the lifetime of `slot.spec`. Sprint 006's
+"per-request acceptance" numbers are actually
+"cumulative-as-of-this-request" — the stored E3-E5-baseline
+artifact has the telltale `300 → 600 → 900` pattern across 3
+quicksort trials.
+
+**Sprint 007 must fix this before any further acceptance-rate
+analysis.** Add `n_gen_tokens = 0; n_acc_tokens = 0; n_call_*=0;`
+to `common_speculative_begin()` (or to each impl's `begin()`
+override). Document that the existing F-016 timing fields
+(`draft_n_generated`, `draft_n_acc_tokens`) on the request
+response are now per-request rather than cumulative.
+
+### F-023: timer-conflation in E3 save% measurement (codex peer review, 2026-05-01)
+
+The `ggml_time_us()` brackets around `server_get_checkpoint()` at
+`tools/server/server-context.cpp:416` include `ctx->synchronize()`
++ serialization, not only the actual GPU→host memcpy. Sprint 004's
+microbench shows host save at ~21 ms; my wrapper measures
+~35 ms/save. Sprint 007 should split the timer into:
+- t_sync_wait_us (cudaSynchronize wait time)
+- t_snapshot_copy_us (the actual data movement)
+- t_serialize_us (host-side state-blob construction)
+
+That lets future analysis cleanly attribute "% of save we'd
+recover by the VRAM swap" vs "% that's sync stall regardless of
+copy path".
 
 ---
 
