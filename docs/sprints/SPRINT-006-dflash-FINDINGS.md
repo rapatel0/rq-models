@@ -33,9 +33,28 @@ instrumenting the path, three findings dominate:
 +127% median throughput, no correctness regression, no new code
 beyond a one-line entrypoint default change.
 
-**Stretch (Sprint 007)**: rollback-cost reduction (defer/amortize the
-GPU→host KV copy per draft round). Could cut another ~40% of
-wallclock. Out of original Sprint 006 scope; surfaced by E3.
+**LATE FINDING (2026-05-01, post-publication)**: the fork already
+contains a VRAM-resident checkpoint shadow (`src/llama-vram-checkpoint.{h,cpp}`,
+Sprint 003 commit `9b191cd87`). Header says it is *intended* to
+replace the host-RAM byte-copy path of `llama_state_seq_*_ext` for
+speculative decoding's PARTIAL_ONLY snapshot. **It exists but the
+server-side speculative path was never wired in** —
+`tools/server/server-context.cpp` lines 56, 2594, and 3136 still
+call `llama_state_seq_get_data_ext` / `set_data_ext` (the slow host
+path). Constraints (single-sequence, hybrid recurrent memory,
+GGML_USE_CUDA) match Sprint 005's qwen profile.
+
+If wired in, the expected effect is dramatic: D→D HBM copy at
+~3 TB/s vs PCIe pageable at ~14 GB/s. The 156 MiB-per-save cost
+goes from ~11ms (measured) to ~50µs (back-of-envelope). At 250
+saves on Hamlet, that's 2.8 s → 12 ms — wiping out **the entire
+38% wallclock save tax**. This is the single biggest lever
+identified in Sprint 006, and it's a wire-up job, not a research
+project.
+
+**Stretch (Sprint 007)**: rollback-cost reduction beyond the VRAM-
+shadow swap (e.g., delta-state save, lazy materialization). Less
+urgent if the VRAM swap recovers most of the loss.
 
 **Honest finding**: even with optimal N=4, **DFlash does not beat
 target-only on any prompt** on this stack. Best is qwen quicksort at
@@ -108,13 +127,48 @@ checkpoint restore + replay ≥25% on entropic?  → restore alone <25%, but SAV
 no remediation works?  → not the case
 ```
 
-**Two viable Sprint 007 branches emerge, not just one**:
+**Three viable Sprint 007 branches** (re-ranked 2026-05-01 after
+discovery of the existing `vram_seq_checkpoint` infrastructure):
 
-### Sprint 007 candidate A — Block-size remediation (recommended, low risk)
+### Sprint 007 candidate A — Wire VRAM-shadow path into speculative checkpoint (NEW TOP PICK)
+
+The fork already has `src/llama-vram-checkpoint.{h,cpp}`. Header
+explicitly states it's *intended* for the speculative
+PARTIAL_ONLY snapshot. Class is constructable with a `llama_context`,
+exposes `save()` / `restore()` that do D→D `cudaMemcpyAsync` +
+`cudaDeviceSynchronize`. Already validated bit-exact in Sprint 003
+(commit `9b191cd87`).
+
+**Plan**:
+1. Construct one `vram_seq_checkpoint` per slot at slot init (when
+   speculative is enabled and the model is hybrid).
+2. Replace the three `llama_state_seq_*_ext` call sites in
+   `tools/server/server-context.cpp` (lines 56, 2594, 3136) with
+   calls to `vram_seq_checkpoint::save()` / `restore()`. Drop the
+   `std::vector<uint8_t> data` host-buffer plumbing for the
+   speculative path.
+3. Keep the host path for non-hybrid models, multi-seq slots, and
+   non-CUDA builds (header's `is_valid()` guards both branches).
+4. Re-run E3 baseline bench. Expected save% drops from 38% → <1%,
+   restore% from 12% → <1%, total ckpt overhead ~0%.
+5. Re-run E2 sweep at N=4 with VRAM-shadow path. Expected qwen
+   median: 32.5 → ~55 tok/s (compounds with block-size win).
+6. If qwen quicksort breaks ≥1.0× target-only on this build, we
+   may finally have a deployment-default win.
+
+Effort: ~3 days (wire-up + bench validation + 1 build cycle).
+
+Risk: low. The infrastructure exists; the constraints (hybrid +
+single-seq + CUDA) match the qwen profile. Bit-exactness already
+proven in Sprint 003. The only fail mode is "infrastructure has
+some incompatibility with the speculative checkpoint contract we
+hadn't anticipated", in which case fall back to candidate B.
+
+### Sprint 007 candidate B — Block-size remediation (still recommended; standalone or compound)
 
 Productize block-size remediation:
-1. Default DRAFT_N_MAX = 4 in entrypoint.sh (was 16). Operator
-   override preserved.
+1. Default DRAFT_N_MAX = 4 in `docker/entrypoint.sh` (was 16).
+   Operator override preserved.
 2. (Stretch) Adaptive block size: shrink to 4 when last-N rounds
    show low acceptance, grow to 16 on prefix-matched repetitive
    content.
@@ -122,31 +176,24 @@ Productize block-size remediation:
    numbers in BENCHMARK-REPORT.md.
 4. Update README's DFlash guidance: best with N=4 on Qwen3.6.
 
-Estimated effort: 0.5 weeks single-engineer (mostly bench runs +
-docs).
+Effort: 0.5 days single-engineer (mostly bench runs + docs).
 
-### Sprint 007 candidate B — Save-cadence reduction (higher reward, higher risk)
+Compounds with candidate A. Ship both together if A works.
 
-Tackle the 38% wallclock tax from checkpoint save. Approach
-options:
-1. **Defer save**: only checkpoint when verify is ABOUT to run
-   (current code saves before verify pass). Save ~50% of saves
-   on rounds that fully accept.
-2. **Delta-state save**: track what changed since last
-   checkpoint, copy only the delta.
-3. **Lazy materialization**: keep checkpoint as a "logical" state
-   pointer, materialize only on actual restore.
+### Sprint 007 candidate C — Save-cadence reduction (deferred; only if A doesn't work)
 
-Estimated effort: 1.5–2 weeks — touches fork's
-`server_get_checkpoint` and `llama_state_seq_get_data_ext`. Higher
-risk because it changes the speculative-decoding correctness
-contract.
+Tackle the 38% wallclock tax via algorithmic change rather than
+architectural swap. Approach options: defer save, delta-state save,
+lazy materialization. Touches the speculative-decoding correctness
+contract; higher risk than A. Defer to Sprint 008 unless candidate
+A turns out to be infeasible.
 
-### Recommendation: **Sprint 007 = candidate A; Sprint 008 = candidate B**
+### Recommendation: **Sprint 007 = candidates A + B together (~3.5 days total)**
 
-A is a 1-line config change with massive measured benefit and zero
-risk. B is the real optimization but needs more careful design.
-Ship A first, gather operator feedback, then attempt B.
+The original Sprint 006 sprint plan structured candidates as
+mutually exclusive. With the `vram_seq_checkpoint` discovery, A is
+fundamentally a different scope (it's a wire-up, not a redesign)
+and shouldn't compete with B. Ship both.
 
 ---
 
