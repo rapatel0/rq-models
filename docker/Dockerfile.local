@@ -61,6 +61,8 @@ COPY --from=build /src/build/bin/llama-cli /app/bin/llama-cli
 COPY --from=build /src/build/bin/llama-bench /app/bin/llama-bench
 COPY --from=build /src/build/bin/llama-checkpoint-bench /app/bin/llama-checkpoint-bench
 COPY --from=build /src/build/bin/llama-speculative-simple /app/bin/llama-speculative-simple
+COPY --from=build /src/build/bin/llama-quantize /app/bin/llama-quantize
+COPY --from=build /src/build/bin/llama-imatrix /app/bin/llama-imatrix
 COPY --from=build /src/build/bin/lib*.so* /app/lib/
 
 # Copy entrypoint and benchmark script

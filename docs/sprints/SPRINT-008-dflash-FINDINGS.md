@@ -141,3 +141,45 @@ Recommend (1) — the data shows draft acceptance is the remaining lever.
   retained as historical baseline.
 - ⏭ README — DFlash guidance update pending (note that with cheap
   saves N=4 is the new default and code-class prompts hit 2.22×).
+
+---
+
+## Q4_K_M draft experiment (post-sprint, 2026-05-04)
+
+Per user instinct that imatrix matters, attempted Q4_K_M quantization of
+the DFlash draft to reduce draft-gen overhead. Two findings:
+
+1. **Imatrix calibration is not currently feasible for DFlash drafts.**
+   `llama-imatrix` cannot run DFlash drafts standalone — the decoder
+   asserts `target_tok_embd != nullptr`, which is only set during
+   speculative decoding. Bartowski's published Qwen3.6-27B imatrix is
+   not compatible (DFlash decoder has different attention shape).
+   Filed F-027.
+
+2. **Plain Q4_K_M (no imatrix) trades a small median win for a
+   catastrophic worst-case regression.** Bench at N=2 with
+   Q4 draft (981 MiB vs 3.47 GiB BF16):
+
+   | Prompt | BF16 N=2 | Q4 N=2 | Δ |
+   |---|---:|---:|---|
+   | Quicksort | 1.41 | 1.53 | +0.12 |
+   | Pythagorean | 1.23 | 1.30 | +0.07 |
+   | DC trip | 1.03 | 1.02 | -0.01 |
+   | Hamlet | 0.91 | **0.57** | **-0.34** (2/3 trials at 0% draft acc) |
+   | SQL | 1.21 | 1.28 | +0.07 |
+   | **Median** | 1.21 | **1.28** | +0.07 |
+   | **Worst** | 0.91 | **0.57** | -0.34 |
+
+   Q4 gets a slightly better median (1.28×) but Hamlet collapses to
+   0.57× — every draft token rejected, slot pays draft-gen cost
+   without any speedup. Unacceptable for a default.
+
+**Status**: BF16 draft remains the docker-compose default. Q4
+registered as `qwen3.6-27b-dflash-q4` for code-heavy operators who
+override `DRAFT_MODEL_NAME` and don't hit Hamlet-class prose. The
+imatrix gap (F-027) blocks shipping Q4 broadly.
+
+**Implication for Sprint 009 plan**: Don't quantize aggressively
+without imatrix. The right path remains either (a) a smaller properly-
+trained draft, or (b) an architecture change (EAGLE3, where the draft
+is a thin head on target hidden states — no separate forward pass).
