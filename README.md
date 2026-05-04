@@ -225,24 +225,39 @@ runs Qwen3.6-27B (dense) + DFlash, single-slot. Sprint 005 Phase 0.5 validated
 byte-equal output vs target-only on a greedy quicksort prompt (937/937 chars
 shared prefix, 100% acceptance).
 
-**Sprint 005 Phase 1 measurement** (5-prompt L4, 5090, Q4_K_XL
-targets, fork commit `40856a1d2`):
+**Sprint 008 measurement** (5-prompt L4, 5090, Q4_K_XL targets,
+fork commit `526097eed`, VRAM-shadow ckpt + DRAFT_N_MAX=4):
+
+| Profile | Regime | Quicksort× | Median× | Gate ≥1.3× |
+|---------|--------|-----------:|--------:|:----------:|
+| `qwen`   | thinking-off | **2.22×** | **1.02×** | FAIL (close) |
+
+**Sprint 005 baseline** (host-PCIe ckpt save, DRAFT_N_MAX=16):
 
 | Profile | Regime | Quicksort× | Median× | Gate ≥1.3× |
 |---------|--------|-----------:|--------:|:----------:|
 | `qwen`   | thinking-on  | 1.10× | 0.80× | FAIL |
-| `qwen`   | thinking-off | **1.78×** | 0.67× | FAIL |
+| `qwen`   | thinking-off | 1.78× | 0.67× | FAIL |
 | `qwen36` | thinking-on  | 0.83× | 0.52× | FAIL |
 | `qwen36` | thinking-off | 1.15× | 0.58× | FAIL |
 
-Quicksort thinking-off on qwen lands in PR #22105's published 1.5–2×
-range — **the implementation works on its target regime and prompt
-class**. The median FAILs are content-driven: small drafts can't
-predict entropic prose well. The "100% acceptance" the bench harness
-reports is a metric bug (F-016) — server's internal log shows real
-acceptance ~37% on representative prompts. See
-[BENCHMARK-REPORT.md §Sprint 005 — Speculative L4 results](docs/BENCHMARK-REPORT.md#sprint-005--speculative-l4-results)
-for the full per-prompt breakdown across both regimes.
+Sprint 008 quicksort **2.22×** exceeds PR #22105's published 1.5–2×
+range. Median crossed ≥1.0× for the first time on this stack thanks
+to two changes: (1) F-024 enabled the VRAM-shadow ckpt path
+(`LLAMA_SPEC_VRAM_CKPT=1`, now default) — per-save copy time dropped
+from ~35 ms (host PCIe) to **0.28 ms** (D→D HBM), and ckpt save+restore
+overhead dropped from ~38% of wallclock to ~1%; (2) with cheap saves,
+`DRAFT_N_MAX` flipped from 16 → 4 (Sprint 008 E2 sweep) — the smaller
+block has higher per-position acceptance because DFlash's draft model
+struggles to predict 8+ tokens ahead. See
+[BENCHMARK-REPORT.md §Sprint 008](docs/BENCHMARK-REPORT.md#sprint-008--vram-shadow-ckpt--draft_n_max-retune-qwen-no-think)
+for the full E2 sweep + per-prompt breakdown.
+
+The remaining median miss (1.02 vs 1.3 gate) is concentrated on
+prose / planning prompts (DC trip 0.60×, Hamlet 0.53×) where DFlash's
+small draft has structurally low per-token acceptance. Next leverage
+point is on the draft model side (smaller / domain-tuned drafts), not
+on the speculative pipeline.
 
 | Profile | Target | Draft | KV | Ctx | Speculative |
 |---------|--------|-------|:--:|----:|:-----------:|
@@ -292,7 +307,8 @@ Set on the compose service or via `docker run -e` (full table in
 | `SPECULATIVE_MODE` | `target-only` / `autoregressive` / `dflash` | `target-only` | Selects the verify path |
 | `DRAFT_MODEL_NAME` | model key from `MODELS` registry | — | Required if mode != target-only |
 | `DRAFT_KV_CACHE_TYPE` | same options as `KV_CACHE_TYPE` | inherits target | Independent draft KV quantization |
-| `DRAFT_N_MAX` | int | `16` | Max draft tokens per verify round |
+| `DRAFT_N_MAX` | int | `4` | Max draft tokens per verify round (Sprint 008 default; was 16 pre-VRAM-shadow ckpt) |
+| `LLAMA_SPEC_VRAM_CKPT` | `0` / `1` | `1` | VRAM-shadow speculative checkpoint (D→D copy, ~125× faster than host path); off falls back to PCIe pageable. Single-seq + hybrid recurrent only. |
 
 The entrypoint defaults `N_PARALLEL=1` when `SPECULATIVE_MODE != target-only` but
 no longer forces it. Multi-slot speculative is functionally correct in the

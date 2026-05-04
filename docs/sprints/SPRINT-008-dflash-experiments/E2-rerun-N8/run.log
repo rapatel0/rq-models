@@ -1,0 +1,72 @@
+==[E2-rerun-N8]== profile=qwen no_think=1 extra=DRAFT_N_MAX=8 LLAMA_SPEC_VRAM_CKPT=1
+  -- leg=target-only env=DRAFT_N_MAX=8 LLAMA_SPEC_VRAM_CKPT=1 --
+  --profile qwen-throughput --profile qwen-throughput-q3 \
+  down
+Waiting for server...
+Ready on port 8080
+  [target-only][1/5][trial 0] 69.59 tok/s
+  [target-only][1/5][trial 1] 69.86 tok/s
+  [target-only][1/5][trial 2] 70.33 tok/s
+  [target-only][2/5][trial 0] 69.44 tok/s
+  [target-only][2/5][trial 1] 69.14 tok/s
+  [target-only][2/5][trial 2] 69.30 tok/s
+  [target-only][3/5][trial 0] 69.35 tok/s
+  [target-only][3/5][trial 1] 69.16 tok/s
+  [target-only][3/5][trial 2] 69.36 tok/s
+  [target-only][4/5][trial 0] 69.32 tok/s
+  [target-only][4/5][trial 1] 69.17 tok/s
+  [target-only][4/5][trial 2] 69.31 tok/s
+  [target-only][5/5][trial 0] 69.28 tok/s
+  [target-only][5/5][trial 1] 69.02 tok/s
+  [target-only][5/5][trial 2] 69.27 tok/s
+
+Wrote leg 'target-only' to /home/ravi/repos/turbo/docs/sprints/SPRINT-008-dflash-experiments/E2-rerun-N8/results-qwen.json
+  -- leg=autoregressive env=DRAFT_N_MAX=8 LLAMA_SPEC_VRAM_CKPT=1 --
+ Network turbo_default Removing 
+ Network turbo_default Removed 
+Waiting for server...
+Ready on port 8080
+  [autoregressive][1/5][trial 0] 114.22 tok/s acc=61.11%
+  [autoregressive][1/5][trial 1] 124.64 tok/s acc=61.11%
+  [autoregressive][1/5][trial 2] 124.61 tok/s acc=61.11%
+  [autoregressive][2/5][trial 0] 45.61 tok/s acc=18.53%
+  [autoregressive][2/5][trial 1] 45.54 tok/s acc=18.53%
+  [autoregressive][2/5][trial 2] 45.47 tok/s acc=18.53%
+  [autoregressive][3/5][trial 0] 20.04 tok/s acc=0.89%
+  [autoregressive][3/5][trial 1] 20.20 tok/s acc=0.89%
+  [autoregressive][3/5][trial 2] 20.23 tok/s acc=0.89%
+  [autoregressive][4/5][trial 0] 19.25 tok/s acc=0.17%
+  [autoregressive][4/5][trial 1] 19.26 tok/s acc=0.17%
+  [autoregressive][4/5][trial 2] 19.25 tok/s acc=0.17%
+  [autoregressive][5/5][trial 0] 52.18 tok/s acc=22.51%
+  [autoregressive][5/5][trial 1] 19.15 tok/s acc=0.00%
+  [autoregressive][5/5][trial 2] 19.19 tok/s acc=0.00%
+
+Wrote leg 'autoregressive' to /home/ravi/repos/turbo/docs/sprints/SPRINT-008-dflash-experiments/E2-rerun-N8/results-qwen.json
+  -- leg=dflash env=DRAFT_N_MAX=8 LLAMA_SPEC_VRAM_CKPT=1 --
+ Network turbo_default Removing 
+ Network turbo_default Removed 
+Waiting for server...
+Ready on port 8080
+  [dflash][1/5][trial 0] 115.74 tok/s acc=61.11%
+  [dflash][1/5][trial 1] 125.68 tok/s acc=61.11%
+  [dflash][1/5][trial 2] 125.79 tok/s acc=61.11%
+  [dflash][2/5][trial 0] 46.30 tok/s acc=18.53%
+  [dflash][2/5][trial 1] 46.26 tok/s acc=18.53%
+  [dflash][2/5][trial 2] 46.28 tok/s acc=18.53%
+  [dflash][3/5][trial 0] 20.25 tok/s acc=0.89%
+  [dflash][3/5][trial 1] 20.24 tok/s acc=0.89%
+  [dflash][3/5][trial 2] 20.26 tok/s acc=0.89%
+  [dflash][4/5][trial 0] 19.20 tok/s acc=0.00%
+  [dflash][4/5][trial 1] 19.27 tok/s acc=0.17%
+  [dflash][4/5][trial 2] 19.24 tok/s acc=0.17%
+  [dflash][5/5][trial 0] 19.19 tok/s acc=0.00%
+  [dflash][5/5][trial 1] 19.22 tok/s acc=0.00%
+  [dflash][5/5][trial 2] 19.21 tok/s acc=0.00%
+
+Wrote leg 'dflash' to /home/ravi/repos/turbo/docs/sprints/SPRINT-008-dflash-experiments/E2-rerun-N8/results-qwen.json
+ Network turbo_default Removing 
+ Network turbo_default Removed 
+
+Wrote /home/ravi/repos/turbo/docs/sprints/SPRINT-008-dflash-experiments/E2-rerun-N8/results-qwen.json
+Wrote /home/ravi/repos/turbo/docs/sprints/SPRINT-008-dflash-experiments/E2-rerun-N8/summary-qwen.md

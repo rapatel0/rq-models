@@ -19,7 +19,7 @@ set -euo pipefail
 #   SPECULATIVE_MODE      (optional)  target-only | autoregressive | dflash (default: target-only)
 #   DRAFT_MODEL_NAME      (required if SPECULATIVE_MODE != target-only) Draft model key
 #   DRAFT_KV_CACHE_TYPE   (optional)  Draft KV cache type (default: KV_CACHE_TYPE)
-#   DRAFT_N_MAX           (optional)  Max draft tokens per verify round (default: 16)
+#   DRAFT_N_MAX           (optional)  Max draft tokens per verify round (default: 4 — Sprint 008 E2 sweep with VRAM-shadow ckpt; was 16)
 #   EXPERIMENTAL          (optional)  Required (=1) to enable qwen3.6-35b-dflash
 # ============================================================================
 
@@ -131,7 +131,7 @@ NGL="${GPU_LAYERS:-99}"
 SPECULATIVE_MODE="${SPECULATIVE_MODE:-target-only}"
 DRAFT_MODEL_NAME="${DRAFT_MODEL_NAME:-}"
 DRAFT_KV_CACHE_TYPE="${DRAFT_KV_CACHE_TYPE:-$KV_CACHE}"
-DRAFT_N_MAX="${DRAFT_N_MAX:-16}"
+DRAFT_N_MAX="${DRAFT_N_MAX:-4}"
 
 case "$SPECULATIVE_MODE" in
   target-only|autoregressive|dflash) ;;

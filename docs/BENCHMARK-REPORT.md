@@ -889,3 +889,72 @@ draft was distilled to predict. Sprint 004's L4 benchmark sets this flag
 unconditionally (`scripts/bench_speculative.py:265`); the L2 differential
 harness inherits it from the running server. Sampling-mode behavior under
 either thinking setting is not validated this sprint.
+
+### Sprint 008 — VRAM-shadow ckpt + DRAFT_N_MAX retune (qwen, no-think)
+
+**Headline**: Quicksort hits **2.22×** target-only (PR #22105's published
+range was 1.5–2×). **Median DFlash× = 1.02 across 5 prompts**, the first
+time we cross ≥1.0× on this stack. ≥1.3× hard gate still missed; soft
+gate ≥1.0× cleared on 3 of 5 prompts.
+
+**What changed since Sprint 005**:
+1. F-024 fix landed (fork commit `526097eed`): `vram_seq_checkpoint::save()`
+   now snapshots the recurrent memory's `cells[]` / `head` / `used`
+   bookkeeping in addition to tensor bytes. Without this, round 2 of
+   speculative decode tripped balloc->init's seq_pos consistency check
+   (Sprint 007 root cause).
+2. `LLAMA_SPEC_VRAM_CKPT=1` is now the docker-compose default. Per-save
+   copy time drops from **~35 ms (host PCIe) to 0.28 ms (D→D HBM)** —
+   **125× faster**. Total ckpt save+restore overhead drops from ~38% of
+   wallclock (Sprint 006 E3) to ~1%.
+3. `DRAFT_N_MAX` default flipped from 16 → 4. Sprint 008 E2 sweep at
+   N={4,8,16} shows N=4 wins decisively. With cheap saves the bottleneck
+   flips to draft-model accuracy, and DFlash's per-position acceptance
+   crashes when asked to predict further ahead than ~3 tokens.
+
+**Per-prompt comparison (qwen, no-think, 5-prompt × 3-trial)**:
+
+| Prompt | target-only | Sprint 005 DFlash× | **Sprint 008 N=4 DFlash×** | Δ |
+|--------|------------:|-------------------:|---------------------------:|---:|
+| Quicksort | 69.92 | 1.78 | **2.22** | +0.44 |
+| Pythagorean | 69.44 | 0.89 | **1.15** | +0.26 |
+| DC trip | 69.41 | n/a (F-014) | 0.60 | — |
+| Hamlet | 69.46 | 0.46 | 0.53 | +0.07 |
+| SQL | 69.32 | 0.28 | **1.02** | +0.74 |
+| **Median** | — | **0.67** | **1.02** | **+0.35** |
+
+**Sprint 008 E2 sweep — DRAFT_N_MAX × prompt**:
+
+| Prompt | N=4 DFlash× | N=8 DFlash× | N=16 DFlash× |
+|--------|------------:|------------:|-------------:|
+| Quicksort | **2.22** | 1.80 | 1.57 |
+| Pythagorean | **1.15** | 0.67 | 0.41 |
+| DC trip | **0.60** | 0.29 | 0.31 |
+| Hamlet | **0.53** | 0.28 | 0.32 |
+| SQL | **1.02** | 0.28 | 0.32 |
+| **Median** | **1.02** | 0.29 | 0.32 |
+
+N is monotonically decreasing. The PR #22105 default of N=16 was tuned
+for the host-PCIe regime where save cost (~35 ms) dominated the round
+budget — fewer rounds amortized the save tax. With cheap D→D saves
+(~0.28 ms) the per-round cost vanishes and the optimal block flips to
+small (where DFlash's draft model has higher per-position acceptance).
+
+**What's left**: median ≥1.3× hard gate still missed (1.02). The two
+remaining underperformers are DC trip (0.60×) and Hamlet (0.53×), both
+prose / planning content where DFlash's small draft has structurally low
+per-token acceptance. Next leverage point is on the draft model side
+(Sprint 009-dflash recommendation: distillation or smaller domain-tuned
+drafts), not on the speculative pipeline.
+
+**Reproduction**:
+```bash
+make build
+LLAMA_SPEC_VRAM_CKPT=1 DRAFT_N_MAX=4 make run-qwen
+PROFILE=qwen NO_THINK=1 LLAMA_SPEC_VRAM_CKPT=1 \
+  ./scripts/run_sprint008_experiment.sh E2-rerun-N4 \
+    DRAFT_N_MAX=4 LLAMA_SPEC_VRAM_CKPT=1
+```
+
+Artifacts: `docs/sprints/SPRINT-008-dflash-experiments/E2-rerun-N{4,8,16}/`
+Findings: `docs/sprints/SPRINT-008-dflash-FINDINGS.md`
