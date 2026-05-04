@@ -1,219 +1,193 @@
-# Sprint 006-dflash: EAGLE3 Productionization
+# Sprint 008-dflash: VRAM-shadow ckpt cells[] snapshot + clean re-bench
 
-> **Track suffix**: `-dflash` — speculative-decoding feature track. See
-> `SPRINT-ROADMAP-dflash.md` for the full track context and the vLLM
-> Sprint 004/005/... track collision note.
+> **Track suffix**: `-dflash`. Does not merge to `main`.
 
-**Status**: Planning (draft)
-**Created**: 2026-04-27
-**Depends on**: SPRINT-005-dflash (L4 numbers published, forced-rejection gate closed)
-**Target hardware**: RTX 5090 (32 GB), 123 GB system RAM
-**Estimated effort**: 1 week single-engineer
+**Status**: Planning (2026-05-01)
+**Sprint type**: Implementation + measurement
+**Created**: 2026-05-01
+**Depends on**: Sprint 007-dflash partial close (F-022 fix shipped on host
+path; VRAM scaffolding in code env-gated off; F-024 root-cause documented)
+**Estimated effort**: ~2 days single-engineer
 **Branches**:
-- Repo: `rapatel0/rq-models` `sprint/006-eagle3` (off `main` post-Sprint-005)
-- Fork: minimal — graph already in tree from Phase 3 cherry-pick
-
----
+- Repo: `sprint/008-dflash` (off `sprint/007-dflash`)
+- Fork: `feature/sprint-004-rebase-dflash` continues from `43c8c1dfe`
 
 ## Overview
 
-The Sprint 004 cherry-pick of PR #22105 squash-merged the entire shared
-tree of #22105 (DFlash) and #18039 (EAGLE3). The full EAGLE3 model graph
-(`src/models/eagle3.cpp`, +186 LOC) is already in fork; the runtime
-`--eagle3` flag is wired through `common/arg.cpp`; the convert path
-supports EAGLE3 drafts. **Sprint 006 is pure repo-side**: profile,
-entrypoint dispatch, draft conversion, validation harness, benchmark
-publish.
+Sprint 007 wired `vram_seq_checkpoint` into the speculative path,
+exposed it via `LLAMA_SPEC_VRAM_CKPT=1`, then discovered the path
+fails on round 2 because the existing implementation copies recurrent
+tensor bytes only and does not snapshot the recurrent memory's
+`cells[]` metadata (per-cell `pos`, `seq_id`, `tail`, `src` plus
+container-level `head`, `used`). The host path's
+`llama_state_seq_*_data_ext` serializes both via `state_write_meta` /
+`state_read_meta`. Codex peer review (gpt-5.3-codex high) pinned this
+as the root cause.
 
-EAGLE3 is autoregressive 1-token-per-step (vs DFlash's 16-token block).
-Different best-fit prompt profile — generally narrower acceptance
-distribution, more consistent single-stream throughput. Useful as a
-fallback when DFlash drafts aren't available for a target architecture
-or when prompt regime is hostile to block-diffusion (e.g., highly
-repetitive or formulaic outputs).
-
-Out of scope: any fork-side EAGLE3 changes beyond bug fixes; multi-slot
-batched-draft (Sprint 007); cross-architecture EAGLE3 portability (e.g.,
-Llama-3 EAGLE3 drafts).
-
----
+Sprint 008 closes that gap. Once VRAM ckpt actually works, the ~38%
+wallclock save tax measured in Sprint 006 E3 disappears, which (per
+Sprint 006 findings) was the dominant overhead. With the save cheap,
+we re-run E2 (DRAFT_N_MAX sweep) on the corrected metric and pick a
+new default.
 
 ## Use Cases
 
-1. **Operator picks between DFlash and EAGLE3** based on workload. The
-   sprint outputs comparable tok/s + acceptance numbers on the same
-   5-prompt set under the same conditions.
-
-2. **EAGLE3 as DFlash fallback**: When a target has only EAGLE3 drafts
-   available (broader community ecosystem), the operator can opt in via
-   `make run-qwen-eagle3` rather than waiting for DFlash drafts to drop.
-
-3. **EAGLE3 + 27B as preview path**: If z-lab's 27B-DFlash drafts iterate
-   slowly and EAGLE3-flavored 27B drafts are more stable, Sprint 006
-   gives operators a more-stable alternative.
-
----
+1. **DFlash speculative finally pays off on the median 5-prompt set.**
+   Sprint 005's gate (≥1.3× target-only) failed at 0.80× on qwen.
+   Codex hypothesis: with cheap saves + N=4 (Sprint 006 E2's
+   recommendation), the median crosses ≥1.0× and code-class prompts
+   may exceed 2×.
+2. **Operators can flip on speculative without thinking about the cost.**
+   Today the docker default has `DRAFT_N_MAX=16` because we never
+   measured below — but with 38% save tax that's the *only* knob we
+   could move. Post-Sprint 008 we measure properly and ship a default
+   tuned for the real bottleneck.
+3. **F-022 fix gets exercised under realistic conditions.** Sprint 007
+   verified F-022 works on a single-shot 200-token request. Sprint 008
+   re-bench (3-trial × 5-prompt) is the first real test that
+   per-request `draft_n_generated` numbers stay clean across many
+   sequential requests.
 
 ## Architecture
 
-```
-                    Existing in fork (no fork change):
-        ┌────────────────────────────────────────────────────────┐
-        │  src/models/eagle3.cpp           full graph (cherry-pick)│
-        │  common/arg.cpp                  --eagle3 runtime flag   │
-        │  common/speculative.cpp          common_speculative_init │
-        │                                  _eagle3 dispatch        │
-        │  convert_hf_to_gguf.py           Eagle3Model class       │
-        │  examples/speculative-simple/    --eagle3 in CLI         │
-        └────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-                  Sprint 006 deliverables (repo-side):
-        ┌────────────────────────────────────────────────────────┐
-        │  docker/entrypoint.sh             SPECULATIVE_MODE=eagle3│
-        │                                   path; --eagle3 flag    │
-        │  docker-compose.yml               qwen-eagle3,           │
-        │                                   qwen36-27b-eagle3      │
-        │                                   profiles               │
-        │  Makefile                         run-* + bench-eagle3   │
-        │  scripts/convert_eagle3_drafts.sh Mirror of dflash       │
-        │                                   converter for EAGLE3   │
-        │                                   draft repos            │
-        │  scripts/bench_speculative.py     +eagle3 leg            │
-        │  scripts/validate_dflash.py       (rename →              │
-        │                                   validate_speculative.py│
-        │                                   or add --mode eagle3)  │
-        │  docs/BENCHMARK-REPORT.md §10.x   EAGLE3 sub-section     │
-        └────────────────────────────────────────────────────────┘
+```text
+fork pin (43c8c1dfe baseline)
+  ↓
+Phase 1: extend vram_seq_checkpoint with cells[] snapshot/restore
+  ↓
+Phase 2: smoke test (3 sequential P1 quicksort prompts; verify
+        round 2/3 succeed; verify save copy time < 1ms; verify
+        F-022 counters per-request)
+  ↓
+Phase 3: full re-bench at DRAFT_N_MAX={4,8,16} × 5-prompt × 3-trial
+        on the working VRAM path. Capture E5 rejection histograms
+        for each N.
+  ↓
+Phase 4: choose DRAFT_N_MAX default. Update docker/entrypoint.sh.
+        Republish BENCHMARK-REPORT.md if any prompt clears the
+        Sprint 005 ≥1.0× / ≥1.3× gates.
+  ↓
+Phase 5: write SPRINT-008-dflash-FINDINGS.md; pick next sprint
+        (EAGLE3 productionization moves to 009 if Sprint 008 ships;
+        further DFlash optimization if still under target).
 ```
 
-### Phase ordering
+Constraints (unchanged from Sprint 007):
+- requires `GGML_USE_CUDA` ✓
+- requires hybrid recurrent memory ✓
+- requires single-sequence ✓ (qwen profile is `N_PARALLEL=1`)
+- requires `COMMON_CONTEXT_SEQ_RM_TYPE_FULL` context ✓
 
-```
-Phase 0: EAGLE3 draft sourcing             (~15%, 1 day)
-Phase 1: convert_eagle3_drafts.sh          (~15%, 1 day)
-Phase 2: entrypoint dispatch + profile     (~20%, 1.5 days)
-Phase 3: validation harness extension      (~20%, 1.5 days)
-Phase 4: benchmark + publish               (~20%, 1.5 days)
-Phase 5: docs + sprint outcome             (~10%, 0.5 days)
-```
-
----
+The host path stays as a runtime fallback for non-CUDA / non-hybrid /
+multi-seq contexts. Once Sprint 008 phase gates pass, the env-toggle
+default flips: `LLAMA_SPEC_VRAM_CKPT=1` becomes the docker-compose
+default, with `=0` available as the escape hatch.
 
 ## Implementation
 
-### Phase 0: EAGLE3 draft sourcing
+### Phase 1 — Extend `vram_seq_checkpoint` with cells[] snapshot
 
-**Goal**: Identify the right EAGLE3 draft safetensors for our two targets.
-
-**Tasks**:
-- [ ] Survey HF for `eagle3` + `qwen3.6` tags. Likely candidates: `z-lab`,
-      `lmsys`, community converters. Pin candidate repos + SHAs in this
-      sprint doc before starting Phase 1.
-- [ ] If no Qwen3.6-targeted EAGLE3 draft exists: descope to Qwen3.5-27B
-      EAGLE3 (drafts more available for older targets) and document the
-      gap as a Sprint 007 followup.
-- [ ] Note license + access status for each candidate (gated/open).
-
-**Phase gate**: A pinned safetensors path for at least one Qwen3 target.
-
-### Phase 1: `convert_eagle3_drafts.sh`
-
-**Goal**: Mirror of `convert_dflash_drafts.sh` but for EAGLE3 schema.
-
-**Files**:
-- `scripts/convert_eagle3_drafts.sh` — NEW. Same idempotent pattern as
-  the dflash converter: download draft safetensors, download target
-  tokenizer files, run `convert_hf_to_gguf.py`, publish into
-  `llm-models` volume.
-- `Makefile` — `convert-eagle3-drafts` target.
+**Files (fork)**:
+- `src/llama-vram-checkpoint.h`:
+  - Add private fields: `std::vector<llama_memory_recurrent::kv_cell>
+    cells_snapshot`, `uint32_t head_snapshot`, `uint32_t used_snapshot`.
+  - May need `friend class llama_memory_recurrent` or a `state_snapshot()` /
+    `state_restore_snapshot()` method on `llama_memory_recurrent` —
+    pick whichever is least invasive.
+- `src/llama-vram-checkpoint.cpp`:
+  - In `save()`: after the cudaMemcpyAsync loops, copy `mem_recr->cells`
+    into `cells_snapshot`, save `head` / `used`. Then sync.
+  - In `restore()`: assign `mem_recr->cells = cells_snapshot;
+    mem_recr->head = head_snapshot; mem_recr->used = used_snapshot;`
+    *before* the cudaMemcpyAsync (or order doesn't matter since meta
+    is host-side; pick what reads cleanly).
 
 **Tasks**:
-- [ ] Clone `convert_dflash_drafts.sh` shape, swap pinned repos.
-- [ ] Verify `convert_hf_to_gguf.py` EAGLE3 path uses
-      `--target-model-dir` the same way DFlash does (Sprint 004 finding).
-- [ ] First conversion: produce `Qwen3.6-XXB-EAGLE3-bf16.gguf` and
-      publish.
-- [ ] Smoke load via `llama-cli --model <draft> -ngl 0 -n 0` to verify
-      tensor names.
+- [ ] Add the fields + ctor zero-init.
+- [ ] Wire the host-side cells[] vector copy in save().
+- [ ] Wire the host-side cells[] vector restore in restore().
+- [ ] Verify size: `cells.size() = mem_recr->size`. ~120 cells per
+      single-seq qwen3.6 setup × ~96 bytes each = ~12 KB (negligible
+      vs 149 MiB tensor data).
 
-**Phase gate**: At least one EAGLE3 draft GGUF produced and loads in
-`llama-speculative-simple --eagle3`.
+**Phase gate**: clean build, no test failures.
 
-### Phase 2: entrypoint dispatch + compose profile
-
-**Files**:
-- `docker/entrypoint.sh` — extend `SPECULATIVE_MODE` validator from
-  `target-only|autoregressive|dflash` → `target-only|autoregressive|dflash|eagle3`.
-  Command builder adds `--eagle3` flag when `SPECULATIVE_MODE=eagle3`.
-- `docker-compose.yml` — `qwen-eagle3` (35B) and/or `qwen36-27b-eagle3`
-  (27B) profiles. Both gated by `PREVIEW=1` until Sprint 006 publishes
-  L4 numbers — can drop the gate at Sprint outcome if numbers clear bar.
-- `Makefile` — `run-qwen-eagle3[-bg]`, `run-qwen36-27b-eagle3[-bg]`,
-  aggregate stop/logs/clean updated.
+### Phase 2 — Smoke test
 
 **Tasks**:
-- [ ] Extend `SPECULATIVE_MODE` validation case statement.
-- [ ] Add `--eagle3` to the `CMD` builder when mode is eagle3.
-- [ ] New compose services. Single-slot default, planar3 KV (mirror of
-      dflash profiles).
-- [ ] Update `MODELS` registry with `qwen3.6-XXB-eagle3` entries pointing
-      at `local/...` (same pattern as dflash).
-- [ ] Smoke `make run-qwen36-27b-eagle3`. `/health`, one greedy
-      completion. `make stop`.
+- [ ] `LLAMA_SPEC_VRAM_CKPT=1 docker compose --profile qwen up -d`
+- [ ] Send 3 sequential quicksort requests. Verify all return HTTP 200,
+      coherent completions.
+- [ ] Verify `spec_t_ckpt_save_us / spec_n_ckpt_save` ratio drops
+      from ~35 ms (Sprint 006) to <1 ms (target: HBM-bound,
+      ~149 MiB / 3 TB/s ≈ 50 µs).
+- [ ] Verify per-request `draft_n_generated` is independent across
+      the 3 trials (F-022 sanity check at sequential request scale).
 
-**Phase gate**: At least one EAGLE3 profile boots and serves a coherent
-greedy completion.
+**Phase gate**: 3-of-3 sequential requests succeed; ckpt copy time
+per save < 1 ms; per-request acceptance numbers are independent
+(not cumulative).
 
-### Phase 3: validation harness extension
-
-**Files**:
-- `scripts/bench_speculative.py` — extend `LEGS = [...]` to include
-  `eagle3`. Update finalize() rendering to handle 4 legs.
-- `scripts/validate_dflash.py` → consider rename to
-  `validate_speculative.py` and add `--mode {dflash,eagle3}`. Or just
-  duplicate as `validate_eagle3.py` if rename is too disruptive.
-- `tests/test_speculative.py` — add EAGLE3-flavored tests parallel to
-  the DFlash ones.
+### Phase 3 — Re-run E2 sweep + capture E5
 
 **Tasks**:
-- [ ] Decide rename vs new file (recommend new file `validate_eagle3.py`
-      to keep diff small; can refactor later).
-- [ ] Run `validate_eagle3.py --reference none` on the 5-prompt set to
-      check L2 greedy equivalence.
-- [ ] Run `validate_eagle3.py --reference zlab` if a pytorch reference
-      exists for EAGLE3 (likely yes from z-lab).
+- [ ] `DRAFT_N_MAX={4,8,16}` × full 5-prompt × 3-trial bench using
+      `scripts/run_sprint006_experiment.sh` (rename / extend for
+      Sprint 008, but the structure is the same). Save artifacts
+      under `docs/sprints/SPRINT-008-dflash-experiments/E2-rerun/`.
+- [ ] Capture E5 rejection-position histograms per N.
+- [ ] Compare side-by-side with Sprint 006: did the optimal N shift?
+      Did any prompt cross ≥1.0× or ≥1.3× target-only?
 
-**Phase gate**: L2 (greedy match 256/256 on 3+ prompts) passes for
-EAGLE3.
+**Phase gate**: full sweep completes without crashes; data populated
+per-N; comparison table written.
 
-### Phase 4: benchmark + publish
-
-**Files**:
-- `Makefile` — `bench-eagle3-leg LEG=eagle3`, `bench-eagle3-all`.
-- `docs/sprints/SPRINT-006-L4-results.json`, `-summary.md` (NEW).
-- `docs/BENCHMARK-REPORT.md` — `§10.x EAGLE3` subsection.
+### Phase 4 — Choose DRAFT_N_MAX default + republish
 
 **Tasks**:
-- [ ] Run the 5-prompt × 3-trial benchmark on `qwen36-27b-eagle3`.
-      Compare to Sprint 005's DFlash and target-only numbers (same
-      prompts, same seed, same temp, same trials).
-- [ ] Publish a 4-way comparison table (target-only / autoregressive /
-      DFlash / EAGLE3) on the 27B.
-- [ ] If 35B EAGLE3 draft exists: same exercise on `qwen-eagle3`.
+- [ ] Pick the new `DRAFT_N_MAX` default (4 / 8 / 16 / adaptive).
+      Update `docker/entrypoint.sh`.
+- [ ] If gates are now met on more prompts: update
+      `docs/BENCHMARK-REPORT.md` with new headline numbers and
+      Sprint 008 callout.
+- [ ] Update `README.md` Speculative Decoding section if guidance
+      changes.
+- [ ] Flip `LLAMA_SPEC_VRAM_CKPT` default to `1` in
+      `docker-compose.yml` (the `=0` escape hatch stays).
 
-**Phase gate**: 4-way comparison table written to BENCHMARK-REPORT.md
-§10. No EAGLE3 cell shows >5% regression vs target-only on any prompt
-(soft gate; correctness-only).
+**Phase gate**: README + BENCHMARK-REPORT consistent with
+Sprint 008 numbers; default flag flipped.
 
-### Phase 5: docs + sprint outcome
+### Phase 5 — Findings + recommend next sprint
 
 **Tasks**:
-- [ ] README "Speculative Decoding" section: add EAGLE3 row to the
-      profile table; one-line guidance on when to pick EAGLE3 vs DFlash.
-- [ ] `SPRINT-004-FOLLOWUPS.md` F-008 → closed.
-- [ ] `SPRINT-006-FOLLOWUPS.md` (NEW) for execution-discovered items.
-- [ ] Sprint marked complete.
+- [ ] Write `docs/sprints/SPRINT-008-dflash-FINDINGS.md` with
+      hypothesis verdicts (did VRAM-shadow give the expected
+      speedup? Did the optimal N change? Did F-022's per-request
+      counter hold up under multi-request load?).
+- [ ] Write `docs/sprints/SPRINT-008-dflash-FOLLOWUPS.md` for
+      execution-discovered items (if any).
+- [ ] Sprint 009 recommendation: EAGLE3 productionization (the
+      previously deleted Sprint 008-EAGLE3 plan can be revived as
+      Sprint 009-eagle3 if useful) vs further DFlash optimization
+      (e.g., adaptive block size, draft distillation).
+
+---
+
+## Files Summary
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/llama-vram-checkpoint.h` | Modify (fork) | Add cells_snapshot fields |
+| `src/llama-vram-checkpoint.cpp` | Modify (fork) | Snapshot/restore cells[] alongside D->D copy |
+| `src/llama-memory-recurrent.h` | Modify (fork) | Friend class or state_snapshot() method |
+| `tools/server/server-context.cpp` | No change | Wire-up already in place from Sprint 007 |
+| `docker-compose.yml` | Modify (repo) | Flip LLAMA_SPEC_VRAM_CKPT default to 1 |
+| `docker/entrypoint.sh` | Modify (repo) | Update DRAFT_N_MAX default per Phase 4 |
+| `docs/sprints/SPRINT-008-dflash-experiments/` | Create | E2 re-run + E5 histograms |
+| `docs/sprints/SPRINT-008-dflash-FINDINGS.md` | Create | Outcomes + Sprint 009 recommendation |
+| `docs/BENCHMARK-REPORT.md` | Modify (repo) | Republish numbers if gates pass |
+| `README.md` | Modify (repo) | Update DFlash guidance |
 
 ---
 
@@ -221,55 +195,48 @@ EAGLE3.
 
 ### Hard gates
 
-1. **EAGLE3 boots** on at least one Qwen3 target via the new compose
-   profile.
-2. **L2 greedy equivalence**: 256/256 token match on at least 3 of 5
-   prompts.
-3. **No regression vs target-only**: per-prompt EAGLE3 tok/s ≥ 0.95×
-   target-only on the 5-prompt set.
-4. **4-way comparison table** published in BENCHMARK-REPORT.md §10.
+1. `vram_seq_checkpoint::save()` and `restore()` snapshot/restore the
+   recurrent memory's `cells[]` metadata in addition to tensor bytes.
+   Verified by: 3-of-3 sequential P1 quicksort requests pass on
+   `LLAMA_SPEC_VRAM_CKPT=1` (was 1-of-N in Sprint 007).
+2. Per-save copy time < 1 ms (vs ~35 ms host path measured in
+   Sprint 006).
+3. Full E2 sweep at N={4,8,16} re-run on the working VRAM build.
+   Comparison table vs Sprint 006 written.
+4. SPRINT-008-FINDINGS.md exists with hypothesis verdicts and
+   Sprint 009 recommendation.
 
 ### Soft gates
 
-- **EAGLE3 ≥1.0× target-only median**: not gated, but anything below is
-  worth a footnote.
-- **EAGLE3 vs DFlash crossover identified**: prompt regimes where each
-  wins, with one-line guidance in README.
-
-### Code hygiene
-
-- Standard Sprint code hygiene from Sprint 004 carries forward.
+- `DRAFT_N_MAX` default updated in `docker/entrypoint.sh` if Phase 3
+  data warrants.
+- BENCHMARK-REPORT republished if ≥1.0× or ≥1.3× target-only gate
+  passes on >2 prompts.
+- `LLAMA_SPEC_VRAM_CKPT` default flipped to 1 in docker-compose.yml.
+- README's DFlash guidance reflects current numbers.
 
 ---
 
-## Risks & Mitigations
+## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
-|---|---|---|---|
-| No Qwen3.6 EAGLE3 draft exists in the wild | Medium | High | Phase 0 explicitly checks first; descope to Qwen3.5-27B EAGLE3 if needed |
-| EAGLE3 conversion path in fork's `convert_hf_to_gguf.py` has Qwen3.6 tokenizer issue (same chkhsh problem as Sprint 004) | Low | Low | The `qwen35`/`qwen36` chkhsh mapping is already in fork (commit `1c9b77fdd`); EAGLE3 would inherit |
-| EAGLE3 acceptance characteristically degrades with thinking-on like DFlash does | Medium | Medium | Document; report both thinking-on and no-think (the latter as opt-in only) |
-| 4-way comparison runs out of GPU time | Low | Low | Per-leg compose-up/stop is the bottleneck, ~5 min × 4 legs = ~20 min |
+|------|------------|--------|------------|
+| `cells[]` snapshot triggers a different bug we don't yet see | Medium | Medium | Phase 2 smoke test catches it before Phase 3 invests in full sweep |
+| Friend-class or method exposure forces an awkward API change | Low | Low | Worst case: just `#include` the recurrent header into vram_checkpoint.cpp |
+| Re-run E2 still shows median below ≥1.0× even with VRAM cheap | Possible | Low (information win) | Sprint 008 outcome: file as "DFlash architecture limit, recommend EAGLE3 or distillation" |
+| `cells[]` vector deep-copy itself is too slow to matter | Low | Low | ~12 KB host-side vector copy is negligible; if it shows up in profile, switch to memcpy on raw pointers |
 
 ---
 
-## Dependencies
+## Open questions
 
-- Sprint 005 must be complete (forced-rejection gate closed, L4 numbers
-  published) so the 4-way comparison has a stable DFlash baseline.
-- At least one EAGLE3 draft safetensors source for Qwen3.x.
-
----
-
-## Open Questions
-
-1. **EAGLE3 draft source pin**: Phase 0 task. Sprint can't start without.
-
-2. **Is EAGLE3 single-slot only like DFlash?** Need to verify the
-   server-context.cpp slot ↔ speculative integration handles EAGLE3 the
-   same as DFlash. Tentatively yes (same `common_speculative_init`
-   dispatch).
-
-3. **Should EAGLE3 profile be PREVIEW-gated?** Tentatively yes for first
-   ship, drop the gate at Sprint outcome if numbers clear the soft
-   gates.
+1. Should the snapshot live inside `vram_seq_checkpoint` (current
+   plan) or as a separate `mem_recr->state_snapshot()` method?
+   Current plan keeps everything in one class for grep-ability.
+2. Once `LLAMA_SPEC_VRAM_CKPT=1` is the default, should we remove the
+   host-path code entirely, or keep it as the non-CUDA / non-hybrid
+   fallback? Recommend keep — it's the only path on multi-seq /
+   non-hybrid setups.
+3. Does Sprint 008 close the DFlash track (median gate met) or does it
+   surface a deeper issue (drafts can't predict prose)? Sprint 008's
+   Phase 5 makes this call based on numbers.
