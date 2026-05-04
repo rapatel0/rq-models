@@ -892,10 +892,12 @@ either thinking setting is not validated this sprint.
 
 ### Sprint 008 — VRAM-shadow ckpt + DRAFT_N_MAX retune (qwen, no-think)
 
-**Headline**: Quicksort hits **2.22×** target-only (PR #22105's published
-range was 1.5–2×). **Median DFlash× = 1.02 across 5 prompts**, the first
-time we cross ≥1.0× on this stack. ≥1.3× hard gate still missed; soft
-gate ≥1.0× cleared on 3 of 5 prompts.
+**Headline (default N=2)**: median DFlash× = **1.21×**, all 5 prompts
+≥0.91× (tightest worst-case bound). At N=4 (code-heavy override),
+quicksort hits **2.22×** (exceeds PR #22105's published 1.5–2× range)
+but prose regresses (Hamlet 0.53×). ≥1.3× hard gate still missed
+either way; soft gate ≥1.0× cleared on **4 of 5 prompts at N=2** /
+3 of 5 at N=4.
 
 **What changed since Sprint 005**:
 1. F-024 fix landed (fork commit `526097eed`): `vram_seq_checkpoint::save()`
@@ -907,45 +909,54 @@ gate ≥1.0× cleared on 3 of 5 prompts.
    copy time drops from **~35 ms (host PCIe) to 0.28 ms (D→D HBM)** —
    **125× faster**. Total ckpt save+restore overhead drops from ~38% of
    wallclock (Sprint 006 E3) to ~1%.
-3. `DRAFT_N_MAX` default flipped from 16 → 4. Sprint 008 E2 sweep at
-   N={4,8,16} shows N=4 wins decisively. With cheap saves the bottleneck
-   flips to draft-model accuracy, and DFlash's per-position acceptance
-   crashes when asked to predict further ahead than ~3 tokens.
+3. `DRAFT_N_MAX` default flipped from 16 → 2. Sprint 008 full E2 sweep
+   at N={2,3,4,8,16} shows N=2 wins on median + worst-case; N=4 wins
+   on peak. With cheap saves the bottleneck flips to draft-model
+   accuracy, and DFlash's per-position acceptance crashes when asked to
+   predict further ahead than ~2 tokens.
 
 **Per-prompt comparison (qwen, no-think, 5-prompt × 3-trial)**:
 
-| Prompt | target-only | Sprint 005 DFlash× | **Sprint 008 N=4 DFlash×** | Δ |
-|--------|------------:|-------------------:|---------------------------:|---:|
-| Quicksort | 69.92 | 1.78 | **2.22** | +0.44 |
-| Pythagorean | 69.44 | 0.89 | **1.15** | +0.26 |
-| DC trip | 69.41 | n/a (F-014) | 0.60 | — |
-| Hamlet | 69.46 | 0.46 | 0.53 | +0.07 |
-| SQL | 69.32 | 0.28 | **1.02** | +0.74 |
-| **Median** | — | **0.67** | **1.02** | **+0.35** |
+| Prompt | target-only | Sprint 005 (N=16, host) | **Sprint 008 N=2 (default)** | Sprint 008 N=4 |
+|--------|------------:|------------------------:|-----------------------------:|---------------:|
+| Quicksort | 69.92 | 1.78 | 1.41 | **2.22** |
+| Pythagorean | 69.44 | 0.89 | 1.23 | 1.15 |
+| DC trip | 69.41 | n/a (F-014) | **1.03** | 0.60 |
+| Hamlet | 69.46 | 0.46 | **0.91** | 0.53 |
+| SQL | 69.32 | 0.28 | **1.21** | 1.02 |
+| **Median** | — | **0.67** | **1.21** | 1.02 |
+| **Worst** | — | 0.28 | **0.91** | 0.53 |
 
-**Sprint 008 E2 sweep — DRAFT_N_MAX × prompt**:
+**Sprint 008 E2 sweep — DRAFT_N_MAX × prompt (full)**:
 
-| Prompt | N=4 DFlash× | N=8 DFlash× | N=16 DFlash× |
-|--------|------------:|------------:|-------------:|
-| Quicksort | **2.22** | 1.80 | 1.57 |
-| Pythagorean | **1.15** | 0.67 | 0.41 |
-| DC trip | **0.60** | 0.29 | 0.31 |
-| Hamlet | **0.53** | 0.28 | 0.32 |
-| SQL | **1.02** | 0.28 | 0.32 |
-| **Median** | **1.02** | 0.29 | 0.32 |
+| Prompt | N=2 DFlash× | N=3 DFlash× | N=4 DFlash× | N=8 DFlash× | N=16 DFlash× |
+|--------|------------:|------------:|------------:|------------:|-------------:|
+| Quicksort | 1.41 | 2.01 | **2.22** | 1.80 | 1.57 |
+| Pythagorean | 1.23 | **1.56** | 1.15 | 0.67 | 0.41 |
+| DC trip | **1.03** | 0.88 | 0.60 | 0.29 | 0.31 |
+| Hamlet | **0.91** | 0.71 | 0.53 | 0.28 | 0.32 |
+| SQL | **1.21** | 0.37† | 1.02 | 0.28 | 0.32 |
+| **Median** | **1.21** | 0.88 | 1.02 | 0.29 | 0.32 |
 
-N is monotonically decreasing. The PR #22105 default of N=16 was tuned
-for the host-PCIe regime where save cost (~35 ms) dominated the round
-budget — fewer rounds amortized the save tax. With cheap D→D saves
-(~0.28 ms) the per-round cost vanishes and the optimal block flips to
-small (where DFlash's draft model has higher per-position acceptance).
+†N=3 SQL is a 3-trial outlier (neighbors at 1.21 and 1.02).
 
-**What's left**: median ≥1.3× hard gate still missed (1.02). The two
-remaining underperformers are DC trip (0.60×) and Hamlet (0.53×), both
-prose / planning content where DFlash's small draft has structurally low
-per-token acceptance. Next leverage point is on the draft model side
-(Sprint 009-dflash recommendation: distillation or smaller domain-tuned
-drafts), not on the speculative pipeline.
+The PR #22105 default of N=16 was tuned for the host-PCIe regime where
+save cost (~35 ms) dominated the round budget — fewer rounds amortized
+the save tax. With cheap D→D saves (~0.28 ms) the per-round cost
+vanishes and the optimal block flips small.
+
+**Peak/median trade-off**: N=4 has the highest single-prompt peak
+(Quicksort 2.22×) but regresses on prose (Hamlet 0.53×, DC 0.60×).
+N=2 wins median (1.21) and worst-case (≥0.91× on all 5). **Sprint 008
+default = N=2** for general-purpose deployments; code-heavy operators
+override via `DRAFT_N_MAX=4`.
+
+**What's left**: median ≥1.3× hard gate still missed (1.21 at N=2).
+Hamlet (0.91×) is the remaining underperformer — entropic prose where
+DFlash's small draft has structurally low per-token acceptance. Next
+leverage point is on the draft model side (Sprint 009-dflash
+recommendation: distillation or smaller domain-tuned drafts), not on
+the speculative pipeline.
 
 **Reproduction**:
 ```bash

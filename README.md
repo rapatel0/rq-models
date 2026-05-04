@@ -226,11 +226,12 @@ byte-equal output vs target-only on a greedy quicksort prompt (937/937 chars
 shared prefix, 100% acceptance).
 
 **Sprint 008 measurement** (5-prompt L4, 5090, Q4_K_XL targets,
-fork commit `526097eed`, VRAM-shadow ckpt + DRAFT_N_MAX=4):
+fork commit `526097eed`, VRAM-shadow ckpt + DRAFT_N_MAX={2,4} compared):
 
-| Profile | Regime | Quicksort× | Median× | Gate ≥1.3× |
-|---------|--------|-----------:|--------:|:----------:|
-| `qwen`   | thinking-off | **2.22×** | **1.02×** | FAIL (close) |
+| Profile | Regime | DRAFT_N_MAX | Quicksort× | Median× | Worst× | Gate ≥1.3× |
+|---------|--------|------------:|-----------:|--------:|-------:|:----------:|
+| `qwen`   | thinking-off | **2 (default)** | 1.41× | **1.21×** | **0.91×** | FAIL (close) |
+| `qwen`   | thinking-off | 4 (code peak)   | **2.22×** | 1.02× | 0.53× | FAIL |
 
 **Sprint 005 baseline** (host-PCIe ckpt save, DRAFT_N_MAX=16):
 
@@ -241,23 +242,29 @@ fork commit `526097eed`, VRAM-shadow ckpt + DRAFT_N_MAX=4):
 | `qwen36` | thinking-on  | 0.83× | 0.52× | FAIL |
 | `qwen36` | thinking-off | 1.15× | 0.58× | FAIL |
 
-Sprint 008 quicksort **2.22×** exceeds PR #22105's published 1.5–2×
-range. Median crossed ≥1.0× for the first time on this stack thanks
-to two changes: (1) F-024 enabled the VRAM-shadow ckpt path
-(`LLAMA_SPEC_VRAM_CKPT=1`, now default) — per-save copy time dropped
-from ~35 ms (host PCIe) to **0.28 ms** (D→D HBM), and ckpt save+restore
-overhead dropped from ~38% of wallclock to ~1%; (2) with cheap saves,
-`DRAFT_N_MAX` flipped from 16 → 4 (Sprint 008 E2 sweep) — the smaller
-block has higher per-position acceptance because DFlash's draft model
-struggles to predict 8+ tokens ahead. See
+Sprint 008 N=4 quicksort **2.22×** exceeds PR #22105's published
+1.5–2× range. Median crossed ≥1.0× for the first time on this stack
+at both N=2 and N=4 thanks to two changes: (1) F-024 enabled the
+VRAM-shadow ckpt path (`LLAMA_SPEC_VRAM_CKPT=1`, now default) — per-save
+copy time dropped from ~35 ms (host PCIe) to **0.28 ms** (D→D HBM), and
+ckpt save+restore overhead dropped from ~38% of wallclock to ~1%;
+(2) with cheap saves, `DRAFT_N_MAX` flipped from 16 → 2 (Sprint 008
+full E2 sweep at N={2,3,4,8,16}) — smaller blocks have higher
+per-position acceptance because DFlash's draft accuracy degrades
+sharply past ~2 tokens lookahead.
+
+**Default = N=2** (median 1.21×, all 5 prompts ≥0.91×). Code-heavy
+operators can opt into N=4 for the 2.22× quicksort peak via
+`DRAFT_N_MAX=4`, but trade off prose regressions (Hamlet 0.53×, DC 0.60×).
+See
 [BENCHMARK-REPORT.md §Sprint 008](docs/BENCHMARK-REPORT.md#sprint-008--vram-shadow-ckpt--draft_n_max-retune-qwen-no-think)
 for the full E2 sweep + per-prompt breakdown.
 
-The remaining median miss (1.02 vs 1.3 gate) is concentrated on
-prose / planning prompts (DC trip 0.60×, Hamlet 0.53×) where DFlash's
-small draft has structurally low per-token acceptance. Next leverage
-point is on the draft model side (smaller / domain-tuned drafts), not
-on the speculative pipeline.
+The remaining median miss (1.21 vs 1.3 gate at N=2) is concentrated
+on Hamlet (0.91×) where DFlash's small draft has structurally low
+per-token acceptance on entropic prose. Next leverage point is on
+the draft model side (smaller / domain-tuned drafts), not on the
+speculative pipeline.
 
 | Profile | Target | Draft | KV | Ctx | Speculative |
 |---------|--------|-------|:--:|----:|:-----------:|
@@ -307,7 +314,7 @@ Set on the compose service or via `docker run -e` (full table in
 | `SPECULATIVE_MODE` | `target-only` / `autoregressive` / `dflash` | `target-only` | Selects the verify path |
 | `DRAFT_MODEL_NAME` | model key from `MODELS` registry | — | Required if mode != target-only |
 | `DRAFT_KV_CACHE_TYPE` | same options as `KV_CACHE_TYPE` | inherits target | Independent draft KV quantization |
-| `DRAFT_N_MAX` | int | `4` | Max draft tokens per verify round (Sprint 008 default; was 16 pre-VRAM-shadow ckpt) |
+| `DRAFT_N_MAX` | int | `2` | Max draft tokens per verify round (Sprint 008 default — best median; set `4` for code-heavy peaks at 2.22×, `16` was pre-VRAM-shadow default) |
 | `LLAMA_SPEC_VRAM_CKPT` | `0` / `1` | `1` | VRAM-shadow speculative checkpoint (D→D copy, ~125× faster than host path); off falls back to PCIe pageable. Single-seq + hybrid recurrent only. |
 
 The entrypoint defaults `N_PARALLEL=1` when `SPECULATIVE_MODE != target-only` but

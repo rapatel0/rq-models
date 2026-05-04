@@ -7,17 +7,22 @@
 
 **Sprint 008 vs Sprint 005 / 007 baseline (qwen, no-think, 5-prompt × 3-trial)**:
 
-| Metric | Sprint 005 host | Sprint 007 host (verified) | **Sprint 008 N=4 + VRAM** |
-|--------|----------------:|---------------------------:|--------------------------:|
-| Quicksort DFlash× | 1.78 | (regression unmeasured) | **2.22** |
-| Median DFlash× | 0.67 | (n/a) | **1.02** |
-| Per-save copy time | ~35 ms (host PCIe) | 35 ms | **0.28 ms** (D→D) |
-| Save+restore as % wallclock | ~38% | ~38% | **~1%** |
-| TPS (200-tok quicksort smoke) | n/a | 15.08 | **27.81** |
+| Metric | Sprint 005 host | Sprint 007 host | **Sprint 008 N=2 + VRAM (default)** | Sprint 008 N=4 (peak) |
+|--------|----------------:|----------------:|------------------------------------:|----------------------:|
+| Quicksort DFlash× | 1.78 | (n/a) | 1.41 | **2.22** |
+| Median DFlash× | 0.67 | (n/a) | **1.21** | 1.02 |
+| Worst-prompt DFlash× | 0.28 (SQL) | (n/a) | **0.91** (Hamlet) | 0.53 (Hamlet) |
+| Per-save copy time | ~35 ms (host PCIe) | 35 ms | **0.28 ms** (D→D) | 0.28 ms |
+| Save+restore as % wallclock | ~38% | ~38% | **~1%** | ~1% |
+| TPS (200-tok quicksort smoke) | n/a | 15.08 | (not measured) | **27.81** |
 
-**Quicksort exceeds PR #22105's published 1.5–2× range. Median crosses ≥1.0×
-for the first time on this stack.** ≥1.3× hard gate still missed (1.02
-median); soft gate ≥1.0× cleared on 3 of 5 prompts.
+**Quicksort exceeds PR #22105's published 1.5–2× range at N=4 (2.22×).
+Median crosses ≥1.0× for the first time on this stack at both N=2 and
+N=4.** ≥1.3× hard gate still missed (median 1.21 at N=2); soft gate
+≥1.0× cleared on 4 of 5 prompts at N=2 and 3 of 5 at N=4.
+
+**Default = N=2** (better median + tightest worst-case bound). N=4
+remains a one-line override for code-heavy peaks.
 
 ## What shipped
 
@@ -32,37 +37,50 @@ median); soft gate ≥1.0× cleared on 3 of 5 prompts.
    stays as the runtime fallback for non-CUDA / non-hybrid / multi-seq
    setups (the `is_valid()` constraints in `vram_seq_checkpoint` ctor
    still enforce single-seq + hybrid-only).
-3. **DRAFT_N_MAX default flipped from 16 → 4**:
+3. **DRAFT_N_MAX default flipped from 16 → 2**:
    `docker/entrypoint.sh` and `docker-compose.yml` updated. Sprint 008
-   E2 sweep at N={4,8,16} shows N=4 wins decisively across all 5 prompts
-   on this stack with VRAM-shadow ckpt. The N=16 default from PR #22105
-   was tuned for the host-PCIe regime where save cost dominated; with
-   cheap saves, the optimal block flips to small (where DFlash's draft
-   model has higher per-position acceptance).
+   E2 sweep at N={2,3,4,8,16} shows N=2 has the best median (1.21×) and
+   tightest worst-case bound (≥0.91× on all 5 prompts). N=4 has the
+   highest single-prompt peak (Quicksort 2.22×) but at the cost of
+   prose regressions (Hamlet 0.53×, DC 0.60×). The N=16 default from
+   PR #22105 was tuned for the host-PCIe regime where save cost
+   dominated; with cheap saves, the optimal block flips small because
+   DFlash's draft accuracy degrades sharply past ~2 tokens lookahead.
 
-## E2 sweep — DRAFT_N_MAX × prompt
+## E2 sweep — DRAFT_N_MAX × prompt (full N={2,3,4,8,16})
 
-| Prompt | target-only | **N=4** DFlash× | N=8 DFlash× | N=16 DFlash× |
-|---|---:|---:|---:|---:|
-| Quicksort | 69.92 | **2.22** | 1.80 | 1.57 |
-| Pythagorean | 69.44 | **1.15** | 0.67 | 0.41 |
-| DC trip | 69.41 | **0.60** | 0.29 | 0.31 |
-| Hamlet | 69.46 | **0.53** | 0.28 | 0.32 |
-| SQL | 69.32 | **1.02** | 0.28 | 0.32 |
-| **Median** | — | **1.02** | 0.29 | 0.32 |
+| Prompt | target-only | **N=2** DFlash× | N=3 DFlash× | N=4 DFlash× | N=8 DFlash× | N=16 DFlash× |
+|---|---:|---:|---:|---:|---:|---:|
+| Quicksort | 69.92 | 1.41 | 2.01 | **2.22** | 1.80 | 1.57 |
+| Pythagorean | 69.44 | 1.23 | **1.56** | 1.15 | 0.67 | 0.41 |
+| DC trip | 69.41 | **1.03** | 0.88 | 0.60 | 0.29 | 0.31 |
+| Hamlet | 69.46 | **0.91** | 0.71 | 0.53 | 0.28 | 0.32 |
+| SQL | 69.32 | **1.21** | 0.37† | 1.02 | 0.28 | 0.32 |
+| **Median** | — | **1.21** | 0.88 | 1.02 | 0.29 | 0.32 |
 
-N is **monotonically decreasing** in median DFlash×: 1.02 → 0.29 → 0.32. N=4
-is the unambiguous winner. The mechanism is acceptance: at N=4 the DFlash
-draft model only predicts 3 tokens ahead per round (block_size = N - 1 seed),
-where its trained block-diffusion is most accurate. At N=16 it predicts 15
-tokens ahead per round; later positions in the block are increasingly wrong
-and the verify-decode rejects them.
+†N=3 SQL is a 3-trial outlier (neighbors at 1.21 and 1.02); its low value
+drags the N=3 median below trend.
 
-Per-position rejection histograms (E5 capture, see
-`SPRINT-008-dflash-experiments/E2-rerun-N{4,8,16}/`) confirm: at N=4 ~all
-rejections happen at position 3; at N=16 the rejection distribution
-flattens across positions 1-8 with most rounds rejecting in the first 3-5
-positions anyway. The remaining 8-15 positions of draft compute are wasted.
+**The peak/median trade-off is real**: N=4 has the highest single-prompt
+DFlash× (Quicksort 2.22) but N=2 has the highest median (1.21) and the
+tightest worst-case bound (all 5 prompts ≥0.91). N=2 wins on every
+prose-heavy prompt (DC, Hamlet) where N=4 regressed below 0.6×.
+
+The mechanism is acceptance × per-round overhead. With cheap saves the
+per-round overhead is tiny (~0.3 ms), so smaller blocks aren't penalized
+much. Smaller blocks have higher per-position acceptance because DFlash's
+draft model was trained for block-diffusion and its accuracy degrades
+sharply past ~2 tokens lookahead. N=2 yields 1 draft token per round at
+~70-90% acceptance; N=4 yields 3 draft tokens at ~25-95% acceptance
+(the tail is what kills prose).
+
+**Default chosen: N=2**. Worst-case bound (≥0.91× across all 5 prompts) is
+what matters for a general-purpose default — operators don't see the
+median, they see the worst prompt. Code-heavy operators can override
+to N=4 via `DRAFT_N_MAX=4` for the 2.22× quicksort peak.
+
+Per-position rejection histograms (E5 capture) live under
+`SPRINT-008-dflash-experiments/E2-rerun-N{2,3,4,8,16}/`.
 
 ## Hypothesis verdicts
 
