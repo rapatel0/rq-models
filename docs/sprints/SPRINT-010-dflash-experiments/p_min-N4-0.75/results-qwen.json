@@ -1,0 +1,838 @@
+{
+  "legs": {
+    "target-only": {
+      "leg": "target-only",
+      "meta": {
+        "timestamp": 1778015112.5040417,
+        "base_url": "http://localhost:8080",
+        "tokens": 256,
+        "trials": 3,
+        "seed": 42,
+        "temp": 0.0,
+        "top_k": 1,
+        "no_think": true
+      },
+      "cells": [
+        {
+          "prompt_idx": 1,
+          "prompt": "Write a quicksort algorithm in Python. Write code only.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 0,
+              "tps": 69.83489140310664,
+              "completion_tokens": 96,
+              "wallclock_s": 1.443808821029961,
+              "draft_n": null,
+              "draft_n_accepted": null,
+              "draft_n_generated": null,
+              "draft_n_acc_tokens": null,
+              "acceptance_rate": null
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 70.22564377164376,
+              "completion_tokens": 96,
+              "wallclock_s": 1.4507322830031626,
+              "draft_n": null,
+              "draft_n_accepted": null,
+              "draft_n_generated": null,
+              "draft_n_acc_tokens": null,
+              "acceptance_rate": null
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 70.52921893298108,
+              "completion_tokens": 96,
+              "wallclock_s": 1.4105682949884795,
+              "draft_n": null,
+              "draft_n_accepted": null,
+              "draft_n_generated": null,
+              "draft_n_acc_tokens": null,
+              "acceptance_rate": null
+            }
+          ],
+          "median_tps": 70.22564377164376,
+          "sum_draft_n": 0,
+          "sum_draft_n_accepted": 0,
+          "sum_draft_n_generated": 0,
+          "sum_draft_n_acc_tokens": 0,
+          "acceptance_rate": NaN
+        },
+        {
+          "prompt_idx": 2,
+          "prompt": "Explain the Pythagorean theorem.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 0,
+              "tps": 69.70060323693959,
+              "completion_tokens": 256,
+              "wallclock_s": 3.7213303760509007,
+              "draft_n": null,
+              "draft_n_accepted": null,
+              "draft_n_generated": null,
+              "draft_n_acc_tokens": null,
+              "acceptance_rate": null
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 69.56213624233492,
+              "completion_tokens": 256,
+              "wallclock_s": 3.7635486539802514,
+              "draft_n": null,
+              "draft_n_accepted": null,
+              "draft_n_generated": null,
+              "draft_n_acc_tokens": null,
+              "acceptance_rate": null
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 69.62472003927269,
+              "completion_tokens": 256,
+              "wallclock_s": 3.7260941729764454,
+              "draft_n": null,
+              "draft_n_accepted": null,
+              "draft_n_generated": null,
+              "draft_n_acc_tokens": null,
+              "acceptance_rate": null
+            }
+          ],
+          "median_tps": 69.62472003927269,
+          "sum_draft_n": 0,
+          "sum_draft_n_accepted": 0,
+          "sum_draft_n_generated": 0,
+          "sum_draft_n_acc_tokens": 0,
+          "acceptance_rate": NaN
+        },
+        {
+          "prompt_idx": 3,
+          "prompt": "Plan a 1 day trip to DC.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 0,
+              "tps": 69.6613424720307,
+              "completion_tokens": 256,
+              "wallclock_s": 3.7250133199850097,
+              "draft_n": null,
+              "draft_n_accepted": null,
+              "draft_n_generated": null,
+              "draft_n_acc_tokens": null,
+              "acceptance_rate": null
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 69.51612163040288,
+              "completion_tokens": 256,
+              "wallclock_s": 3.767121404001955,
+              "draft_n": null,
+              "draft_n_accepted": null,
+              "draft_n_generated": null,
+              "draft_n_acc_tokens": null,
+              "acceptance_rate": null
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 69.60368856047066,
+              "completion_tokens": 256,
+              "wallclock_s": 3.727283572021406,
+              "draft_n": null,
+              "draft_n_accepted": null,
+              "draft_n_generated": null,
+              "draft_n_acc_tokens": null,
+              "acceptance_rate": null
+            }
+          ],
+          "median_tps": 69.60368856047066,
+          "sum_draft_n": 0,
+          "sum_draft_n_accepted": 0,
+          "sum_draft_n_generated": 0,
+          "sum_draft_n_acc_tokens": 0,
+          "acceptance_rate": NaN
+        },
+        {
+          "prompt_idx": 4,
+          "prompt": "Summarize the plot of Hamlet in 3 paragraphs.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 0,
+              "tps": 69.61004777533357,
+              "completion_tokens": 256,
+              "wallclock_s": 3.727456224965863,
+              "draft_n": null,
+              "draft_n_accepted": null,
+              "draft_n_generated": null,
+              "draft_n_acc_tokens": null,
+              "acceptance_rate": null
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 69.46432423558717,
+              "completion_tokens": 256,
+              "wallclock_s": 3.776548925030511,
+              "draft_n": null,
+              "draft_n_accepted": null,
+              "draft_n_generated": null,
+              "draft_n_acc_tokens": null,
+              "acceptance_rate": null
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 69.61727900864994,
+              "completion_tokens": 256,
+              "wallclock_s": 3.727016721968539,
+              "draft_n": null,
+              "draft_n_accepted": null,
+              "draft_n_generated": null,
+              "draft_n_acc_tokens": null,
+              "acceptance_rate": null
+            }
+          ],
+          "median_tps": 69.61004777533357,
+          "sum_draft_n": 0,
+          "sum_draft_n_accepted": 0,
+          "sum_draft_n_generated": 0,
+          "sum_draft_n_acc_tokens": 0,
+          "acceptance_rate": NaN
+        },
+        {
+          "prompt_idx": 5,
+          "prompt": "Write a SQL query to find the top 5 customers by revenue.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 0,
+              "tps": 69.6257236587665,
+              "completion_tokens": 256,
+              "wallclock_s": 3.7268075610045344,
+              "draft_n": null,
+              "draft_n_accepted": null,
+              "draft_n_generated": null,
+              "draft_n_acc_tokens": null,
+              "acceptance_rate": null
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 69.424538374278,
+              "completion_tokens": 256,
+              "wallclock_s": 3.7778103050077334,
+              "draft_n": null,
+              "draft_n_accepted": null,
+              "draft_n_generated": null,
+              "draft_n_acc_tokens": null,
+              "acceptance_rate": null
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 69.54444854648027,
+              "completion_tokens": 256,
+              "wallclock_s": 3.7310440089786425,
+              "draft_n": null,
+              "draft_n_accepted": null,
+              "draft_n_generated": null,
+              "draft_n_acc_tokens": null,
+              "acceptance_rate": null
+            }
+          ],
+          "median_tps": 69.54444854648027,
+          "sum_draft_n": 0,
+          "sum_draft_n_accepted": 0,
+          "sum_draft_n_generated": 0,
+          "sum_draft_n_acc_tokens": 0,
+          "acceptance_rate": NaN
+        }
+      ]
+    },
+    "autoregressive": {
+      "leg": "autoregressive",
+      "meta": {
+        "timestamp": 1778015181.2572653,
+        "base_url": "http://localhost:8080",
+        "tokens": 256,
+        "trials": 3,
+        "seed": 42,
+        "temp": 0.0,
+        "top_k": 1,
+        "no_think": true
+      },
+      "cells": [
+        {
+          "prompt_idx": 1,
+          "prompt": "Write a quicksort algorithm in Python. Write code only.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 0,
+              "tps": 139.40117239230906,
+              "completion_tokens": 98,
+              "wallclock_s": 0.7759796839673072,
+              "draft_n": 72,
+              "draft_n_accepted": 72,
+              "draft_n_generated": 75,
+              "draft_n_acc_tokens": 72,
+              "acceptance_rate": 0.96
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 155.29894254097593,
+              "completion_tokens": 98,
+              "wallclock_s": 0.7224531960091554,
+              "draft_n": 72,
+              "draft_n_accepted": 72,
+              "draft_n_generated": 75,
+              "draft_n_acc_tokens": 72,
+              "acceptance_rate": 0.96
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 155.28934524941369,
+              "completion_tokens": 98,
+              "wallclock_s": 0.6851655559730716,
+              "draft_n": 72,
+              "draft_n_accepted": 72,
+              "draft_n_generated": 75,
+              "draft_n_acc_tokens": 72,
+              "acceptance_rate": 0.96
+            }
+          ],
+          "median_tps": 155.28934524941369,
+          "sum_draft_n": 216,
+          "sum_draft_n_accepted": 216,
+          "sum_draft_n_generated": 225,
+          "sum_draft_n_acc_tokens": 216,
+          "acceptance_rate": 0.96
+        },
+        {
+          "prompt_idx": 2,
+          "prompt": "Explain the Pythagorean theorem.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 0,
+              "tps": 80.29568887427953,
+              "completion_tokens": 256,
+              "wallclock_s": 3.241700482030865,
+              "draft_n": 159,
+              "draft_n_accepted": 159,
+              "draft_n_generated": 288,
+              "draft_n_acc_tokens": 159,
+              "acceptance_rate": 0.5520833333333334
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 80.3241077748716,
+              "completion_tokens": 256,
+              "wallclock_s": 3.2752966830157675,
+              "draft_n": 159,
+              "draft_n_accepted": 159,
+              "draft_n_generated": 288,
+              "draft_n_acc_tokens": 159,
+              "acceptance_rate": 0.5520833333333334
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 80.0107264380131,
+              "completion_tokens": 256,
+              "wallclock_s": 3.2528890930116177,
+              "draft_n": 159,
+              "draft_n_accepted": 159,
+              "draft_n_generated": 288,
+              "draft_n_acc_tokens": 159,
+              "acceptance_rate": 0.5520833333333334
+            }
+          ],
+          "median_tps": 80.29568887427953,
+          "sum_draft_n": 477,
+          "sum_draft_n_accepted": 477,
+          "sum_draft_n_generated": 864,
+          "sum_draft_n_acc_tokens": 477,
+          "acceptance_rate": 0.5520833333333334
+        },
+        {
+          "prompt_idx": 3,
+          "prompt": "Plan a 1 day trip to DC.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 0,
+              "tps": 42.2947617772325,
+              "completion_tokens": 256,
+              "wallclock_s": 6.106274281977676,
+              "draft_n": 100,
+              "draft_n_accepted": 100,
+              "draft_n_generated": 465,
+              "draft_n_acc_tokens": 100,
+              "acceptance_rate": 0.21505376344086022
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 42.304889354536456,
+              "completion_tokens": 256,
+              "wallclock_s": 6.141337545006536,
+              "draft_n": 100,
+              "draft_n_accepted": 100,
+              "draft_n_generated": 465,
+              "draft_n_acc_tokens": 100,
+              "acceptance_rate": 0.21505376344086022
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 42.26507100614478,
+              "completion_tokens": 256,
+              "wallclock_s": 6.110266811971087,
+              "draft_n": 100,
+              "draft_n_accepted": 100,
+              "draft_n_generated": 465,
+              "draft_n_acc_tokens": 100,
+              "acceptance_rate": 0.21505376344086022
+            }
+          ],
+          "median_tps": 42.2947617772325,
+          "sum_draft_n": 300,
+          "sum_draft_n_accepted": 300,
+          "sum_draft_n_generated": 1395,
+          "sum_draft_n_acc_tokens": 300,
+          "acceptance_rate": 0.21505376344086022
+        },
+        {
+          "prompt_idx": 4,
+          "prompt": "Summarize the plot of Hamlet in 3 paragraphs.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 0,
+              "tps": 36.72153571757467,
+              "completion_tokens": 256,
+              "wallclock_s": 7.024579474993516,
+              "draft_n": 81,
+              "draft_n_accepted": 81,
+              "draft_n_generated": 519,
+              "draft_n_acc_tokens": 81,
+              "acceptance_rate": 0.15606936416184972
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 36.79594692644606,
+              "completion_tokens": 256,
+              "wallclock_s": 7.048641841043718,
+              "draft_n": 81,
+              "draft_n_accepted": 81,
+              "draft_n_generated": 519,
+              "draft_n_acc_tokens": 81,
+              "acceptance_rate": 0.15606936416184972
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 36.626284280628305,
+              "completion_tokens": 256,
+              "wallclock_s": 7.043344252975658,
+              "draft_n": 81,
+              "draft_n_accepted": 81,
+              "draft_n_generated": 519,
+              "draft_n_acc_tokens": 81,
+              "acceptance_rate": 0.15606936416184972
+            }
+          ],
+          "median_tps": 36.72153571757467,
+          "sum_draft_n": 243,
+          "sum_draft_n_accepted": 243,
+          "sum_draft_n_generated": 1557,
+          "sum_draft_n_acc_tokens": 243,
+          "acceptance_rate": 0.15606936416184972
+        },
+        {
+          "prompt_idx": 5,
+          "prompt": "Write a SQL query to find the top 5 customers by revenue.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 0,
+              "tps": 70.50954715794194,
+              "completion_tokens": 256,
+              "wallclock_s": 3.6845955430180766,
+              "draft_n": 150,
+              "draft_n_accepted": 150,
+              "draft_n_generated": 312,
+              "draft_n_acc_tokens": 150,
+              "acceptance_rate": 0.4807692307692308
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 70.58355783591914,
+              "completion_tokens": 256,
+              "wallclock_s": 3.7176714970264584,
+              "draft_n": 150,
+              "draft_n_accepted": 150,
+              "draft_n_generated": 312,
+              "draft_n_acc_tokens": 150,
+              "acceptance_rate": 0.4807692307692308
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 70.64393881903756,
+              "completion_tokens": 256,
+              "wallclock_s": 3.6767145289923064,
+              "draft_n": 150,
+              "draft_n_accepted": 150,
+              "draft_n_generated": 312,
+              "draft_n_acc_tokens": 150,
+              "acceptance_rate": 0.4807692307692308
+            }
+          ],
+          "median_tps": 70.58355783591914,
+          "sum_draft_n": 450,
+          "sum_draft_n_accepted": 450,
+          "sum_draft_n_generated": 936,
+          "sum_draft_n_acc_tokens": 450,
+          "acceptance_rate": 0.4807692307692308
+        }
+      ]
+    },
+    "dflash": {
+      "leg": "dflash",
+      "meta": {
+        "timestamp": 1778015260.5613418,
+        "base_url": "http://localhost:8080",
+        "tokens": 256,
+        "trials": 3,
+        "seed": 42,
+        "temp": 0.0,
+        "top_k": 1,
+        "no_think": true
+      },
+      "cells": [
+        {
+          "prompt_idx": 1,
+          "prompt": "Write a quicksort algorithm in Python. Write code only.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 0,
+              "tps": 140.19828042517275,
+              "completion_tokens": 98,
+              "wallclock_s": 0.7662122760084458,
+              "draft_n": 72,
+              "draft_n_accepted": 72,
+              "draft_n_generated": 75,
+              "draft_n_acc_tokens": 72,
+              "acceptance_rate": 0.96
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 152.7814803901852,
+              "completion_tokens": 98,
+              "wallclock_s": 0.7330992720089853,
+              "draft_n": 72,
+              "draft_n_accepted": 72,
+              "draft_n_generated": 75,
+              "draft_n_acc_tokens": 72,
+              "acceptance_rate": 0.96
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 155.90076439099275,
+              "completion_tokens": 98,
+              "wallclock_s": 0.6821748400107026,
+              "draft_n": 72,
+              "draft_n_accepted": 72,
+              "draft_n_generated": 75,
+              "draft_n_acc_tokens": 72,
+              "acceptance_rate": 0.96
+            }
+          ],
+          "median_tps": 152.7814803901852,
+          "sum_draft_n": 216,
+          "sum_draft_n_accepted": 216,
+          "sum_draft_n_generated": 225,
+          "sum_draft_n_acc_tokens": 216,
+          "acceptance_rate": 0.96
+        },
+        {
+          "prompt_idx": 2,
+          "prompt": "Explain the Pythagorean theorem.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 0,
+              "tps": 79.70084784890214,
+              "completion_tokens": 256,
+              "wallclock_s": 3.2641557280439883,
+              "draft_n": 159,
+              "draft_n_accepted": 159,
+              "draft_n_generated": 288,
+              "draft_n_acc_tokens": 159,
+              "acceptance_rate": 0.5520833333333334
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 80.07607226865522,
+              "completion_tokens": 256,
+              "wallclock_s": 3.2864787279977463,
+              "draft_n": 159,
+              "draft_n_accepted": 159,
+              "draft_n_generated": 288,
+              "draft_n_acc_tokens": 159,
+              "acceptance_rate": 0.5520833333333334
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 79.99002624360276,
+              "completion_tokens": 256,
+              "wallclock_s": 3.251966015959624,
+              "draft_n": 159,
+              "draft_n_accepted": 159,
+              "draft_n_generated": 288,
+              "draft_n_acc_tokens": 159,
+              "acceptance_rate": 0.5520833333333334
+            }
+          ],
+          "median_tps": 79.99002624360276,
+          "sum_draft_n": 477,
+          "sum_draft_n_accepted": 477,
+          "sum_draft_n_generated": 864,
+          "sum_draft_n_acc_tokens": 477,
+          "acceptance_rate": 0.5520833333333334
+        },
+        {
+          "prompt_idx": 3,
+          "prompt": "Plan a 1 day trip to DC.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 0,
+              "tps": 42.29959081755195,
+              "completion_tokens": 256,
+              "wallclock_s": 6.105763634026516,
+              "draft_n": 100,
+              "draft_n_accepted": 100,
+              "draft_n_generated": 465,
+              "draft_n_acc_tokens": 100,
+              "acceptance_rate": 0.21505376344086022
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 42.25678989032712,
+              "completion_tokens": 256,
+              "wallclock_s": 6.150651119009126,
+              "draft_n": 100,
+              "draft_n_accepted": 100,
+              "draft_n_generated": 465,
+              "draft_n_acc_tokens": 100,
+              "acceptance_rate": 0.21505376344086022
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 42.282969856702024,
+              "completion_tokens": 256,
+              "wallclock_s": 6.107364159950521,
+              "draft_n": 100,
+              "draft_n_accepted": 100,
+              "draft_n_generated": 465,
+              "draft_n_acc_tokens": 100,
+              "acceptance_rate": 0.21505376344086022
+            }
+          ],
+          "median_tps": 42.282969856702024,
+          "sum_draft_n": 300,
+          "sum_draft_n_accepted": 300,
+          "sum_draft_n_generated": 1395,
+          "sum_draft_n_acc_tokens": 300,
+          "acceptance_rate": 0.21505376344086022
+        },
+        {
+          "prompt_idx": 4,
+          "prompt": "Summarize the plot of Hamlet in 3 paragraphs.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 0,
+              "tps": 23.882713486736233,
+              "completion_tokens": 256,
+              "wallclock_s": 10.772485112014692,
+              "draft_n": null,
+              "draft_n_accepted": null,
+              "draft_n_generated": 762,
+              "draft_n_acc_tokens": 0,
+              "acceptance_rate": 0.0
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 23.907254049221113,
+              "completion_tokens": 256,
+              "wallclock_s": 10.799351468042005,
+              "draft_n": null,
+              "draft_n_accepted": null,
+              "draft_n_generated": 762,
+              "draft_n_acc_tokens": 0,
+              "acceptance_rate": 0.0
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 23.864012416743957,
+              "completion_tokens": 256,
+              "wallclock_s": 10.781372754019685,
+              "draft_n": null,
+              "draft_n_accepted": null,
+              "draft_n_generated": 762,
+              "draft_n_acc_tokens": 0,
+              "acceptance_rate": 0.0
+            }
+          ],
+          "median_tps": 23.882713486736233,
+          "sum_draft_n": 0,
+          "sum_draft_n_accepted": 0,
+          "sum_draft_n_generated": 2286,
+          "sum_draft_n_acc_tokens": 0,
+          "acceptance_rate": 0.0
+        },
+        {
+          "prompt_idx": 5,
+          "prompt": "Write a SQL query to find the top 5 customers by revenue.",
+          "trials": [
+            {
+              "trial": 0,
+              "attempt": 0,
+              "tps": 70.586185180651,
+              "completion_tokens": 256,
+              "wallclock_s": 3.6794258119771257,
+              "draft_n": 150,
+              "draft_n_accepted": 150,
+              "draft_n_generated": 312,
+              "draft_n_acc_tokens": 150,
+              "acceptance_rate": 0.4807692307692308
+            },
+            {
+              "trial": 1,
+              "attempt": 0,
+              "tps": 70.58001609555211,
+              "completion_tokens": 256,
+              "wallclock_s": 3.7177482370170765,
+              "draft_n": 150,
+              "draft_n_accepted": 150,
+              "draft_n_generated": 312,
+              "draft_n_acc_tokens": 150,
+              "acceptance_rate": 0.4807692307692308
+            },
+            {
+              "trial": 2,
+              "attempt": 0,
+              "tps": 70.71139530708358,
+              "completion_tokens": 256,
+              "wallclock_s": 3.6731162780197337,
+              "draft_n": 150,
+              "draft_n_accepted": 150,
+              "draft_n_generated": 312,
+              "draft_n_acc_tokens": 150,
+              "acceptance_rate": 0.4807692307692308
+            }
+          ],
+          "median_tps": 70.586185180651,
+          "sum_draft_n": 450,
+          "sum_draft_n_accepted": 450,
+          "sum_draft_n_generated": 936,
+          "sum_draft_n_acc_tokens": 450,
+          "acceptance_rate": 0.4807692307692308
+        }
+      ]
+    }
+  },
+  "summary": {
+    "profile": "qwen",
+    "median_ratio_dflash": 1.0149794362590205,
+    "quicksort_ratio_dflash": 2.175579634228664,
+    "gate_pass_median_ge_1_3": false,
+    "headline_quicksort_ge_1_5": true,
+    "acceptance_rate_by_leg": {
+      "target-only": NaN,
+      "autoregressive": 1.0,
+      "dflash": 1.0
+    },
+    "rows": [
+      {
+        "prompt": "Write a quicksort algorithm in Python. Write code only.",
+        "target_only_tps": 70.22564377164376,
+        "autoregressive_tps": 155.28934524941369,
+        "dflash_tps": 152.7814803901852,
+        "ratio_autoreg": 2.211291159599417,
+        "ratio_dflash": 2.175579634228664,
+        "target_only_acceptance_rate": NaN,
+        "autoregressive_acceptance_rate": 0.96,
+        "dflash_acceptance_rate": 0.96
+      },
+      {
+        "prompt": "Explain the Pythagorean theorem.",
+        "target_only_tps": 69.62472003927269,
+        "autoregressive_tps": 80.29568887427953,
+        "dflash_tps": 79.99002624360276,
+        "ratio_autoreg": 1.1532640824837466,
+        "ratio_dflash": 1.1488739372809456,
+        "target_only_acceptance_rate": NaN,
+        "autoregressive_acceptance_rate": 0.5520833333333334,
+        "dflash_acceptance_rate": 0.5520833333333334
+      },
+      {
+        "prompt": "Plan a 1 day trip to DC.",
+        "target_only_tps": 69.60368856047066,
+        "autoregressive_tps": 42.2947617772325,
+        "dflash_tps": 42.282969856702024,
+        "ratio_autoreg": 0.607651155448284,
+        "ratio_dflash": 0.607481740281152,
+        "target_only_acceptance_rate": NaN,
+        "autoregressive_acceptance_rate": 0.21505376344086022,
+        "dflash_acceptance_rate": 0.21505376344086022
+      },
+      {
+        "prompt": "Summarize the plot of Hamlet in 3 paragraphs.",
+        "target_only_tps": 69.61004777533357,
+        "autoregressive_tps": 36.72153571757467,
+        "dflash_tps": 23.882713486736233,
+        "ratio_autoreg": 0.5275321148477505,
+        "ratio_dflash": 0.34309290468838194,
+        "target_only_acceptance_rate": NaN,
+        "autoregressive_acceptance_rate": 0.15606936416184972,
+        "dflash_acceptance_rate": 0.0
+      },
+      {
+        "prompt": "Write a SQL query to find the top 5 customers by revenue.",
+        "target_only_tps": 69.54444854648027,
+        "autoregressive_tps": 70.58355783591914,
+        "dflash_tps": 70.586185180651,
+        "ratio_autoreg": 1.0149416568993912,
+        "ratio_dflash": 1.0149794362590205,
+        "target_only_acceptance_rate": NaN,
+        "autoregressive_acceptance_rate": 0.4807692307692308,
+        "dflash_acceptance_rate": 0.4807692307692308
+      }
+    ]
+  }
+}

@@ -1,0 +1,72 @@
+==[../SPRINT-010-dflash-experiments/p_min-N4-0.75]== profile=qwen no_think=1 extra=DRAFT_N_MAX=4 LLAMA_SPEC_VRAM_CKPT=1 DRAFT_P_MIN=0.75
+  -- leg=target-only env=DRAFT_N_MAX=4 LLAMA_SPEC_VRAM_CKPT=1 DRAFT_P_MIN=0.75 --
+  --profile qwen-throughput --profile qwen-throughput-q3 \
+  down
+Waiting for server...
+Ready on port 8080
+  [target-only][1/5][trial 0] 69.83 tok/s
+  [target-only][1/5][trial 1] 70.23 tok/s
+  [target-only][1/5][trial 2] 70.53 tok/s
+  [target-only][2/5][trial 0] 69.70 tok/s
+  [target-only][2/5][trial 1] 69.56 tok/s
+  [target-only][2/5][trial 2] 69.62 tok/s
+  [target-only][3/5][trial 0] 69.66 tok/s
+  [target-only][3/5][trial 1] 69.52 tok/s
+  [target-only][3/5][trial 2] 69.60 tok/s
+  [target-only][4/5][trial 0] 69.61 tok/s
+  [target-only][4/5][trial 1] 69.46 tok/s
+  [target-only][4/5][trial 2] 69.62 tok/s
+  [target-only][5/5][trial 0] 69.63 tok/s
+  [target-only][5/5][trial 1] 69.42 tok/s
+  [target-only][5/5][trial 2] 69.54 tok/s
+
+Wrote leg 'target-only' to /home/ravi/repos/turbo/docs/sprints/SPRINT-008-dflash-experiments/../SPRINT-010-dflash-experiments/p_min-N4-0.75/results-qwen.json
+  -- leg=autoregressive env=DRAFT_N_MAX=4 LLAMA_SPEC_VRAM_CKPT=1 DRAFT_P_MIN=0.75 --
+ Network turbo_default Removing 
+ Network turbo_default Removed 
+Waiting for server...
+Ready on port 8080
+  [autoregressive][1/5][trial 0] 139.40 tok/s acc=96.00%
+  [autoregressive][1/5][trial 1] 155.30 tok/s acc=96.00%
+  [autoregressive][1/5][trial 2] 155.29 tok/s acc=96.00%
+  [autoregressive][2/5][trial 0] 80.30 tok/s acc=55.21%
+  [autoregressive][2/5][trial 1] 80.32 tok/s acc=55.21%
+  [autoregressive][2/5][trial 2] 80.01 tok/s acc=55.21%
+  [autoregressive][3/5][trial 0] 42.29 tok/s acc=21.51%
+  [autoregressive][3/5][trial 1] 42.30 tok/s acc=21.51%
+  [autoregressive][3/5][trial 2] 42.27 tok/s acc=21.51%
+  [autoregressive][4/5][trial 0] 36.72 tok/s acc=15.61%
+  [autoregressive][4/5][trial 1] 36.80 tok/s acc=15.61%
+  [autoregressive][4/5][trial 2] 36.63 tok/s acc=15.61%
+  [autoregressive][5/5][trial 0] 70.51 tok/s acc=48.08%
+  [autoregressive][5/5][trial 1] 70.58 tok/s acc=48.08%
+  [autoregressive][5/5][trial 2] 70.64 tok/s acc=48.08%
+
+Wrote leg 'autoregressive' to /home/ravi/repos/turbo/docs/sprints/SPRINT-008-dflash-experiments/../SPRINT-010-dflash-experiments/p_min-N4-0.75/results-qwen.json
+  -- leg=dflash env=DRAFT_N_MAX=4 LLAMA_SPEC_VRAM_CKPT=1 DRAFT_P_MIN=0.75 --
+ Network turbo_default Removing 
+ Network turbo_default Removed 
+Waiting for server...
+Ready on port 8080
+  [dflash][1/5][trial 0] 140.20 tok/s acc=96.00%
+  [dflash][1/5][trial 1] 152.78 tok/s acc=96.00%
+  [dflash][1/5][trial 2] 155.90 tok/s acc=96.00%
+  [dflash][2/5][trial 0] 79.70 tok/s acc=55.21%
+  [dflash][2/5][trial 1] 80.08 tok/s acc=55.21%
+  [dflash][2/5][trial 2] 79.99 tok/s acc=55.21%
+  [dflash][3/5][trial 0] 42.30 tok/s acc=21.51%
+  [dflash][3/5][trial 1] 42.26 tok/s acc=21.51%
+  [dflash][3/5][trial 2] 42.28 tok/s acc=21.51%
+  [dflash][4/5][trial 0] 23.88 tok/s acc=0.00%
+  [dflash][4/5][trial 1] 23.91 tok/s acc=0.00%
+  [dflash][4/5][trial 2] 23.86 tok/s acc=0.00%
+  [dflash][5/5][trial 0] 70.59 tok/s acc=48.08%
+  [dflash][5/5][trial 1] 70.58 tok/s acc=48.08%
+  [dflash][5/5][trial 2] 70.71 tok/s acc=48.08%
+
+Wrote leg 'dflash' to /home/ravi/repos/turbo/docs/sprints/SPRINT-008-dflash-experiments/../SPRINT-010-dflash-experiments/p_min-N4-0.75/results-qwen.json
+ Network turbo_default Removing 
+ Network turbo_default Removed 
+
+Wrote /home/ravi/repos/turbo/docs/sprints/SPRINT-008-dflash-experiments/../SPRINT-010-dflash-experiments/p_min-N4-0.75/results-qwen.json
+Wrote /home/ravi/repos/turbo/docs/sprints/SPRINT-008-dflash-experiments/../SPRINT-010-dflash-experiments/p_min-N4-0.75/summary-qwen.md
