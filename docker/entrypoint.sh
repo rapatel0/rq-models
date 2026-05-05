@@ -134,6 +134,7 @@ SPECULATIVE_MODE="${SPECULATIVE_MODE:-target-only}"
 DRAFT_MODEL_NAME="${DRAFT_MODEL_NAME:-}"
 DRAFT_KV_CACHE_TYPE="${DRAFT_KV_CACHE_TYPE:-$KV_CACHE}"
 DRAFT_N_MAX="${DRAFT_N_MAX:-2}"
+DRAFT_P_MIN="${DRAFT_P_MIN:-0}"
 
 case "$SPECULATIVE_MODE" in
   target-only|autoregressive|dflash) ;;
@@ -220,6 +221,13 @@ if [ "$SPECULATIVE_MODE" != "target-only" ]; then
   )
   if [ "$SPECULATIVE_MODE" = "dflash" ]; then
     CMD+=(--dflash)
+  fi
+  # Sprint 010: confidence-based draft truncation. 0 = always commit
+  # the full draft (PR #22105 default behavior). >0 truncates after the
+  # diffusion's per-position top-token probability drops below this
+  # threshold. Sweep showed [TBD] is the sweet spot for prose.
+  if [ "$DRAFT_P_MIN" != "0" ]; then
+    CMD+=(--draft-p-min "$DRAFT_P_MIN")
   fi
 fi
 
