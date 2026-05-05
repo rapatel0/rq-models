@@ -62,6 +62,7 @@ declare -A MODELS=(
   # the convert script idempotently re-publishes if absent.
   [qwen3.6-27b-dflash]="local/qwen3.6-27b-dflash|Qwen3.6-27B-DFlash-bf16.gguf|131072|"
   [qwen3.6-27b-dflash-q4]="local/qwen3.6-27b-dflash|Qwen3.6-27B-DFlash-Q4_K_M.gguf|131072|"
+  [qwen3.6-27b-dflash-q8]="local/qwen3.6-27b-dflash|Qwen3.6-27B-DFlash-Q8_0.gguf|131072|"
   [qwen3.6-35b-dflash]="local/qwen3.6-35b-a3b-dflash|Qwen3.6-35B-A3B-DFlash-bf16.gguf|65536|"
 )
 
