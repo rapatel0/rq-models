@@ -266,6 +266,23 @@ per-token acceptance on entropic prose. Next leverage point is on
 the draft model side (smaller / domain-tuned drafts), not on the
 speculative pipeline.
 
+#### Correctness (Sprint 011)
+
+DFlash output is byte-equal to target-only on 3 of 5 bench prompts at
+greedy / temp=0 / seed=42 (Quicksort, Pythagorean, DC trip). Hamlet
+and SQL diverge mid-stream into coherent paraphrases — both produce
+semantically equivalent output, just different token paths after
+position ~97. This is the expected behavior of speculative decoding
+on **hybrid (attention + recurrent gated delta net) targets** like
+Qwen3.6: the verify step's batched-K decode and target-only's
+single-token decode have small FP differences in the recurrent state
+accumulator, which can flip argmax at positions where top-2 logits
+are within ~1 ULP. Pure-attention targets (Llama-3.x, Mistral) would
+be byte-equal. DFlash is **deterministic from a fresh server state**
+across reruns — see SPRINT-011-dflash-FINDINGS.md for the validation
+methodology and full diff. F-031 documents a same-slot rerun cache
+quirk that doesn't affect single-request correctness.
+
 | Profile | Target | Draft | KV | Ctx | Speculative |
 |---------|--------|-------|:--:|----:|:-----------:|
 | `qwen` (default) | Qwen3.6-27B (dense) | source-converted from `z-lab/Qwen3.6-27B-DFlash` | planar3 | 131K | DFlash |
