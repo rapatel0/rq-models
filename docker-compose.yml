@@ -34,7 +34,8 @@ x-llm-base: &llm-base
     UBATCH_SIZE: ${UBATCH_SIZE:-}
     CACHE_RAM: ${CACHE_RAM:-8192}
     MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-auto}
-    MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-3}
+    MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-4}
+    MTP_DRAFT_P_MIN: ${MTP_DRAFT_P_MIN:-0.75}
     NO_WARMUP: ${NO_WARMUP:-}
     MTP_MLOCK: ${MTP_MLOCK:-}
     HF_TOKEN: ${HF_TOKEN:-}
@@ -66,7 +67,8 @@ services:
       UBATCH_SIZE: ${UBATCH_SIZE:-}
       CACHE_RAM: ${CACHE_RAM:-2048}
       MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-auto}
-      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-3}
+      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-4}
+      MTP_DRAFT_P_MIN: ${MTP_DRAFT_P_MIN:-0.75}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 
@@ -84,8 +86,9 @@ services:
       N_PARALLEL: ${N_PARALLEL:-1}
       UBATCH_SIZE: ${UBATCH_SIZE:-32}
       CACHE_RAM: ${CACHE_RAM:-2048}
-      MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-mtp}
-      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-3}
+      MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-auto}
+      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-4}
+      MTP_DRAFT_P_MIN: ${MTP_DRAFT_P_MIN:-0.75}
       NO_WARMUP: ${NO_WARMUP:-1}
       MTP_MLOCK: ${MTP_MLOCK:-}
       HF_TOKEN: ${HF_TOKEN:-}
@@ -136,7 +139,8 @@ services:
       UBATCH_SIZE: ${UBATCH_SIZE:-}
       CACHE_RAM: ${CACHE_RAM:-8192}
       MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-auto}
-      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-3}
+      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-4}
+      MTP_DRAFT_P_MIN: ${MTP_DRAFT_P_MIN:-0.75}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 
@@ -154,8 +158,9 @@ services:
       N_PARALLEL: ${N_PARALLEL:-1}
       UBATCH_SIZE: ${UBATCH_SIZE:-32}
       CACHE_RAM: ${CACHE_RAM:-8192}
-      MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-mtp}
-      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-3}
+      MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-auto}
+      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-4}
+      MTP_DRAFT_P_MIN: ${MTP_DRAFT_P_MIN:-0.75}
       NO_WARMUP: ${NO_WARMUP:-1}
       MTP_MLOCK: ${MTP_MLOCK:-}
       HF_TOKEN: ${HF_TOKEN:-}
@@ -168,8 +173,9 @@ services:
     environment:
       MODEL_NAME: qwen3.6-27b-mtp
       # Speed profile: the MTP fork's fast path is q4_0/tbq4_0 KV plus
-      # draft-n=3 and ubatch=32. Use the compressed qwen36-27b-mtp profile
-      # when maximum context compression is more important than decode TPS.
+      # draft-n=4, draft-p-min=0.75, and ubatch=32. Use the compressed
+      # qwen36-27b-mtp profile when maximum context compression is more
+      # important than decode TPS.
       KV_CACHE_TYPE: ${KV_CACHE_TYPE:-q4_0}
       CTX_SIZE: ${CTX_SIZE:-131072}
       PORT: ${PORT:-8080}
@@ -177,8 +183,9 @@ services:
       N_PARALLEL: ${N_PARALLEL:-1}
       UBATCH_SIZE: ${UBATCH_SIZE:-32}
       CACHE_RAM: ${CACHE_RAM:-8192}
-      MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-mtp}
-      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-3}
+      MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-auto}
+      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-4}
+      MTP_DRAFT_P_MIN: ${MTP_DRAFT_P_MIN:-0.75}
       NO_WARMUP: ${NO_WARMUP:-1}
       MTP_MLOCK: ${MTP_MLOCK:-}
       HF_TOKEN: ${HF_TOKEN:-}

@@ -64,6 +64,10 @@ spec:
               value: {{ .Values.mtpSpecType | quote }}
             - name: MTP_DRAFT_N_MAX
               value: {{ .Values.mtpDraftNMax | quote }}
+            {{- if .Values.mtpDraftPMin }}
+            - name: MTP_DRAFT_P_MIN
+              value: {{ .Values.mtpDraftPMin | quote }}
+            {{- end }}
             {{- if .Values.contextSize }}
             - name: CTX_SIZE
               value: {{ .Values.contextSize | quote }}

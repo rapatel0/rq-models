@@ -14,7 +14,8 @@ set -euo pipefail
 #   UBATCH_SIZE    (optional)  Physical batch size (MTP default: 32)
 #   CACHE_RAM      (optional)  Prompt cache size in MiB, system RAM (default: 8192)
 #   MTP_SPEC_TYPE  (optional)  auto, draft-mtp, or mtp (default: auto)
-#   MTP_DRAFT_N_MAX (optional) MTP draft tokens per step (default: 3)
+#   MTP_DRAFT_N_MAX (optional) MTP draft tokens per step (default: 4)
+#   MTP_DRAFT_P_MIN (optional) MTP minimum draft probability (default: 0.75)
 #   NO_WARMUP      (optional)  1/true/on to pass --no-warmup (MTP default: 1)
 #   MTP_MLOCK      (optional)  1/true/on to pass --mlock (requires memlock privileges)
 #   HF_TOKEN       (optional)  HuggingFace token for gated models
@@ -72,7 +73,8 @@ KV_CACHE="${KV_CACHE_TYPE:-planar4}"
 PORT="${PORT:-8080}"
 NGL="${GPU_LAYERS:-99}"
 MTP_SPEC_TYPE="${MTP_SPEC_TYPE:-auto}"
-MTP_DRAFT_N_MAX="${MTP_DRAFT_N_MAX:-3}"
+MTP_DRAFT_N_MAX="${MTP_DRAFT_N_MAX:-4}"
+MTP_DRAFT_P_MIN="${MTP_DRAFT_P_MIN:-0.75}"
 LLAMA_HELP_CACHE=""
 
 load_llama_help() {
@@ -258,6 +260,12 @@ if $IS_MTP_MODEL; then
     --spec-draft-n-max "$MTP_DRAFT_N_MAX"
   )
 
+  if help_has_word "spec-draft-p-min"; then
+    CMD+=(--spec-draft-p-min "$MTP_DRAFT_P_MIN")
+  elif [ -n "${MTP_DRAFT_P_MIN:-}" ]; then
+    echo "WARN: llama-server does not advertise --spec-draft-p-min; ignoring MTP_DRAFT_P_MIN." >&2
+  fi
+
   if is_truthy "$NO_WARMUP"; then
     CMD+=(--no-warmup)
   fi
@@ -292,7 +300,7 @@ else
   echo "║  KV Cache: $KV_CACHE / $KV_CACHE (RotorQuant)"
 fi
 if $IS_MTP_MODEL; then
-  echo "║  MTP:      $MTP_SPEC_TYPE_RESOLVED, draft-n-max=$MTP_DRAFT_N_MAX"
+  echo "║  MTP:      $MTP_SPEC_TYPE_RESOLVED, draft-n-max=$MTP_DRAFT_N_MAX, draft-p-min=$MTP_DRAFT_P_MIN"
 fi
 echo "║  Context:  $CTX tokens"
 echo "║  Parallel: $PARALLEL slots"

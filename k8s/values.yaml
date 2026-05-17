@@ -51,7 +51,8 @@ kvCacheType: planar3
 # "auto" supports both upstream llama.cpp's current "draft-mtp" spelling and
 # older RotorQuant+MTP branches that still use "mtp".
 mtpSpecType: auto
-mtpDraftNMax: 3
+mtpDraftNMax: 4
+mtpDraftPMin: "0.75"
 
 # Physical ubatch size. Empty = entrypoint default; MTP profiles default to 32,
 # matching the MTP fork's documented low-overhead recipe.

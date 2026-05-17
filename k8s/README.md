@@ -54,9 +54,11 @@ curl https://qwen.example.com/v1/models
 ### 27B MTP speed profile on a 24 GB 4090
 
 For the MTP path, validate accepted drafts and A/B speed before moving traffic.
-The tuned 4090 starting point is one slot, `draft-n=3`, `ubatch=32`, and
-`q4_0` KV. Use `planar3` instead when maximum KV compression matters more than
-decode speed.
+The tuned 4090 starting point is one slot, `draft-n=4`, `draft-p-min=0.75`,
+`ubatch=32`, and `q4_0` KV. Use `planar3` instead when maximum KV compression
+matters more than decode speed.
+For latest upstream llama.cpp images, also test `mtpDraftNMax=6`; for the
+pinned RotorQuant MTP fork in this repo, local validation favored 4.
 
 ```bash
 helm upgrade --install qwen3-27b-mtp ./k8s \
@@ -69,8 +71,9 @@ helm upgrade --install qwen3-27b-mtp ./k8s \
   --set kvCacheType=q4_0 \
   --set contextSize=131072 \
   --set nParallel=1 \
-  --set mtpSpecType=mtp \
-  --set mtpDraftNMax=3 \
+  --set mtpSpecType=auto \
+  --set mtpDraftNMax=4 \
+  --set-string mtpDraftPMin=0.75 \
   --set ubatchSize=32 \
   --set models.kind=local \
   --set models.existingClaim=llm-models-local-4090 \
@@ -147,7 +150,7 @@ See [`values.yaml`](values.yaml) for the full set with comments. Key ones:
 | `contextSize` | Override per-model default context (tokens) | `""` |
 | `nParallel` | Concurrent slots per replica | `1` |
 | `ubatchSize` | Physical batch size; MTP tuned default is 32 | `""` |
-| `mtpSpecType` / `mtpDraftNMax` | MTP implementation and draft count | `auto` / `3` |
+| `mtpSpecType` / `mtpDraftNMax` / `mtpDraftPMin` | MTP implementation, draft count, and min draft probability | `auto` / `4` / `0.75` |
 | `noWarmup` / `mtpMlock` | MTP startup/perf flags | `""` / `false` |
 | `splitMode` | `layer` / `row` / `none` (multi-GPU only) | `""` |
 | `tensorSplit` | e.g. `"1,1,1,1"` | `""` |
