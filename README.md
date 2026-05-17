@@ -104,7 +104,7 @@ HF_TOKEN=hf_xxx make run-reasoning
 | `PORT` | `8080` | API port |
 | `GPU_LAYERS` | `99` | Layers on GPU (99 = all) |
 | `N_PARALLEL` | `2` | Concurrent request slots (set higher for throughput mode) |
-| `UBATCH_SIZE` | MTP: `32` | Physical batch size. The MTP fork's fast path is sensitive to this. |
+| `UBATCH_SIZE` | MTP: `32` | Physical batch size. The MTP path is sensitive to this. |
 | `CACHE_RAM` | `8192` | Prompt cache size in MiB (system RAM, not VRAM) |
 | `MTP_SPEC_TYPE` | `auto` | MTP spec flag spelling: auto-detects `draft-mtp` vs older `mtp` builds |
 | `MTP_DRAFT_N_MAX` | `4` | Draft tokens per MTP speculative decoding step. Override to `2` for conservative testing or `6` on latest upstream llama.cpp builds. |
@@ -113,13 +113,12 @@ HF_TOKEN=hf_xxx make run-reasoning
 | `MTP_MLOCK` | off | Pass `--mlock`; requires memlock privileges in Docker/Kubernetes |
 | `HF_TOKEN` | — | HuggingFace token for gated models |
 
-MTP profiles force `N_PARALLEL=1` by default because current llama.cpp MTP does not support multiple parallel slots. The entrypoint also normalizes cache names across forks: `iso3`/`planar3`/`tbq4` become `iso3_0`/`planar3_0`/`tbq4_0` when the compiled binary expects the suffixed names.
+MTP profiles force `N_PARALLEL=1` by default because current llama.cpp MTP does not support multiple parallel slots. The entrypoint also normalizes cache names across builds: `iso3`/`planar3`/`tbq4` become `iso3_0`/`planar3_0`/`tbq4_0` when the compiled binary expects the suffixed names.
 
 Unsloth's current llama.cpp guidance uses `--spec-type draft-mtp` with
 `--spec-draft-n-max 6` on latest upstream builds. This stack keeps
-`MTP_SPEC_TYPE=auto` and defaults to draft 4 because the pinned RotorQuant MTP
-fork tested fastest locally at 4; set `MTP_DRAFT_N_MAX=6` when validating an
-upstream llama.cpp image.
+`MTP_SPEC_TYPE=auto` and defaults to draft 4 as the conservative 4090 starting
+point; set `MTP_DRAFT_N_MAX=6` when validating the upstream `draft-mtp` path.
 
 ### MTP Operational Check
 
@@ -136,7 +135,7 @@ python scripts/mtp_probe.py \
   --min-speedup 1.05
 ```
 
-Local probe on Apple M1 Max with the cached Unsloth `Qwen3.6-27B-UD-Q4_K_XL.gguf`, the pinned Indras fork, `--spec-type mtp`, `--spec-draft-p-min 0.75`, and `--ubatch-size 32`: draft 4 was the fastest local setting tested, accepting 46/67 draft tokens (68.7%) at 13.74 tok/s.
+Historical local probe on Apple M1 Max with the cached Unsloth `Qwen3.6-27B-UD-Q4_K_XL.gguf`, the previous Indras fork, `--spec-type mtp`, `--spec-draft-p-min 0.75`, and `--ubatch-size 32`: draft 4 was the fastest local setting tested, accepting 46/67 draft tokens (68.7%) at 13.74 tok/s. Re-run this probe after each upstream rebase before moving traffic.
 
 ## Best Config by GPU
 
@@ -241,9 +240,14 @@ make run-throughput   # Qwen3.5-27B, 14 slots × 16K, RTX 5090
 
 ## Build Source
 
-The Dockerfile pins an MTP-capable RotorQuant llama.cpp fork by default:
-`Indras-Mirror/llama.cpp-turboq-mtp@0bc0a270d43e6e0ed6b30386d278e45b6dc6dd9f`.
-Override `ROTORQUANT_REPO`, `ROTORQUANT_BRANCH`, or `ROTORQUANT_COMMIT` at build time if you want to return to a different RotorQuant branch.
+The Dockerfile builds from official upstream `ggml-org/llama.cpp` stable tag
+`b9196` by default, then applies
+[`docker/patches/llama-b9196-rotorquant.patch.gz`](docker/patches/llama-b9196-rotorquant.patch.gz)
+to add the RotorQuant KV cache types. This keeps Qwen3.6 MTP on upstream's
+`draft-mtp` implementation instead of the older fork-specific MTP path.
+
+Override `LLAMA_CPP_REPO`, `LLAMA_CPP_REF`, or `ROTORQUANT_PATCH` at build time
+when rebasing to a newer upstream stable.
 
 ## Performance
 

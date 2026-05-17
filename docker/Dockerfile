@@ -11,22 +11,33 @@
 # Run: docker run --gpus all -e MODEL_NAME=qwen3.5-27b -v llm-models:/models -p 8080:8080 rotorquant
 
 # ============================================================================
-# Build Stage: compile llama.cpp with RotorQuant
+# Build Stage: compile upstream llama.cpp with RotorQuant patchset
 # ============================================================================
 ARG CUDA_VERSION=13.1.0
 FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu24.04 AS build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git cmake build-essential \
+    git cmake build-essential gzip \
     && rm -rf /var/lib/apt/lists/*
 
-ARG ROTORQUANT_REPO=https://github.com/Indras-Mirror/llama.cpp-turboq-mtp.git
-ARG ROTORQUANT_COMMIT=0bc0a270d43e6e0ed6b30386d278e45b6dc6dd9f
-ARG ROTORQUANT_BRANCH=master
+ARG LLAMA_CPP_REPO=https://github.com/ggml-org/llama.cpp.git
+ARG LLAMA_CPP_REF=b9196
+ARG ROTORQUANT_PATCH=llama-b9196-rotorquant.patch.gz
 
-RUN git clone --depth 100 -b ${ROTORQUANT_BRANCH} \
-    ${ROTORQUANT_REPO} /src \
-    && cd /src && git checkout ${ROTORQUANT_COMMIT}
+COPY docker/patches/ /patches/
+
+RUN set -eux; \
+    git init /src; \
+    cd /src; \
+    git remote add origin "${LLAMA_CPP_REPO}"; \
+    git fetch --depth 1 origin "${LLAMA_CPP_REF}"; \
+    git checkout --detach FETCH_HEAD; \
+    if [ -n "${ROTORQUANT_PATCH}" ]; then \
+      case "${ROTORQUANT_PATCH}" in \
+        *.gz) gzip -dc "/patches/${ROTORQUANT_PATCH}" | git apply ;; \
+        *) git apply "/patches/${ROTORQUANT_PATCH}" ;; \
+      esac; \
+    fi
 
 WORKDIR /src
 

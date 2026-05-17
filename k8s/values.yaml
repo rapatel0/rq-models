@@ -54,8 +54,8 @@ mtpSpecType: auto
 mtpDraftNMax: 4
 mtpDraftPMin: "0.75"
 
-# Physical ubatch size. Empty = entrypoint default; MTP profiles default to 32,
-# matching the MTP fork's documented low-overhead recipe.
+# Physical ubatch size. Empty = entrypoint default; MTP profiles default to 32
+# for lower overhead on the upstream draft-mtp path.
 ubatchSize: ""
 
 # MTP startup/perf knobs. noWarmup empty = entrypoint default; MTP defaults to

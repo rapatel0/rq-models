@@ -172,7 +172,7 @@ services:
     container_name: rotorquant-qwen36-27b-mtp-speed
     environment:
       MODEL_NAME: qwen3.6-27b-mtp
-      # Speed profile: the MTP fork's fast path is q4_0/tbq4_0 KV plus
+      # Speed profile: the upstream MTP path is sensitive to KV type plus
       # draft-n=4, draft-p-min=0.75, and ubatch=32. Use the compressed
       # qwen36-27b-mtp profile when maximum context compression is more
       # important than decode TPS.

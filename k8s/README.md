@@ -57,8 +57,8 @@ For the MTP path, validate accepted drafts and A/B speed before moving traffic.
 The tuned 4090 starting point is one slot, `draft-n=4`, `draft-p-min=0.75`,
 `ubatch=32`, and `q4_0` KV. Use `planar3` instead when maximum KV compression
 matters more than decode speed.
-For latest upstream llama.cpp images, also test `mtpDraftNMax=6`; for the
-pinned RotorQuant MTP fork in this repo, local validation favored 4.
+For the upstream `draft-mtp` path, also test `mtpDraftNMax=6`; local validation
+on the previous fork favored 4, so keep 4 as the conservative starting point.
 
 ```bash
 helm upgrade --install qwen3-27b-mtp ./k8s \
