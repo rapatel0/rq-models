@@ -3,6 +3,7 @@ models/
 *.gguf
 
 # Build artifacts
+.agent-runs/
 llama-cpp-rq/
 build/
 

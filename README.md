@@ -249,6 +249,21 @@ to add the RotorQuant KV cache types. This keeps Qwen3.6 MTP on upstream's
 Override `LLAMA_CPP_REPO`, `LLAMA_CPP_REF`, or `ROTORQUANT_PATCH` at build time
 when rebasing to a newer upstream stable.
 
+### Upstream Rebase Workflow
+
+Use the repo-level mise tasks for the standard agent-assisted rebase flow:
+
+```bash
+mise run llama-rebase-check     # check current pin vs latest stable upstream
+mise run llama-rebase-agent     # launch the Codex rebase agent when upstream moved
+mise run llama-rebase-periodic  # schedule-safe no-op when already current
+```
+
+`llama-rebase-periodic` is the cron/launchd target. It checks GitHub's latest
+stable llama.cpp release, compares it to `LLAMA_CPP_REF`, and only launches the
+Codex agent when the pin is stale. Agent prompts and final messages are written
+under `.agent-runs/llama-rebase/`, which is intentionally gitignored.
+
 ## Performance
 
 Benchmarked on RTX 5090 (32 GB). Full results in [docs/BENCHMARK-REPORT.md](docs/BENCHMARK-REPORT.md).

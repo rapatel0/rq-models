@@ -1,0 +1,11 @@
+[tasks."llama-rebase-check"]
+description = "Check whether the pinned upstream llama.cpp stable tag is current."
+run = "python3 scripts/llama_rebase_agent.py --check"
+
+[tasks."llama-rebase-agent"]
+description = "Launch the Codex agent workflow to rebase RotorQuant onto the latest stable llama.cpp."
+run = "python3 scripts/llama_rebase_agent.py --run-agent"
+
+[tasks."llama-rebase-periodic"]
+description = "Schedule-safe llama.cpp rebase task: no-op when current, otherwise launch the rebase agent."
+run = "python3 scripts/llama_rebase_agent.py --run-agent"
