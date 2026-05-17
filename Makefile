@@ -1,4 +1,4 @@
-.PHONY: build run-qwen run-qwen36-27b run-reasoning run-gemma stop logs test bench clean
+.PHONY: build run-qwen run-qwen-mtp run-qwen36-27b run-qwen36-27b-mtp run-reasoning run-gemma stop logs test bench clean
 
 # ── Build ────────────────────────────────────────────────────────────
 build:
@@ -8,8 +8,14 @@ build:
 run-qwen:
 	docker compose --profile qwen up
 
+run-qwen-mtp:
+	docker compose --profile qwen-mtp up
+
 run-qwen36-27b:
 	docker compose --profile qwen36-27b up
+
+run-qwen36-27b-mtp:
+	docker compose --profile qwen36-27b-mtp up
 
 run-reasoning:
 	docker compose --profile reasoning up
@@ -26,8 +32,24 @@ run-qwen-bg:
 		sleep 1; \
 	done
 
+run-qwen-mtp-bg:
+	docker compose --profile qwen-mtp up -d
+	@echo "Waiting for server..." && \
+	for i in $$(seq 1 150); do \
+		curl -sf http://localhost:$${PORT:-8080}/health >/dev/null 2>&1 && echo "Ready on port $${PORT:-8080}" && break; \
+		sleep 1; \
+	done
+
 run-qwen36-27b-bg:
 	docker compose --profile qwen36-27b up -d
+	@echo "Waiting for server..." && \
+	for i in $$(seq 1 150); do \
+		curl -sf http://localhost:$${PORT:-8080}/health >/dev/null 2>&1 && echo "Ready on port $${PORT:-8080}" && break; \
+		sleep 1; \
+	done
+
+run-qwen36-27b-mtp-bg:
+	docker compose --profile qwen36-27b-mtp up -d
 	@echo "Waiting for server..." && \
 	for i in $$(seq 1 150); do \
 		curl -sf http://localhost:$${PORT:-8080}/health >/dev/null 2>&1 && echo "Ready on port $${PORT:-8080}" && break; \
@@ -55,8 +77,8 @@ run-throughput-bg:
 # ── Logs ─────────────────────────────────────────────────────────────
 logs:
 	docker compose \
-	  --profile qwen --profile qwen36-q3 --profile qwen36-iq3 \
-	  --profile qwen36-27b --profile qwen36-27b-q3 --profile qwen36-27b-iq3 \
+	  --profile qwen --profile qwen-mtp --profile qwen36-q3 --profile qwen36-iq3 \
+	  --profile qwen36-27b --profile qwen36-27b-mtp --profile qwen36-27b-q3 --profile qwen36-27b-iq3 \
 	  --profile qwen36-throughput \
 	  --profile reasoning --profile gemma \
 	  --profile qwen-q3 --profile qwen-q3-xxs --profile qwen-iq4 --profile gemma-q3 \
@@ -66,8 +88,8 @@ logs:
 # ── Stop ─────────────────────────────────────────────────────────────
 stop:
 	docker compose \
-	  --profile qwen --profile qwen36-q3 --profile qwen36-iq3 \
-	  --profile qwen36-27b --profile qwen36-27b-q3 --profile qwen36-27b-iq3 \
+	  --profile qwen --profile qwen-mtp --profile qwen36-q3 --profile qwen36-iq3 \
+	  --profile qwen36-27b --profile qwen36-27b-mtp --profile qwen36-27b-q3 --profile qwen36-27b-iq3 \
 	  --profile qwen36-throughput \
 	  --profile reasoning --profile gemma \
 	  --profile qwen-q3 --profile qwen-q3-xxs --profile qwen-iq4 --profile gemma-q3 \
@@ -87,8 +109,8 @@ smoke:
 # ── Clean ────────────────────────────────────────────────────────────
 clean:
 	docker compose \
-	  --profile qwen --profile qwen36-q3 --profile qwen36-iq3 \
-	  --profile qwen36-27b --profile qwen36-27b-q3 --profile qwen36-27b-iq3 \
+	  --profile qwen --profile qwen-mtp --profile qwen36-q3 --profile qwen36-iq3 \
+	  --profile qwen36-27b --profile qwen36-27b-mtp --profile qwen36-27b-q3 --profile qwen36-27b-iq3 \
 	  --profile reasoning --profile gemma \
 	  down --volumes
 	docker rmi rotorquant 2>/dev/null || true

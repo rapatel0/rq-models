@@ -2,6 +2,7 @@
 #
 # Usage:
 #   docker compose --profile qwen up          # Qwen3.6-35B-A3B MoE (default, 32GB+)
+#   docker compose --profile qwen-mtp up      # Qwen3.6-35B-A3B MTP (32GB+, np=1)
 #   docker compose --profile reasoning up     # Qwen3.5-27B Claude Reasoning Distilled
 #   docker compose --profile gemma up         # Gemma 4 26B MoE
 #
@@ -30,6 +31,8 @@ x-llm-base: &llm-base
     GPU_LAYERS: ${GPU_LAYERS:-99}
     N_PARALLEL: ${N_PARALLEL:-2}
     CACHE_RAM: ${CACHE_RAM:-8192}
+    MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-auto}
+    MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-6}
     HF_TOKEN: ${HF_TOKEN:-}
     EXTRA_ARGS: ${EXTRA_ARGS:-}
   deploy:
@@ -57,6 +60,26 @@ services:
       GPU_LAYERS: ${GPU_LAYERS:-99}
       N_PARALLEL: ${N_PARALLEL:-2}
       CACHE_RAM: ${CACHE_RAM:-2048}
+      MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-auto}
+      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-6}
+      HF_TOKEN: ${HF_TOKEN:-}
+      EXTRA_ARGS: ${EXTRA_ARGS:-}
+
+  qwen-mtp:
+    <<: *llm-base
+    profiles: [qwen-mtp]
+    container_name: rotorquant-qwen-mtp
+    environment:
+      MODEL_NAME: qwen3.6-35b-mtp
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-iso3}
+      # MTP currently requires one llama.cpp slot; keep full 262K per request.
+      CTX_SIZE: ${CTX_SIZE:-262144}
+      PORT: ${PORT:-8080}
+      GPU_LAYERS: ${GPU_LAYERS:-99}
+      N_PARALLEL: ${N_PARALLEL:-1}
+      CACHE_RAM: ${CACHE_RAM:-2048}
+      MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-auto}
+      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-6}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 
@@ -103,6 +126,26 @@ services:
       GPU_LAYERS: ${GPU_LAYERS:-99}
       N_PARALLEL: ${N_PARALLEL:-2}
       CACHE_RAM: ${CACHE_RAM:-8192}
+      MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-auto}
+      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-6}
+      HF_TOKEN: ${HF_TOKEN:-}
+      EXTRA_ARGS: ${EXTRA_ARGS:-}
+
+  qwen36-27b-mtp:
+    <<: *llm-base
+    profiles: [qwen36-27b-mtp]
+    container_name: rotorquant-qwen36-27b-mtp
+    environment:
+      MODEL_NAME: qwen3.6-27b-mtp
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-planar3}
+      # MTP currently requires one llama.cpp slot; keep the existing total KV budget.
+      CTX_SIZE: ${CTX_SIZE:-131072}
+      PORT: ${PORT:-8080}
+      GPU_LAYERS: ${GPU_LAYERS:-99}
+      N_PARALLEL: ${N_PARALLEL:-1}
+      CACHE_RAM: ${CACHE_RAM:-8192}
+      MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-auto}
+      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-6}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 

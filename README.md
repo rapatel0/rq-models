@@ -1,7 +1,7 @@
 # RotorQuant LLM Server
 > NOTE: Gemma Models have not been tested for ppl and qualtity. YMMV
 
-Serve Qwen3.6-35B-A3B, Qwen3.6-27B, Qwen3.5-27B, Gemma 4 26B, and other large models with **large context on a single consumer GPU** using RotorQuant KV cache compression (4.9x at 3-bit, 97% decode speed of fp16).
+Serve Qwen3.6-35B-A3B, Qwen3.6-27B, Qwen3.5-27B, Gemma 4 26B, and other large models with **large context on a single consumer GPU** using RotorQuant KV cache compression (4.9x at 3-bit, 97% decode speed of fp16). Qwen3.6 MTP profiles are included for speculative decoding on MTP-capable llama.cpp builds.
 
 > **KV defaults**: `iso3` for MoE models (Qwen3.6-35B-A3B), `planar3` for dense models (Qwen3.6-27B, Qwen3.5-27B). Both are 3.125 bpe (4.9x compression). Benchmarks show rotation type matters: iso beats planar on MoE; planar beats iso on dense.
 
@@ -29,6 +29,9 @@ make build
 # 2. Run (first run downloads the model ~22 GB)
 make run-qwen
 
+# Or run the MTP profile for speculative decoding (one slot)
+make run-qwen-mtp
+
 # 3. Query
 curl http://localhost:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
@@ -40,9 +43,11 @@ curl http://localhost:8080/v1/chat/completions \
 | Command | Model | Weights | Active Params | KV default |
 |---------|-------|---------|---------------|:----------:|
 | `make run-qwen` | **Qwen3.6-35B-A3B** (default) | UD-Q4_K_XL (20.8 GB) | 3B active (MoE) | `iso3` |
+| `make run-qwen-mtp` | **Qwen3.6-35B-A3B MTP** | UD-Q4_K_XL (MTP) | 3B active (MoE) | `iso3` |
 | `docker compose --profile qwen36-q3 up` | Qwen3.6-35B-A3B | UD-Q3_K_XL (16.8 GB) | 3B active (MoE) | `planar4` |
 | `docker compose --profile qwen36-iq3 up` | Qwen3.6-35B-A3B | UD-IQ3_XXS (13.2 GB) | 3B active (MoE) | `planar4` |
 | `make run-qwen36-27b` | **Qwen3.6-27B** (dense) | UD-Q4_K_XL (16.4 GB) | 27B dense | `planar3` |
+| `make run-qwen36-27b-mtp` | **Qwen3.6-27B MTP** | UD-Q4_K_XL (MTP) | 27B dense | `planar3` |
 | `docker compose --profile qwen36-27b-q3 up` | Qwen3.6-27B | UD-Q3_K_XL (~12 GB) | 27B dense | `planar3` |
 | `docker compose --profile qwen36-27b-iq3 up` | Qwen3.6-27B | UD-IQ3_XXS (~9 GB) | 27B dense | `planar3` |
 | `make run-reasoning` | Qwen3.5-27B Claude Opus Distilled | i1-Q4_K_M (16.6 GB) | 27B dense | `planar3` |
@@ -52,9 +57,11 @@ Or use Docker Compose directly:
 
 ```bash
 docker compose --profile qwen up           # Qwen3.6-35B-A3B Q4 (32 GB+), iso3
+docker compose --profile qwen-mtp up       # Qwen3.6-35B-A3B MTP Q4 (32 GB+), iso3
 docker compose --profile qwen36-q3 up     # Qwen3.6-35B-A3B Q3 (24 GB)
 docker compose --profile qwen36-iq3 up    # Qwen3.6-35B-A3B IQ3 (16 GB)
 docker compose --profile qwen36-27b up    # Qwen3.6-27B dense (24 GB+), planar3
+docker compose --profile qwen36-27b-mtp up # Qwen3.6-27B MTP Q4 (24 GB+), planar3
 docker compose --profile qwen36-27b-q3 up # Qwen3.6-27B Q3 (16 GB)
 docker compose --profile reasoning up     # Qwen3.5-27B reasoning-tuned
 docker compose --profile gemma up         # Gemma 4 MoE
@@ -93,7 +100,11 @@ HF_TOKEN=hf_xxx make run-reasoning
 | `GPU_LAYERS` | `99` | Layers on GPU (99 = all) |
 | `N_PARALLEL` | `2` | Concurrent request slots (set higher for throughput mode) |
 | `CACHE_RAM` | `8192` | Prompt cache size in MiB (system RAM, not VRAM) |
+| `MTP_SPEC_TYPE` | `auto` | MTP spec flag spelling: auto-detects `draft-mtp` vs older `mtp` builds |
+| `MTP_DRAFT_N_MAX` | `6` | Draft tokens per MTP speculative decoding step |
 | `HF_TOKEN` | — | HuggingFace token for gated models |
+
+MTP profiles force `N_PARALLEL=1` by default because current llama.cpp MTP does not support multiple parallel slots. The entrypoint also normalizes RotorQuant cache names across forks: `iso3`/`planar3` become `iso3_0`/`planar3_0` when the compiled binary expects the suffixed names.
 
 ## Best Config by GPU
 
@@ -191,6 +202,12 @@ make run-throughput   # Qwen3.5-27B, 14 slots × 16K, RTX 5090
 - NVIDIA Container Toolkit (`nvidia-ctk`)
 - NVIDIA driver 570+ (CUDA 13.1 support)
 - GPU with 16+ GB VRAM (RTX 5060/4060 Ti with Q3 quants, RTX 4090+, A100, H100)
+
+## Build Source
+
+The Dockerfile pins an MTP-capable RotorQuant llama.cpp fork by default:
+`Indras-Mirror/llama.cpp-turboq-mtp@0bc0a270d43e6e0ed6b30386d278e45b6dc6dd9f`.
+Override `ROTORQUANT_REPO`, `ROTORQUANT_BRANCH`, or `ROTORQUANT_COMMIT` at build time if you want to return to a different RotorQuant branch.
 
 ## Performance
 

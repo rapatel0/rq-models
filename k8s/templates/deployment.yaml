@@ -60,6 +60,10 @@ spec:
               value: {{ .Values.modelName | quote }}
             - name: KV_CACHE_TYPE
               value: {{ .Values.kvCacheType | quote }}
+            - name: MTP_SPEC_TYPE
+              value: {{ .Values.mtpSpecType | quote }}
+            - name: MTP_DRAFT_N_MAX
+              value: {{ .Values.mtpDraftNMax | quote }}
             {{- if .Values.contextSize }}
             - name: CTX_SIZE
               value: {{ .Values.contextSize | quote }}

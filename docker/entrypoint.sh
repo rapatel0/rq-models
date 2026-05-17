@@ -12,6 +12,8 @@ set -euo pipefail
 #   GPU_LAYERS     (optional)  Layers to offload to GPU (default: 99 = all)
 #   N_PARALLEL     (optional)  Concurrent request slots (default: 2)
 #   CACHE_RAM      (optional)  Prompt cache size in MiB, system RAM (default: 8192)
+#   MTP_SPEC_TYPE  (optional)  auto, draft-mtp, or mtp (default: auto)
+#   MTP_DRAFT_N_MAX (optional) MTP draft tokens per step (default: 6)
 #   HF_TOKEN       (optional)  HuggingFace token for gated models
 #   EXTRA_ARGS     (optional)  Additional llama-server flags
 # ============================================================================
@@ -22,6 +24,8 @@ declare -A MODELS=(
   # ── Qwen3.6-35B-A3B MoE (default) ───────────────────────────────────
   # 32 GB+ (RTX 5090, A100): UD-Q4_K_XL — best quality
   [qwen3.6-35b]="unsloth/Qwen3.6-35B-A3B-GGUF|Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf|262144|"
+  # MTP speculative decoding. Requires an MTP-capable llama.cpp build.
+  [qwen3.6-35b-mtp]="unsloth/Qwen3.6-35B-A3B-MTP-GGUF|Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf|262144|"
   # 24 GB (RTX 4090): UD-Q3_K_XL — best fit
   [qwen3.6-35b-q3]="unsloth/Qwen3.6-35B-A3B-GGUF|Qwen3.6-35B-A3B-UD-Q3_K_XL.gguf|131072|"
   # 16 GB (RTX 5060/4060 Ti): IQ3_XXS — max compression
@@ -30,6 +34,8 @@ declare -A MODELS=(
   # ── Qwen3.6-27B dense ────────────────────────────────────────────────
   # 32 GB+ (RTX 5090, A100): UD-Q4_K_XL — best quality
   [qwen3.6-27b]="unsloth/Qwen3.6-27B-GGUF|Qwen3.6-27B-UD-Q4_K_XL.gguf|131072|"
+  # MTP speculative decoding. Requires an MTP-capable llama.cpp build.
+  [qwen3.6-27b-mtp]="unsloth/Qwen3.6-27B-MTP-GGUF|Qwen3.6-27B-UD-Q4_K_XL.gguf|131072|"
   # 24 GB (RTX 4090): UD-Q3_K_XL
   [qwen3.6-27b-q3]="unsloth/Qwen3.6-27B-GGUF|Qwen3.6-27B-UD-Q3_K_XL.gguf|131072|"
   # 16 GB (RTX 5060/4060 Ti): UD-IQ3_XXS
@@ -62,6 +68,72 @@ MODEL_NAME="${MODEL_NAME:?ERROR: MODEL_NAME is required. Options: ${!MODELS[*]}}
 KV_CACHE="${KV_CACHE_TYPE:-planar4}"
 PORT="${PORT:-8080}"
 NGL="${GPU_LAYERS:-99}"
+MTP_SPEC_TYPE="${MTP_SPEC_TYPE:-auto}"
+MTP_DRAFT_N_MAX="${MTP_DRAFT_N_MAX:-6}"
+LLAMA_HELP_CACHE=""
+
+load_llama_help() {
+  if [ -z "$LLAMA_HELP_CACHE" ]; then
+    LLAMA_HELP_CACHE="$(/app/bin/llama-server --help 2>&1 || true)"
+  fi
+}
+
+help_has_word() {
+  local word="$1"
+  load_llama_help
+  grep -qw -- "$word" <<< "$LLAMA_HELP_CACHE"
+}
+
+normalize_kv_cache_type() {
+  local requested="$1"
+  local base suffixed
+
+  if help_has_word "$requested"; then
+    printf '%s' "$requested"
+    return
+  fi
+
+  case "$requested" in
+    planar3|iso3|planar4|iso4)
+      suffixed="${requested}_0"
+      if help_has_word "$suffixed"; then
+        printf '%s' "$suffixed"
+        return
+      fi
+      ;;
+    planar3_0|iso3_0|planar4_0|iso4_0)
+      base="${requested%_0}"
+      if help_has_word "$base"; then
+        printf '%s' "$base"
+        return
+      fi
+      ;;
+  esac
+
+  printf '%s' "$requested"
+}
+
+resolve_mtp_spec_type() {
+  local requested="${MTP_SPEC_TYPE:-auto}"
+
+  if [ "$requested" != "auto" ]; then
+    printf '%s' "$requested"
+    return
+  fi
+
+  if help_has_word "draft-mtp"; then
+    printf '%s' "draft-mtp"
+    return
+  fi
+  if help_has_word "mtp"; then
+    printf '%s' "mtp"
+    return
+  fi
+
+  echo "ERROR: MODEL_NAME='$MODEL_NAME' requires MTP, but llama-server does not advertise an MTP --spec-type." >&2
+  echo "Build an MTP-capable llama.cpp/RotorQuant image or choose a non-MTP MODEL_NAME." >&2
+  exit 1
+}
 
 # ── Validate model name ─────────────────────────────────────────────────────
 if [[ -z "${MODELS[$MODEL_NAME]+x}" ]]; then
@@ -78,6 +150,25 @@ fi
 IFS='|' read -r HF_REPO FILENAME DEFAULT_CTX EXTRA_FLAGS <<< "${MODELS[$MODEL_NAME]}"
 CTX="${CTX_SIZE:-$DEFAULT_CTX}"
 MODEL_PATH="/models/${FILENAME}"
+KV_CACHE_REQUESTED="$KV_CACHE"
+KV_CACHE="$(normalize_kv_cache_type "$KV_CACHE_REQUESTED")"
+IS_MTP_MODEL=false
+MTP_SPEC_TYPE_RESOLVED=""
+
+if [[ "$MODEL_NAME" == *-mtp ]]; then
+  IS_MTP_MODEL=true
+  MTP_SPEC_TYPE_RESOLVED="$(resolve_mtp_spec_type)"
+fi
+
+if $IS_MTP_MODEL; then
+  PARALLEL="${N_PARALLEL:-1}"
+  if [ "$PARALLEL" != "1" ]; then
+    echo "ERROR: MTP profiles currently require N_PARALLEL=1; got N_PARALLEL='$PARALLEL'." >&2
+    exit 1
+  fi
+else
+  PARALLEL="${N_PARALLEL:-2}"
+fi
 
 # ── Download model if missing ───────────────────────────────────────────────
 if [ ! -f "$MODEL_PATH" ]; then
@@ -113,7 +204,7 @@ CMD=(
   --model "$MODEL_PATH"
   --n-gpu-layers "$NGL"
   --ctx-size "$CTX"
-  --parallel "${N_PARALLEL:-2}"
+  --parallel "$PARALLEL"
   --cache-type-k "$KV_CACHE"
   --cache-type-v "$KV_CACHE"
   --cache-ram "${CACHE_RAM:-8192}"
@@ -141,6 +232,15 @@ if [ -n "${MAIN_GPU:-}" ]; then
   CMD+=(--main-gpu "$MAIN_GPU")
 fi
 
+# Enable MTP speculative decoding for MTP model entries. llama.cpp renamed this
+# mode from "mtp" to "draft-mtp"; resolve_mtp_spec_type handles both builds.
+if $IS_MTP_MODEL; then
+  CMD+=(
+    --spec-type "$MTP_SPEC_TYPE_RESOLVED"
+    --spec-draft-n-max "$MTP_DRAFT_N_MAX"
+  )
+fi
+
 # Add model-specific flags
 if [ -n "$EXTRA_FLAGS" ]; then
   read -ra EXTRA_ARRAY <<< "$EXTRA_FLAGS"
@@ -160,9 +260,16 @@ echo "║  RotorQuant LLM Server                          ║"
 echo "╠══════════════════════════════════════════════════╣"
 echo "║  Model:    $MODEL_NAME"
 echo "║  File:     $FILENAME"
-echo "║  KV Cache: $KV_CACHE / $KV_CACHE (RotorQuant)"
+if [ "$KV_CACHE" != "$KV_CACHE_REQUESTED" ]; then
+  echo "║  KV Cache: $KV_CACHE / $KV_CACHE (RotorQuant; requested $KV_CACHE_REQUESTED)"
+else
+  echo "║  KV Cache: $KV_CACHE / $KV_CACHE (RotorQuant)"
+fi
+if $IS_MTP_MODEL; then
+  echo "║  MTP:      $MTP_SPEC_TYPE_RESOLVED, draft-n-max=$MTP_DRAFT_N_MAX"
+fi
 echo "║  Context:  $CTX tokens"
-echo "║  Parallel: ${N_PARALLEL:-2} slots"
+echo "║  Parallel: $PARALLEL slots"
 echo "║  Port:     $PORT"
 echo "║  GPU:      $NGL layers offloaded"
 echo "╚══════════════════════════════════════════════════╝"

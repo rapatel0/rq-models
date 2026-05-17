@@ -20,11 +20,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git cmake build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-ARG ROTORQUANT_COMMIT=20efe75cf1127268cb2ad73accd5ccb6f33064ff
-ARG ROTORQUANT_BRANCH=feature/planarquant-kv-cache
+ARG ROTORQUANT_REPO=https://github.com/Indras-Mirror/llama.cpp-turboq-mtp.git
+ARG ROTORQUANT_COMMIT=0bc0a270d43e6e0ed6b30386d278e45b6dc6dd9f
+ARG ROTORQUANT_BRANCH=master
 
 RUN git clone --depth 100 -b ${ROTORQUANT_BRANCH} \
-    https://github.com/johndpope/llama-cpp-turboquant.git /src \
+    ${ROTORQUANT_REPO} /src \
     && cd /src && git checkout ${ROTORQUANT_COMMIT}
 
 WORKDIR /src

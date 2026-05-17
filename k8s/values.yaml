@@ -36,7 +36,8 @@ strategy:
   type: Recreate
 
 # Required: which model to serve. Must match a key in MODELS in entrypoint.sh.
-# qwen3.6-27b, qwen3.6-35b, qwen3.5-27b, qwen3.5-27b-reasoning, gemma4-26b, ...
+# qwen3.6-27b, qwen3.6-27b-mtp, qwen3.6-35b, qwen3.6-35b-mtp,
+# qwen3.5-27b, qwen3.5-27b-reasoning, gemma4-26b, ...
 modelName: qwen3.6-27b
 
 # RotorQuant KV-cache type:
@@ -46,6 +47,12 @@ modelName: qwen3.6-27b
 #   f16       — disables RotorQuant (baseline)
 kvCacheType: planar3
 
+# MTP speculative decoding controls. Only used when modelName ends in "-mtp".
+# "auto" supports both upstream llama.cpp's current "draft-mtp" spelling and
+# older RotorQuant+MTP branches that still use "mtp".
+mtpSpecType: auto
+mtpDraftNMax: 6
+
 # Context size in tokens. Empty = use the per-model default from entrypoint.
 # llama.cpp divides this by nParallel for per-slot context, so for max
 # per-request context set nParallel=1.
@@ -53,7 +60,7 @@ contextSize: ""
 
 # Concurrent slots per replica. nParallel=1 maximizes per-request decode rate
 # and per-slot context. Bump to batch more concurrent users at lower per-user
-# latency.
+# latency. MTP currently requires nParallel=1.
 nParallel: 1
 
 # Prompt cache size in MiB (system RAM, not VRAM).
