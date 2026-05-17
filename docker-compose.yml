@@ -3,6 +3,7 @@
 # Usage:
 #   docker compose --profile qwen up          # Qwen3.6-35B-A3B MoE (default, 32GB+)
 #   docker compose --profile qwen-mtp up      # Qwen3.6-35B-A3B MTP (32GB+, np=1)
+#   docker compose --profile qwen36-27b-mtp-speed up  # 27B MTP speed profile
 #   docker compose --profile reasoning up     # Qwen3.5-27B Claude Reasoning Distilled
 #   docker compose --profile gemma up         # Gemma 4 26B MoE
 #
@@ -30,9 +31,12 @@ x-llm-base: &llm-base
     PORT: ${PORT:-8080}
     GPU_LAYERS: ${GPU_LAYERS:-99}
     N_PARALLEL: ${N_PARALLEL:-2}
+    UBATCH_SIZE: ${UBATCH_SIZE:-}
     CACHE_RAM: ${CACHE_RAM:-8192}
     MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-auto}
-    MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-6}
+    MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-3}
+    NO_WARMUP: ${NO_WARMUP:-}
+    MTP_MLOCK: ${MTP_MLOCK:-}
     HF_TOKEN: ${HF_TOKEN:-}
     EXTRA_ARGS: ${EXTRA_ARGS:-}
   deploy:
@@ -59,9 +63,10 @@ services:
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
       N_PARALLEL: ${N_PARALLEL:-2}
+      UBATCH_SIZE: ${UBATCH_SIZE:-}
       CACHE_RAM: ${CACHE_RAM:-2048}
       MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-auto}
-      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-6}
+      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-3}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 
@@ -77,9 +82,12 @@ services:
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
       N_PARALLEL: ${N_PARALLEL:-1}
+      UBATCH_SIZE: ${UBATCH_SIZE:-32}
       CACHE_RAM: ${CACHE_RAM:-2048}
-      MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-auto}
-      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-6}
+      MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-mtp}
+      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-3}
+      NO_WARMUP: ${NO_WARMUP:-1}
+      MTP_MLOCK: ${MTP_MLOCK:-}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 
@@ -125,9 +133,10 @@ services:
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
       N_PARALLEL: ${N_PARALLEL:-2}
+      UBATCH_SIZE: ${UBATCH_SIZE:-}
       CACHE_RAM: ${CACHE_RAM:-8192}
       MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-auto}
-      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-6}
+      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-3}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 
@@ -143,9 +152,35 @@ services:
       PORT: ${PORT:-8080}
       GPU_LAYERS: ${GPU_LAYERS:-99}
       N_PARALLEL: ${N_PARALLEL:-1}
+      UBATCH_SIZE: ${UBATCH_SIZE:-32}
       CACHE_RAM: ${CACHE_RAM:-8192}
-      MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-auto}
-      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-6}
+      MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-mtp}
+      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-3}
+      NO_WARMUP: ${NO_WARMUP:-1}
+      MTP_MLOCK: ${MTP_MLOCK:-}
+      HF_TOKEN: ${HF_TOKEN:-}
+      EXTRA_ARGS: ${EXTRA_ARGS:-}
+
+  qwen36-27b-mtp-speed:
+    <<: *llm-base
+    profiles: [qwen36-27b-mtp-speed]
+    container_name: rotorquant-qwen36-27b-mtp-speed
+    environment:
+      MODEL_NAME: qwen3.6-27b-mtp
+      # Speed profile: the MTP fork's fast path is q4_0/tbq4_0 KV plus
+      # draft-n=3 and ubatch=32. Use the compressed qwen36-27b-mtp profile
+      # when maximum context compression is more important than decode TPS.
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-q4_0}
+      CTX_SIZE: ${CTX_SIZE:-131072}
+      PORT: ${PORT:-8080}
+      GPU_LAYERS: ${GPU_LAYERS:-99}
+      N_PARALLEL: ${N_PARALLEL:-1}
+      UBATCH_SIZE: ${UBATCH_SIZE:-32}
+      CACHE_RAM: ${CACHE_RAM:-8192}
+      MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-mtp}
+      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-3}
+      NO_WARMUP: ${NO_WARMUP:-1}
+      MTP_MLOCK: ${MTP_MLOCK:-}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 

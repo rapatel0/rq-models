@@ -51,7 +51,17 @@ kvCacheType: planar3
 # "auto" supports both upstream llama.cpp's current "draft-mtp" spelling and
 # older RotorQuant+MTP branches that still use "mtp".
 mtpSpecType: auto
-mtpDraftNMax: 6
+mtpDraftNMax: 3
+
+# Physical ubatch size. Empty = entrypoint default; MTP profiles default to 32,
+# matching the MTP fork's documented low-overhead recipe.
+ubatchSize: ""
+
+# MTP startup/perf knobs. noWarmup empty = entrypoint default; MTP defaults to
+# no warmup for repeatable benchmark startup. mlock requires container/runtime
+# memlock privileges, so it is opt-in.
+noWarmup: ""
+mtpMlock: false
 
 # Context size in tokens. Empty = use the per-model default from entrypoint.
 # llama.cpp divides this by nParallel for per-slot context, so for max

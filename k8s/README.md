@@ -51,6 +51,38 @@ kubectl -n llm logs -f deployment/rotorquant
 curl https://qwen.example.com/v1/models
 ```
 
+### 27B MTP speed profile on a 24 GB 4090
+
+For the MTP path, validate accepted drafts and A/B speed before moving traffic.
+The tuned 4090 starting point is one slot, `draft-n=3`, `ubatch=32`, and
+`q4_0` KV. Use `planar3` instead when maximum KV compression matters more than
+decode speed.
+
+```bash
+helm upgrade --install qwen3-27b-mtp ./k8s \
+  --namespace llm \
+  --set image.repository=localhost:32000/rotorquant \
+  --set image.tag=v4-rtx4090-qwen36-mtp \
+  --set replicaCount=1 \
+  --set gpusPerReplica=1 \
+  --set modelName=qwen3.6-27b-mtp \
+  --set kvCacheType=q4_0 \
+  --set contextSize=131072 \
+  --set nParallel=1 \
+  --set mtpSpecType=mtp \
+  --set mtpDraftNMax=3 \
+  --set ubatchSize=32 \
+  --set models.kind=local \
+  --set models.existingClaim=llm-models-local-4090 \
+  --set-string 'nodeSelector.kubernetes\.io/hostname=gpu-02-4090rtx'
+```
+
+Then run the probe through a port-forward or cluster-local debug pod:
+
+```bash
+python scripts/mtp_probe.py --mtp-url http://localhost:8080 --min-acceptance 0.50
+```
+
 ## Topologies
 
 The two knobs `replicaCount` and `gpusPerReplica` cover the practical layouts.
@@ -111,9 +143,12 @@ See [`values.yaml`](values.yaml) for the full set with comments. Key ones:
 | `replicaCount` | Number of pods | `1` |
 | `gpusPerReplica` | GPUs per pod (`nvidia.com/gpu` limit) | `1` |
 | `modelName` | Key from entrypoint MODELS table | `qwen3.6-27b` |
-| `kvCacheType` | RotorQuant KV type (`iso3`, `planar3`, `planar4`, `f16`) | `planar3` |
+| `kvCacheType` | KV type (`iso3`, `planar3`, `q4_0`, `tbq4`, `planar4`, `f16`) | `planar3` |
 | `contextSize` | Override per-model default context (tokens) | `""` |
 | `nParallel` | Concurrent slots per replica | `1` |
+| `ubatchSize` | Physical batch size; MTP tuned default is 32 | `""` |
+| `mtpSpecType` / `mtpDraftNMax` | MTP implementation and draft count | `auto` / `3` |
+| `noWarmup` / `mtpMlock` | MTP startup/perf flags | `""` / `false` |
 | `splitMode` | `layer` / `row` / `none` (multi-GPU only) | `""` |
 | `tensorSplit` | e.g. `"1,1,1,1"` | `""` |
 | `mainGpu` | Primary GPU ordinal | `""` |

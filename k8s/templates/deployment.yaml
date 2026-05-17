@@ -74,8 +74,20 @@ spec:
               value: {{ .Values.gpuLayers | quote }}
             - name: N_PARALLEL
               value: {{ .Values.nParallel | quote }}
+            {{- if .Values.ubatchSize }}
+            - name: UBATCH_SIZE
+              value: {{ .Values.ubatchSize | quote }}
+            {{- end }}
             - name: CACHE_RAM
               value: {{ .Values.cacheRam | quote }}
+            {{- if (toString .Values.noWarmup) }}
+            - name: NO_WARMUP
+              value: {{ .Values.noWarmup | quote }}
+            {{- end }}
+            {{- if .Values.mtpMlock }}
+            - name: MTP_MLOCK
+              value: "1"
+            {{- end }}
             {{- if .Values.splitMode }}
             - name: SPLIT_MODE
               value: {{ .Values.splitMode | quote }}

@@ -32,6 +32,9 @@ make run-qwen
 # Or run the MTP profile for speculative decoding (one slot)
 make run-qwen-mtp
 
+# 27B dense MTP speed profile for 24 GB GPUs
+make run-qwen36-27b-mtp-speed
+
 # 3. Query
 curl http://localhost:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
@@ -48,6 +51,7 @@ curl http://localhost:8080/v1/chat/completions \
 | `docker compose --profile qwen36-iq3 up` | Qwen3.6-35B-A3B | UD-IQ3_XXS (13.2 GB) | 3B active (MoE) | `planar4` |
 | `make run-qwen36-27b` | **Qwen3.6-27B** (dense) | UD-Q4_K_XL (16.4 GB) | 27B dense | `planar3` |
 | `make run-qwen36-27b-mtp` | **Qwen3.6-27B MTP** | UD-Q4_K_XL (MTP) | 27B dense | `planar3` |
+| `make run-qwen36-27b-mtp-speed` | **Qwen3.6-27B MTP speed** | UD-Q4_K_XL (MTP) | 27B dense | `q4_0` |
 | `docker compose --profile qwen36-27b-q3 up` | Qwen3.6-27B | UD-Q3_K_XL (~12 GB) | 27B dense | `planar3` |
 | `docker compose --profile qwen36-27b-iq3 up` | Qwen3.6-27B | UD-IQ3_XXS (~9 GB) | 27B dense | `planar3` |
 | `make run-reasoning` | Qwen3.5-27B Claude Opus Distilled | i1-Q4_K_M (16.6 GB) | 27B dense | `planar3` |
@@ -62,6 +66,7 @@ docker compose --profile qwen36-q3 up     # Qwen3.6-35B-A3B Q3 (24 GB)
 docker compose --profile qwen36-iq3 up    # Qwen3.6-35B-A3B IQ3 (16 GB)
 docker compose --profile qwen36-27b up    # Qwen3.6-27B dense (24 GB+), planar3
 docker compose --profile qwen36-27b-mtp up # Qwen3.6-27B MTP Q4 (24 GB+), planar3
+docker compose --profile qwen36-27b-mtp-speed up # 27B MTP speed path, q4_0 KV
 docker compose --profile qwen36-27b-q3 up # Qwen3.6-27B Q3 (16 GB)
 docker compose --profile reasoning up     # Qwen3.5-27B reasoning-tuned
 docker compose --profile gemma up         # Gemma 4 MoE
@@ -94,17 +99,37 @@ HF_TOKEN=hf_xxx make run-reasoning
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `KV_CACHE_TYPE` | per-profile | KV cache type: `iso3` (MoE default), `planar3` (dense default), `planar4`, `iso4`, `f16` |
+| `KV_CACHE_TYPE` | per-profile | KV cache type: `iso3` (MoE default), `planar3` (dense default), `q4_0` (MTP speed profile), `tbq4`, `planar4`, `iso4`, `f16` |
 | `CTX_SIZE` | per-model | Context window (e.g. 114688 for Q4_K_M on 24 GB) |
 | `PORT` | `8080` | API port |
 | `GPU_LAYERS` | `99` | Layers on GPU (99 = all) |
 | `N_PARALLEL` | `2` | Concurrent request slots (set higher for throughput mode) |
+| `UBATCH_SIZE` | MTP: `32` | Physical batch size. The MTP fork's fast path is sensitive to this. |
 | `CACHE_RAM` | `8192` | Prompt cache size in MiB (system RAM, not VRAM) |
 | `MTP_SPEC_TYPE` | `auto` | MTP spec flag spelling: auto-detects `draft-mtp` vs older `mtp` builds |
-| `MTP_DRAFT_N_MAX` | `6` | Draft tokens per MTP speculative decoding step |
+| `MTP_DRAFT_N_MAX` | `3` | Draft tokens per MTP speculative decoding step |
+| `NO_WARMUP` | MTP: `1` | Pass `--no-warmup` for MTP profiles unless set false |
+| `MTP_MLOCK` | off | Pass `--mlock`; requires memlock privileges in Docker/Kubernetes |
 | `HF_TOKEN` | — | HuggingFace token for gated models |
 
-MTP profiles force `N_PARALLEL=1` by default because current llama.cpp MTP does not support multiple parallel slots. The entrypoint also normalizes RotorQuant cache names across forks: `iso3`/`planar3` become `iso3_0`/`planar3_0` when the compiled binary expects the suffixed names.
+MTP profiles force `N_PARALLEL=1` by default because current llama.cpp MTP does not support multiple parallel slots. The entrypoint also normalizes cache names across forks: `iso3`/`planar3`/`tbq4` become `iso3_0`/`planar3_0`/`tbq4_0` when the compiled binary expects the suffixed names.
+
+### MTP Operational Check
+
+Do not treat an MTP startup banner as proof of a speedup. A working run must generate and accept draft tokens.
+
+```bash
+python scripts/mtp_probe.py --mtp-url http://localhost:8080 --min-acceptance 0.50
+
+# Optional A/B check against a non-MTP control server
+python scripts/mtp_probe.py \
+  --mtp-url http://localhost:8080 \
+  --base-url http://localhost:8081 \
+  --min-acceptance 0.50 \
+  --min-speedup 1.05
+```
+
+Local probe on Apple M1 Max with the cached Unsloth `Qwen3.6-27B-UD-Q4_K_XL.gguf`, the pinned Indras fork, `--spec-type mtp`, `--spec-draft-n-max 3`, and `--ubatch-size 32`: MTP accepted 63/91 draft tokens (69.2%) and ran 13.73 tok/s vs 11.13 tok/s with `--spec-type none` on the same 96-token request.
 
 ## Best Config by GPU
 
@@ -123,13 +148,17 @@ Recommended configurations per VRAM tier, based on measured perplexity
 
 ### 24 GB (RTX 4090, RTX 3090) — Qwen3.6-27B Dense
 
-**Use Qwen3.6-27B** (`--profile qwen36-27b`). 131K context, planar3 KV (4.9x compression).
+**Use Qwen3.6-35B-A3B Q3 for highest 4090 throughput when quality is acceptable.**
+Use `make run-qwen36-27b-mtp-speed` when you specifically want the dense 27B
+MTP path and can trade some KV compression for decode speed.
 
-| Use Case | Quant | Size | KV | Context |
-|----------|-------|-----:|:--:|--------:|
-| **Recommended** | **UD-Q4_K_XL** | **16.4 GB** | **planar3** | **131K** |
-| More context | UD-Q3_K_XL | ~12 GB | planar3 | ~180K |
-| Max context | UD-IQ3_XXS | ~9 GB | planar3 | ~240K |
+| Use Case | Quant | Size | KV | Context | Command |
+|----------|-------|-----:|:--:|--------:|---------|
+| Highest throughput | Qwen3.6-35B-A3B UD-Q3_K_XL | 16.8 GB | iso3 | 98K-131K | `docker compose --profile qwen36-q3 up` |
+| Dense MTP speed | Qwen3.6-27B MTP UD-Q4_K_XL | 16.4 GB | q4_0 | 131K | `make run-qwen36-27b-mtp-speed` |
+| Dense max compression | Qwen3.6-27B MTP UD-Q4_K_XL | 16.4 GB | planar3 | 131K | `make run-qwen36-27b-mtp` |
+| Dense non-MTP | Qwen3.6-27B UD-Q4_K_XL | 16.4 GB | planar3 | 131K | `make run-qwen36-27b` |
+| Dense max context | Qwen3.6-27B UD-IQ3_XXS | ~9 GB | planar3 | ~240K | `docker compose --profile qwen36-27b-iq3 up` |
 
 ### 16 GB (RTX 4060 Ti, RTX 5060, RTX 4080) — Qwen3.5-27B Quants
 

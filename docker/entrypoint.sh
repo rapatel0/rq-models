@@ -11,9 +11,12 @@ set -euo pipefail
 #   PORT           (optional)  Server port (default: 8080)
 #   GPU_LAYERS     (optional)  Layers to offload to GPU (default: 99 = all)
 #   N_PARALLEL     (optional)  Concurrent request slots (default: 2)
+#   UBATCH_SIZE    (optional)  Physical batch size (MTP default: 32)
 #   CACHE_RAM      (optional)  Prompt cache size in MiB, system RAM (default: 8192)
 #   MTP_SPEC_TYPE  (optional)  auto, draft-mtp, or mtp (default: auto)
-#   MTP_DRAFT_N_MAX (optional) MTP draft tokens per step (default: 6)
+#   MTP_DRAFT_N_MAX (optional) MTP draft tokens per step (default: 3)
+#   NO_WARMUP      (optional)  1/true/on to pass --no-warmup (MTP default: 1)
+#   MTP_MLOCK      (optional)  1/true/on to pass --mlock (requires memlock privileges)
 #   HF_TOKEN       (optional)  HuggingFace token for gated models
 #   EXTRA_ARGS     (optional)  Additional llama-server flags
 # ============================================================================
@@ -69,7 +72,7 @@ KV_CACHE="${KV_CACHE_TYPE:-planar4}"
 PORT="${PORT:-8080}"
 NGL="${GPU_LAYERS:-99}"
 MTP_SPEC_TYPE="${MTP_SPEC_TYPE:-auto}"
-MTP_DRAFT_N_MAX="${MTP_DRAFT_N_MAX:-6}"
+MTP_DRAFT_N_MAX="${MTP_DRAFT_N_MAX:-3}"
 LLAMA_HELP_CACHE=""
 
 load_llama_help() {
@@ -84,6 +87,13 @@ help_has_word() {
   grep -qw -- "$word" <<< "$LLAMA_HELP_CACHE"
 }
 
+is_truthy() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 normalize_kv_cache_type() {
   local requested="$1"
   local base suffixed
@@ -94,14 +104,14 @@ normalize_kv_cache_type() {
   fi
 
   case "$requested" in
-    planar3|iso3|planar4|iso4)
+    planar3|iso3|planar4|iso4|tbq3|tbq4)
       suffixed="${requested}_0"
       if help_has_word "$suffixed"; then
         printf '%s' "$suffixed"
         return
       fi
       ;;
-    planar3_0|iso3_0|planar4_0|iso4_0)
+    planar3_0|iso3_0|planar4_0|iso4_0|tbq3_0|tbq4_0)
       base="${requested%_0}"
       if help_has_word "$base"; then
         printf '%s' "$base"
@@ -162,12 +172,16 @@ fi
 
 if $IS_MTP_MODEL; then
   PARALLEL="${N_PARALLEL:-1}"
+  UBATCH="${UBATCH_SIZE:-32}"
+  NO_WARMUP="${NO_WARMUP:-1}"
   if [ "$PARALLEL" != "1" ]; then
     echo "ERROR: MTP profiles currently require N_PARALLEL=1; got N_PARALLEL='$PARALLEL'." >&2
     exit 1
   fi
 else
   PARALLEL="${N_PARALLEL:-2}"
+  UBATCH="${UBATCH_SIZE:-}"
+  NO_WARMUP="${NO_WARMUP:-}"
 fi
 
 # ── Download model if missing ───────────────────────────────────────────────
@@ -216,6 +230,10 @@ CMD=(
   --port "$PORT"
 )
 
+if [ -n "$UBATCH" ]; then
+  CMD+=(--ubatch-size "$UBATCH")
+fi
+
 # Multi-GPU controls (no-ops when only 1 GPU is visible to the container).
 # When the orchestrator (k8s, docker --gpus '"device=…"', etc.) exposes
 # multiple GPUs, set these to control how layers / tensors split:
@@ -239,6 +257,14 @@ if $IS_MTP_MODEL; then
     --spec-type "$MTP_SPEC_TYPE_RESOLVED"
     --spec-draft-n-max "$MTP_DRAFT_N_MAX"
   )
+
+  if is_truthy "$NO_WARMUP"; then
+    CMD+=(--no-warmup)
+  fi
+
+  if is_truthy "${MTP_MLOCK:-}"; then
+    CMD+=(--mlock)
+  fi
 fi
 
 # Add model-specific flags
@@ -270,6 +296,9 @@ if $IS_MTP_MODEL; then
 fi
 echo "║  Context:  $CTX tokens"
 echo "║  Parallel: $PARALLEL slots"
+if [ -n "$UBATCH" ]; then
+  echo "║  UBatch:   $UBATCH tokens"
+fi
 echo "║  Port:     $PORT"
 echo "║  GPU:      $NGL layers offloaded"
 echo "╚══════════════════════════════════════════════════╝"
