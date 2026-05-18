@@ -1,0 +1,118 @@
+{
+  "artifact": "SPRINT-007-MTP-TRACE-SCHEMA",
+  "created": "2026-05-18",
+  "source": "LLAMA_SPEC_TRACE=1 stderr JSONL emitted by patched llama-server",
+  "prefix": "spec_trace:",
+  "events": {
+    "common.speculative.common_draft_begin": [
+      "active_slots",
+      "draft_tokens_requested",
+      "n_parallel"
+    ],
+    "common.speculative.common_draft_impl": [
+      "impl",
+      "active_slots",
+      "draft_tokens_requested",
+      "draft_tokens_generated",
+      "n_parallel",
+      "draft_ms"
+    ],
+    "common.speculative.common_process_impl": [
+      "impl",
+      "draft_batch_n",
+      "n_parallel",
+      "process_ms",
+      "ok"
+    ],
+    "common.speculative.common_accept": [
+      "impl",
+      "slot_id",
+      "draft_tokens_accepted",
+      "n_parallel",
+      "accept_ms"
+    ],
+    "common.speculative.mtp_process": [
+      "active_slots",
+      "draft_batch_n",
+      "prompt_tokens",
+      "n_parallel",
+      "batch_ms",
+      "draft_ms",
+      "copy_ms"
+    ],
+    "common.speculative.mtp_draft_begin": [
+      "active_slots",
+      "draft_batch_n",
+      "draft_tokens_requested",
+      "draft_tokens_generated",
+      "n_parallel"
+    ],
+    "common.speculative.mtp_draft_decode": [
+      "active_slots",
+      "draft_batch_n",
+      "draft_depth",
+      "draft_tokens_requested",
+      "sample_batch_ms",
+      "draft_ms",
+      "n_parallel"
+    ],
+    "common.speculative.mtp_draft_end": [
+      "active_slots",
+      "draft_tokens_requested",
+      "draft_tokens_generated",
+      "n_parallel",
+      "draft_ms"
+    ],
+    "common.speculative.mtp_accept": [
+      "slot_id",
+      "draft_tokens_accepted",
+      "verify_h_rows",
+      "n_parallel",
+      "accept_ms"
+    ],
+    "server.context.server_draft_collect": [
+      "active_slots",
+      "generating_slots",
+      "draft_tokens_requested",
+      "draft_tokens_generated",
+      "n_parallel"
+    ],
+    "server.context.server_draft_done": [
+      "active_slots",
+      "generating_slots",
+      "draft_tokens_generated",
+      "n_parallel",
+      "draft_ms"
+    ],
+    "server.context.server_target_decode": [
+      "active_slots",
+      "draft_batch_n",
+      "verify_ms",
+      "n_parallel",
+      "ret"
+    ],
+    "server.context.server_verify_accept": [
+      "slot_id",
+      "active_slots",
+      "draft_tokens_generated",
+      "draft_tokens_accepted",
+      "verify_ms",
+      "rollback_count",
+      "restore_checkpoint",
+      "prompt_tokens",
+      "predicted_tokens",
+      "n_parallel"
+    ]
+  },
+  "derived_metrics": {
+    "acceptance_rate": "sum(server_verify_accept.draft_tokens_accepted) / sum(server_verify_accept.draft_tokens_generated)",
+    "draft_decode_share": "sum(common.speculative.mtp_draft_decode.draft_ms) / wall_ms",
+    "target_verify_share": "sum(server.context.server_target_decode.verify_ms) / wall_ms",
+    "rollback_rate": "sum(server_verify_accept.rollback_count) / sum(server_verify_accept.draft_tokens_generated)"
+  },
+  "notes": [
+    "Events are disabled unless LLAMA_SPEC_TRACE is set to a non-empty value other than 0, false, or off.",
+    "Peak VRAM is collected outside llama-server with nvidia-smi during homelab runs.",
+    "sample_batch_ms appears only on mtp_draft_decode events with draft_depth >= 0."
+  ]
+}

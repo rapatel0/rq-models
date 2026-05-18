@@ -5,7 +5,7 @@
 > DFlash and EAGLE3 plans, but the artifact names should make the MTP scope
 > explicit.
 
-**Status**: Planned
+**Status**: In Progress
 **Created**: 2026-05-18
 **Depends on**: current `main` at `53ae72f`, upstream llama.cpp `b9196`
 (`7ba22c6a0918b5db16029c2a120bf04a56e78b78`), and the existing RotorQuant
@@ -169,20 +169,20 @@ Phase gate:
 
 Tasks:
 
-- [ ] Inspect fresh upstream `b9196` plus the RotorQuant patch. Name the exact
+- [x] Inspect fresh upstream `b9196` plus the RotorQuant patch. Name the exact
       functions and data structures that must change.
-- [ ] Add gated instrumentation around:
+- [x] Add gated instrumentation around:
       `common_speculative_draft`, MTP draft `llama_decode`, target verify,
       accept/rollback, hidden-state copy, sampler sample/accept, and batch
       construction.
-- [ ] Keep instrumentation behind a fast runtime gate such as
+- [x] Keep instrumentation behind a fast runtime gate such as
       `LLAMA_SPEC_TRACE=1` so normal benchmark timings are not distorted.
-- [ ] Emit a JSON artifact with at least:
+- [x] Emit a JSON artifact with at least:
       `active_slots`, `draft_batch_n`, `draft_tokens_requested`,
       `draft_tokens_generated`, `draft_tokens_accepted`, `draft_ms`,
       `verify_ms`, `accept_ms`, `rollback_count`, `slot_id`,
       `prompt_tokens`, `predicted_tokens`, `n_parallel`, and peak VRAM.
-- [ ] Bound the implementation. If the spike requires touching llama memory
+- [x] Bound the implementation. If the spike requires touching llama memory
       allocator internals, sampler core, or more than roughly 500 lines outside
       `common/speculative.cpp` and `tools/server/server-context.cpp`, stop and
       write a blocked report before attempting a production patch.
@@ -191,6 +191,8 @@ Phase gate:
 
 - A trace report identifies whether the bottleneck is draft decode, target
   verify, accept/rollback, sampler/copy overhead, or acceptance collapse.
+  Phase 1 instrumentation is landed; this gate still requires a homelab trace
+  run on `gpu-02-4090rtx`.
 
 ### Phase 2: Multislot Correctness Harness
 
