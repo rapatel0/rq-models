@@ -86,6 +86,11 @@ Then run the probe through a port-forward or cluster-local debug pod:
 python scripts/mtp_probe.py --mtp-url http://localhost:8080 --min-acceptance 0.50
 ```
 
+Preview MTP multislot is fail-closed. To test `nParallel=2` or `4`, set both
+`preview=true` and `mtpMultislot=true`; optionally set `llamaSpecTrace=true`
+to emit `spec_trace:` JSONL for Sprint 007 diagnostics. Keep the default
+production MTP profile at `nParallel=1`.
+
 ## Topologies
 
 The two knobs `replicaCount` and `gpusPerReplica` cover the practical layouts.
@@ -152,6 +157,8 @@ See [`values.yaml`](values.yaml) for the full set with comments. Key ones:
 | `ubatchSize` | Physical batch size; MTP tuned default is 32 | `""` |
 | `mtpSpecType` / `mtpDraftNMax` / `mtpDraftPMin` | MTP implementation, draft count, and min draft probability | `auto` / `4` / `0.75` |
 | `noWarmup` / `mtpMlock` | MTP startup/perf flags | `""` / `false` |
+| `preview` / `mtpMultislot` | Explicit opt-in required for MTP with `nParallel>1` | `false` / `false` |
+| `llamaSpecTrace` | Emit stderr `spec_trace:` JSONL from patched builds | `false` |
 | `splitMode` | `layer` / `row` / `none` (multi-GPU only) | `""` |
 | `tensorSplit` | e.g. `"1,1,1,1"` | `""` |
 | `mainGpu` | Primary GPU ordinal | `""` |

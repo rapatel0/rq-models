@@ -18,6 +18,8 @@ set -euo pipefail
 #   MTP_DRAFT_P_MIN (optional) MTP minimum draft probability (default: 0.75)
 #   NO_WARMUP      (optional)  1/true/on to pass --no-warmup (MTP default: 1)
 #   MTP_MLOCK      (optional)  1/true/on to pass --mlock (requires memlock privileges)
+#   PREVIEW        (optional)  1/true/on to allow explicitly gated preview paths
+#   MTP_MULTISLOT  (optional)  1/true/on to allow preview MTP with N_PARALLEL>1
 #   HF_TOKEN       (optional)  HuggingFace token for gated models
 #   EXTRA_ARGS     (optional)  Additional llama-server flags
 # ============================================================================
@@ -177,8 +179,14 @@ if $IS_MTP_MODEL; then
   UBATCH="${UBATCH_SIZE:-32}"
   NO_WARMUP="${NO_WARMUP:-1}"
   if [ "$PARALLEL" != "1" ]; then
-    echo "ERROR: MTP profiles currently require N_PARALLEL=1; got N_PARALLEL='$PARALLEL'." >&2
-    exit 1
+    if is_truthy "${PREVIEW:-}" && is_truthy "${MTP_MULTISLOT:-}"; then
+      echo "WARN: preview MTP multislot enabled with N_PARALLEL='$PARALLEL'." >&2
+      echo "WARN: this path is experimental; keep production on N_PARALLEL=1 unless benchmarks pass." >&2
+    else
+      echo "ERROR: MTP profiles currently require N_PARALLEL=1; got N_PARALLEL='$PARALLEL'." >&2
+      echo "Set PREVIEW=1 and MTP_MULTISLOT=1 only for explicit multislot MTP experiments." >&2
+      exit 1
+    fi
   fi
 else
   PARALLEL="${N_PARALLEL:-2}"

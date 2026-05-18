@@ -166,6 +166,12 @@ MTP path and can trade some KV compression for decode speed.
 | Dense non-MTP | Qwen3.6-27B UD-Q4_K_XL | 16.4 GB | planar3 | 131K | `make run-qwen36-27b` |
 | Dense max context | Qwen3.6-27B UD-IQ3_XXS | ~9 GB | planar3 | ~240K | `docker compose --profile qwen36-27b-iq3 up` |
 
+Preview-only MTP multislot profiles are available for diagnostics:
+`make run-qwen36-27b-mtp-multislot2` and
+`make run-qwen36-27b-mtp-multislot4`. They set `PREVIEW=1` and
+`MTP_MULTISLOT=1` explicitly; keep production on the one-slot MTP speed
+profile unless the Sprint 007 gates pass.
+
 ### 16 GB (RTX 4060 Ti, RTX 5060, RTX 4080) — Qwen3.5-27B Quants
 
 Qwen3.5-27B Q4_K_M doesn't fit. Use Unsloth imatrix quants (Qwen3.5-27B):

@@ -38,6 +38,9 @@ x-llm-base: &llm-base
     MTP_DRAFT_P_MIN: ${MTP_DRAFT_P_MIN:-0.75}
     NO_WARMUP: ${NO_WARMUP:-}
     MTP_MLOCK: ${MTP_MLOCK:-}
+    PREVIEW: ${PREVIEW:-}
+    MTP_MULTISLOT: ${MTP_MULTISLOT:-}
+    LLAMA_SPEC_TRACE: ${LLAMA_SPEC_TRACE:-}
     HF_TOKEN: ${HF_TOKEN:-}
     EXTRA_ARGS: ${EXTRA_ARGS:-}
   deploy:
@@ -91,6 +94,9 @@ services:
       MTP_DRAFT_P_MIN: ${MTP_DRAFT_P_MIN:-0.75}
       NO_WARMUP: ${NO_WARMUP:-1}
       MTP_MLOCK: ${MTP_MLOCK:-}
+      PREVIEW: ${PREVIEW:-}
+      MTP_MULTISLOT: ${MTP_MULTISLOT:-}
+      LLAMA_SPEC_TRACE: ${LLAMA_SPEC_TRACE:-}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 
@@ -163,6 +169,9 @@ services:
       MTP_DRAFT_P_MIN: ${MTP_DRAFT_P_MIN:-0.75}
       NO_WARMUP: ${NO_WARMUP:-1}
       MTP_MLOCK: ${MTP_MLOCK:-}
+      PREVIEW: ${PREVIEW:-}
+      MTP_MULTISLOT: ${MTP_MULTISLOT:-}
+      LLAMA_SPEC_TRACE: ${LLAMA_SPEC_TRACE:-}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 
@@ -188,6 +197,57 @@ services:
       MTP_DRAFT_P_MIN: ${MTP_DRAFT_P_MIN:-0.75}
       NO_WARMUP: ${NO_WARMUP:-1}
       MTP_MLOCK: ${MTP_MLOCK:-}
+      PREVIEW: ${PREVIEW:-}
+      MTP_MULTISLOT: ${MTP_MULTISLOT:-}
+      LLAMA_SPEC_TRACE: ${LLAMA_SPEC_TRACE:-}
+      HF_TOKEN: ${HF_TOKEN:-}
+      EXTRA_ARGS: ${EXTRA_ARGS:-}
+
+  qwen36-27b-mtp-multislot2:
+    <<: *llm-base
+    profiles: [qwen36-27b-mtp-multislot2]
+    container_name: rotorquant-qwen36-27b-mtp-ms2
+    environment:
+      MODEL_NAME: qwen3.6-27b-mtp
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-q4_0}
+      CTX_SIZE: ${CTX_SIZE:-131072}
+      PORT: ${PORT:-8080}
+      GPU_LAYERS: ${GPU_LAYERS:-99}
+      N_PARALLEL: ${N_PARALLEL:-2}
+      UBATCH_SIZE: ${UBATCH_SIZE:-32}
+      CACHE_RAM: ${CACHE_RAM:-8192}
+      MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-auto}
+      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-4}
+      MTP_DRAFT_P_MIN: ${MTP_DRAFT_P_MIN:-0.75}
+      NO_WARMUP: ${NO_WARMUP:-1}
+      MTP_MLOCK: ${MTP_MLOCK:-}
+      PREVIEW: ${PREVIEW:-1}
+      MTP_MULTISLOT: ${MTP_MULTISLOT:-1}
+      LLAMA_SPEC_TRACE: ${LLAMA_SPEC_TRACE:-}
+      HF_TOKEN: ${HF_TOKEN:-}
+      EXTRA_ARGS: ${EXTRA_ARGS:-}
+
+  qwen36-27b-mtp-multislot4:
+    <<: *llm-base
+    profiles: [qwen36-27b-mtp-multislot4]
+    container_name: rotorquant-qwen36-27b-mtp-ms4
+    environment:
+      MODEL_NAME: qwen3.6-27b-mtp
+      KV_CACHE_TYPE: ${KV_CACHE_TYPE:-q4_0}
+      CTX_SIZE: ${CTX_SIZE:-131072}
+      PORT: ${PORT:-8080}
+      GPU_LAYERS: ${GPU_LAYERS:-99}
+      N_PARALLEL: ${N_PARALLEL:-4}
+      UBATCH_SIZE: ${UBATCH_SIZE:-32}
+      CACHE_RAM: ${CACHE_RAM:-8192}
+      MTP_SPEC_TYPE: ${MTP_SPEC_TYPE:-auto}
+      MTP_DRAFT_N_MAX: ${MTP_DRAFT_N_MAX:-4}
+      MTP_DRAFT_P_MIN: ${MTP_DRAFT_P_MIN:-0.75}
+      NO_WARMUP: ${NO_WARMUP:-1}
+      MTP_MLOCK: ${MTP_MLOCK:-}
+      PREVIEW: ${PREVIEW:-1}
+      MTP_MULTISLOT: ${MTP_MULTISLOT:-1}
+      LLAMA_SPEC_TRACE: ${LLAMA_SPEC_TRACE:-}
       HF_TOKEN: ${HF_TOKEN:-}
       EXTRA_ARGS: ${EXTRA_ARGS:-}
 

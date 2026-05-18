@@ -64,6 +64,15 @@ ubatchSize: ""
 noWarmup: ""
 mtpMlock: false
 
+# Preview controls. MTP multislot remains off by default; set both preview and
+# mtpMultislot to true to allow an MTP model with nParallel > 1.
+preview: false
+mtpMultislot: false
+
+# Trace-only diagnostic mode. Emits stderr JSONL prefixed with `spec_trace:`
+# from patched llama.cpp builds. Keep false for normal benchmarks.
+llamaSpecTrace: false
+
 # Context size in tokens. Empty = use the per-model default from entrypoint.
 # llama.cpp divides this by nParallel for per-slot context, so for max
 # per-request context set nParallel=1.

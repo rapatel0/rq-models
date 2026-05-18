@@ -266,12 +266,12 @@ Phase gate:
 
 Tasks:
 
-- [ ] Add `MTP_MULTISLOT=1` handling to `docker/entrypoint.sh`.
-- [ ] Keep current MTP guard unless `PREVIEW=1` and `MTP_MULTISLOT=1` are both
+- [x] Add `MTP_MULTISLOT=1` handling to `docker/entrypoint.sh`.
+- [x] Keep current MTP guard unless `PREVIEW=1` and `MTP_MULTISLOT=1` are both
       set.
-- [ ] Add compose and Makefile preview paths for `np=2` and `np=4`.
-- [ ] Add Helm values for preview multislot, defaulting off.
-- [ ] Update `README.md` and `k8s/README.md` with B1 default and preview
+- [x] Add compose and Makefile preview paths for `np=2` and `np=4`.
+- [x] Add Helm values for preview multislot, defaulting off.
+- [x] Update `README.md` and `k8s/README.md` with B1 default and preview
       instructions.
 
 Phase gate:

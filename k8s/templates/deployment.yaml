@@ -92,6 +92,18 @@ spec:
             - name: MTP_MLOCK
               value: "1"
             {{- end }}
+            {{- if .Values.preview }}
+            - name: PREVIEW
+              value: "1"
+            {{- end }}
+            {{- if .Values.mtpMultislot }}
+            - name: MTP_MULTISLOT
+              value: "1"
+            {{- end }}
+            {{- if .Values.llamaSpecTrace }}
+            - name: LLAMA_SPEC_TRACE
+              value: "1"
+            {{- end }}
             {{- if .Values.splitMode }}
             - name: SPLIT_MODE
               value: {{ .Values.splitMode | quote }}
