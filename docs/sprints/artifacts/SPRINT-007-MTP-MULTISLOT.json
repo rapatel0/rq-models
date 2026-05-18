@@ -1,0 +1,72 @@
+{
+  "date": "2026-05-18",
+  "branch": "sprint/007-mtp-multislot",
+  "image": "localhost:32000/rotorquant:v7-4090-qwen36-mtp-idlefix",
+  "fix": {
+    "file": "common/speculative.cpp",
+    "summary": "Skip non-drafting slots before dereferencing common_speculative_draft_params.result during post-draft accounting.",
+    "failure_before_fix": {
+      "config": {
+        "ctx_size": 131072,
+        "n_parallel": 2,
+        "cache_ram": 0,
+        "spec_type": "draft-mtp",
+        "spec_draft_n_max": 4,
+        "spec_draft_p_min": 0.75,
+        "llama_spec_trace": true
+      },
+      "pod_exit_code": 139,
+      "last_trace_event": "mtp_draft_end",
+      "classification": "idle slot null result pointer dereference"
+    }
+  },
+  "b1_probe": {
+    "ctx_size": 196608,
+    "n_parallel": 1,
+    "tokens": 256,
+    "predicted_tps": 72.34871629072653,
+    "draft_n": 330,
+    "draft_n_accepted": 172,
+    "acceptance": 0.5212121212121212,
+    "ok": true
+  },
+  "np2_trace": {
+    "ctx_size": 131072,
+    "n_parallel": 2,
+    "tokens_per_lane": 128,
+    "lanes": 2,
+    "aggregate_tok_s": 63.18627207689253,
+    "pod_restarts": 0,
+    "trace_lines": 687,
+    "malformed_trace_lines": 2,
+    "valid_trace_acceptance": {
+      "draft_tokens_accepted": 192,
+      "draft_tokens_generated": 244,
+      "acceptance": 0.7868852459016393
+    },
+    "active_slot_events": {
+      "server_target_decode_active_slots_2": 31,
+      "common_draft_impl_active_slots_2": 28,
+      "server_draft_done_active_slots_2": 28
+    },
+    "ok": true
+  },
+  "np2_throughput": {
+    "ctx_size": 131072,
+    "n_parallel": 2,
+    "tokens_per_lane": 512,
+    "one_lane_aggregate_tok_s": 80.37810628188785,
+    "two_lane_aggregate_tok_s": 75.70394845718673,
+    "two_lane_per_request_tok_s": [
+      37.852838921961975,
+      38.37565417809427
+    ],
+    "n2_over_n1": 0.9418478732466183,
+    "ok": true
+  },
+  "decision": {
+    "production_profile": "B1",
+    "preview_np2_status": "stable but not throughput-promotable",
+    "reason": "N_PARALLEL=2 no longer crashes, but aggregate throughput is below the single-lane run on the same server."
+  }
+}

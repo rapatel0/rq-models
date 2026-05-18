@@ -191,8 +191,7 @@ Phase gate:
 
 - A trace report identifies whether the bottleneck is draft decode, target
   verify, accept/rollback, sampler/copy overhead, or acceptance collapse.
-  Phase 1 instrumentation is landed; this gate still requires a homelab trace
-  run on `gpu-02-4090rtx`.
+  Completed in `docs/benchmarks/qwen-mtp-multislot-4090-2026-05-18.md`.
 
 ### Phase 2: Multislot Correctness Harness
 
@@ -224,9 +223,9 @@ Phase gate:
 
 Tasks:
 
-- [ ] Modify the fresh upstream patch workspace, not the compressed patch by
+- [x] Modify the fresh upstream patch workspace, not the compressed patch by
       hand.
-- [ ] Ensure the MTP draft context, batch construction, and per-sequence state
+- [x] Ensure the MTP draft context, batch construction, and per-sequence state
       support active slots without collapsing to single-slot execution.
 - [ ] Preserve per-slot hidden-state carryover, sampler state, draft results,
       and rollback bookkeeping keyed by sequence ID, not transient batch row.
@@ -247,14 +246,14 @@ Phase gate:
 
 Tasks:
 
-- [ ] Regenerate `docker/patches/llama-b9196-rotorquant.patch.gz`.
-- [ ] Verify the patch applies cleanly to a fresh upstream `b9196` checkout.
-- [ ] Build `llama-server` locally where possible.
-- [ ] Verify `llama-server --help` still advertises `draft-mtp` and all
+- [x] Regenerate `docker/patches/llama-b9196-rotorquant.patch.gz`.
+- [x] Verify the patch applies cleanly to a fresh upstream `b9196` checkout.
+- [x] Build `llama-server` locally where possible.
+- [x] Verify `llama-server --help` still advertises `draft-mtp` and all
       RotorQuant KV cache types.
-- [ ] Run `bash -n docker/entrypoint.sh`.
-- [ ] Run `python3 -m py_compile scripts/mtp_probe.py`.
-- [ ] Run compose config and Helm template checks for B1 and preview profiles.
+- [x] Run `bash -n docker/entrypoint.sh`.
+- [x] Run `python3 -m py_compile scripts/mtp_probe.py`.
+- [x] Run compose config and Helm template checks for B1 and preview profiles.
 
 Phase gate:
 
@@ -322,11 +321,11 @@ Tasks:
 
 - [ ] If gates pass, document preview multislot MTP as promotion-ready but keep
       B1 as default pending explicit user approval.
-- [ ] If gates fail, document the bottleneck and keep B1 as the only
+- [x] If gates fail, document the bottleneck and keep B1 as the only
       recommended MTP production profile.
 - [ ] Create `SPRINT-007-mtp-FOLLOWUPS.md` only for execution-discovered
       issues, not for generic future ideas already captured in the deferred doc.
-- [ ] Update `docs/benchmarks/` and the README MTP section.
+- [x] Update `docs/benchmarks/` and the README MTP section.
 
 ---
 
@@ -345,7 +344,7 @@ Tasks:
 | `scripts/mtp_probe.py` | Modify | Add concurrent correctness, acceptance, and JSON output |
 | `scripts/bench_n_parallel.py` | Modify | Generate A/B `np=1/2/4` matrices |
 | `docs/benchmarks/qwen-mtp-4090-baseline-2026-05-18.md` | Create | Preserve current matrix |
-| `docs/benchmarks/qwen-mtp-multislot-4090-2026-05-xx.md` | Create | Final benchmark and promotion decision |
+| `docs/benchmarks/qwen-mtp-multislot-4090-2026-05-18.md` | Create | Final benchmark and promotion decision |
 | `docs/sprints/artifacts/SPRINT-007-MTP-MATRIX.json` | Create | Machine-readable baseline |
 | `docs/sprints/artifacts/SPRINT-007-MTP-MULTISLOT.json` | Create | Machine-readable final results |
 
@@ -355,11 +354,11 @@ Tasks:
 
 ### Sprint Completion Gates
 
-- [ ] Baseline matrix is committed before implementation starts.
-- [ ] Instrumentation can identify per-phase MTP costs without affecting normal
+- [x] Baseline matrix is committed before implementation starts.
+- [x] Instrumentation can identify per-phase MTP costs without affecting normal
       runs when disabled.
-- [ ] Patch applies cleanly to fresh upstream `b9196` and builds `llama-server`.
-- [ ] B1 default launch behavior is unchanged.
+- [x] Patch applies cleanly to fresh upstream `b9196` and builds `llama-server`.
+- [x] B1 default launch behavior is unchanged.
 - [ ] `np=1` patched MTP matches target-only greedy output and current B1
       throughput within 5%.
 - [ ] Correctness harness covers `np=1/2/4`, sparse occupancy, uneven prompt
@@ -383,7 +382,7 @@ multi-client traffic:
       baseline, or the report explains environmental drift.
 - [ ] Peak VRAM is recorded for B1/B2/B4 and B4 leaves enough headroom to avoid
       OOM under normal homelab load.
-- [ ] Compose and Helm require explicit preview flags for multislot MTP.
+- [x] Compose and Helm require explicit preview flags for multislot MTP.
 
 ---
 
