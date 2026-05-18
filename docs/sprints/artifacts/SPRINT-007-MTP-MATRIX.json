@@ -1,0 +1,79 @@
+{
+  "sprint": "SPRINT-007-mtp",
+  "created_at": "2026-05-18",
+  "provenance": {
+    "source": "operator transcript from Sprint 007-mtp planning thread",
+    "raw_homelab_commits_reported": [
+      "5a8d51e",
+      "16ec054",
+      "e930e56",
+      "dfcbd8f",
+      "f70afac"
+    ],
+    "raw_commits_present_locally": false,
+    "notes": "Import raw JSON from the homelab agent if those commits become available."
+  },
+  "hardware": {
+    "node": "gpu-02-4090rtx",
+    "gpu": "RTX 4090",
+    "vram_total_gib_reported": 23.0
+  },
+  "model": {
+    "name": "qwen3.6-27b-mtp",
+    "weights": "Qwen3.6-27B-UD-Q4_K_XL.gguf",
+    "architecture": "dense 27B",
+    "kv_cache": "q4_0"
+  },
+  "production_baseline": {
+    "label": "B1",
+    "ctx_size": 196608,
+    "n_parallel": 1,
+    "cache_type_k": "q4_0",
+    "cache_type_v": "q4_0",
+    "ubatch_size": 32,
+    "cache_ram_mib": 8192,
+    "flash_attn": true,
+    "spec_type": "draft-mtp",
+    "spec_draft_n_max": 4,
+    "spec_draft_p_min": 0.75,
+    "no_warmup": true,
+    "vram_used_gib_reported": 21.4,
+    "vram_free_gib_reported": 1.2,
+    "acceptance_probe": 0.547,
+    "decode_probe_tps": {
+      "short": 71.4,
+      "medium": 78.1,
+      "long": 70.1
+    }
+  },
+  "matrix": {
+    "A_mtp_off": {
+      "description": "MTP disabled target batching control",
+      "aggregate_tps": {
+        "1": 39.7,
+        "2": 71.5,
+        "4": 124.5
+      },
+      "scaling_np1_to_np4": 3.14
+    },
+    "B_mtp_on": {
+      "description": "draft-mtp enabled",
+      "aggregate_tps": {
+        "1": 68.1,
+        "2": 73.1,
+        "4": 77.2
+      },
+      "scaling_np1_to_np4": 1.13
+    }
+  },
+  "promotion_targets": {
+    "b4_min_tps_vs_b1_1_4x": 95.3,
+    "b4_min_tps_vs_a4_0_70x": 87.2
+  },
+  "interpretation": [
+    "MTP-off dense 27B Q4 scales from 39.7 to 124.5 aggregate tok/s at np=4.",
+    "MTP-on barely scales from 68.1 to 77.2 aggregate tok/s at np=4.",
+    "The bottleneck is MTP plus multi-slot speculative scheduling, not dense 27B batching in general.",
+    "Production remains B1 until Sprint 007-mtp proves correctness and throughput gates."
+  ]
+}

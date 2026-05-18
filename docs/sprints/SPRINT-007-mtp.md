@@ -150,13 +150,13 @@ speculative decoding contract.
 
 Tasks:
 
-- [ ] Check whether the reported homelab commits are available upstream. If so,
+- [x] Check whether the reported homelab commits are available upstream. If so,
       pull or cherry-pick the benchmark artifact commit.
-- [ ] If the commits are not available, encode the reported matrix from the
+- [x] If the commits are not available, encode the reported matrix from the
       operator notes and clearly label provenance.
-- [ ] Create `docs/benchmarks/qwen-mtp-4090-baseline-2026-05-18.md`.
-- [ ] Create `docs/sprints/artifacts/SPRINT-007-MTP-MATRIX.json`.
-- [ ] Record the exact production B1 config, VRAM, acceptance, and
+- [x] Create `docs/benchmarks/qwen-mtp-4090-baseline-2026-05-18.md`.
+- [x] Create `docs/sprints/artifacts/SPRINT-007-MTP-MATRIX.json`.
+- [x] Record the exact production B1 config, VRAM, acceptance, and
       `A1/A2/A4` vs `B1/B2/B4` numbers.
 
 Phase gate:
