@@ -16,7 +16,7 @@
 This roadmap captures the next 6–9 months of speculative-decoding +
 RotorQuant work after Sprint 004-dflash. Sprints 005-dflash and
 006-dflash are concretely planned in their own docs; Sprints
-007-dflash–010-dflash are sketched here at "what / why / when" level.
+007-mtp and 008-dflash-010-dflash are sketched here at "what / why / when" level.
 Re-plan in detail as each sprint approaches.
 
 The throughline: **Sprint 004 shipped DFlash; the next sprints publish
@@ -53,54 +53,53 @@ fork-side rewrite. Closes F-008.
 
 ---
 
-## Sprint 007 — Multi-slot Batched-Draft Inference
+## Sprint 007 — True Multislot MTP Draft Inference
 
-**Status**: sketched
+**Status**: planned · see `SPRINT-007-mtp.md`
 
-**What**: Eliminate the per-slot draft serialization
-(`tools/server/server-context.cpp:339, TAG_SERVER_SPEC_REWORK`). Each
-server slot currently has its own `common_speculative` context but all
-slots funnel into one shared draft `llama_context` with
-`params_dft.n_parallel = 1`. Multi-user throughput scales sub-linearly
-because draft inference becomes a serialization point. Sprint 007 batches
-all slots' draft inferences into one draft pass.
+**What**: Diagnose and, if bounded, fix the upstream llama.cpp
+`draft-mtp` multi-slot bottleneck for Qwen3.6-27B MTP on the homelab
+RTX 4090. Production B1 stays default while an explicit preview path
+tests `N_PARALLEL=2/4`.
 
-**Why**: Multi-user serving on the MoE 35B + DFlash combo currently
-loses much of DFlash's per-user speedup at >2 concurrent users. F-010
-characterized the cost in Sprint 005 Phase 2; this sprint addresses it.
+**Why**: The current 4090 matrix shows MTP-off dense 27B scales well
+(`39.7 -> 124.5 t/s` aggregate from `np=1 -> 4`), but MTP-on barely
+scales (`68.1 -> 77.2 t/s`). The bottleneck is MTP plus multi-slot
+speculative scheduling, not dense 27B batching in general.
 
-**When**: After Sprint 005 quantifies the sub-linearity. If Sprint 005
-shows ≤30% sub-linear at N=4, deprioritize. If ≥50% sub-linear,
-escalate.
+**When**: Now. The MTP matrix is sufficient to escalate this from
+sketch to planned sprint.
 
 **How**:
-1. Decide between forking-picking upstream PR #18961 (which is in flight)
-   vs implementing against our cherry-picked tree. Upstream rebase debt
-   is the deciding factor — if #18961 is stable, fork-pick; else
-   reimplement.
-2. Convert the per-slot draft loop into a batched draft pass: all
-   active slots' current `(prefix, last_sampled)` pairs assembled into a
-   single batch, draft generates `N_max` tokens per slot in one forward
-   pass.
-3. Per-slot verify path stays as-is (it's already independent).
-4. Test: greedy match at N_PARALLEL=1 vs N_PARALLEL=4; per-slot decode
-   tok/s ≥0.85× single-slot at N=4.
+1. Preserve the current A/B matrix in benchmark artifacts before code
+   changes.
+2. Add gated instrumentation around MTP draft, target verify, and
+   accept/rollback phases.
+3. Spike the actual `draft-mtp` bottleneck before refactoring, because
+   upstream already tracks some per-sequence state.
+4. Patch the bounded bottleneck behind `PREVIEW=1` and `MTP_MULTISLOT=1`.
+5. Test target-only greedy equivalence at `N_PARALLEL=1/2/4`; require
+   `B4 >= 1.4 * B1` and `B4 >= 0.70 * A4` before preview promotion.
 
 **Key risks**:
-- Upstream PR #18961 rebases mid-sprint (Sprint 004 R11 reprise).
-- Draft KV-cache layout assumes single-slot today; batched draft may
-  require draft KV refactor.
-- Verify-path slot identification needs to track batch indices through
-  the verify graph.
+- The current upstream MTP code already appears partially batched, so
+  the real bottleneck may sit deeper than the obvious loop.
+- Cross-slot hidden-state, sampler, or rollback corruption can produce
+  plausible but wrong text.
+- 24 GB VRAM headroom is tight at production context.
+- Instrumentation can perturb timings if not gated carefully.
 
 **Hard gates**:
-- N_PARALLEL=1 baseline byte-equal vs Sprint 005's results.
-- Per-slot tok/s ≥ 0.85× single-slot at N=4.
-- Per-slot acceptance rate within ±2pp of single-slot.
-- 4-slot greedy match: 256/256 tokens per slot vs single-slot reference.
+- B1 production behavior stays unchanged by default.
+- Target-only greedy match: 256/256 generated tokens per slot at
+  `N_PARALLEL=1/2/4`.
+- Per-slot MTP acceptance at `N_PARALLEL=2/4` remains within +/- 5pp
+  of B1.
+- Preview promotion requires `B4 >= 1.4 * B1` and `B4 >= 0.70 * A4`.
 
-**Estimated effort**: 2–3 weeks. Higher variance — if upstream PR
-lands cleanly we fork-pick (1 week); if we reimplement (3 weeks).
+**Estimated effort**: 2-3 weeks. Higher variance: the sprint can end
+with instrumentation plus a blocked implementation report if the
+upstream MTP scheduling change exceeds the spike bounds.
 
 ---
 
